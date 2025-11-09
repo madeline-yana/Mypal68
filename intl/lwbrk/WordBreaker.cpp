@@ -2,27 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/intl/UnicodeProperties.h"
 #include "mozilla/intl/WordBreaker.h"
 #include "mozilla/StaticPrefs_layout.h"
+#include "nsComplexBreaker.h"
+#include "nsTArray.h"
 
-using mozilla::intl::WordBreakClass;
+using mozilla::intl::Script;
+using mozilla::intl::UnicodeProperties;
 using mozilla::intl::WordBreaker;
 using mozilla::intl::WordRange;
-
-/*static*/
-already_AddRefed<WordBreaker> WordBreaker::Create() {
-  return RefPtr<WordBreaker>(new WordBreaker()).forget();
-}
-
-bool WordBreaker::BreakInBetween(const char16_t* aText1, uint32_t aTextLen1,
-                                 const char16_t* aText2, uint32_t aTextLen2) {
-  MOZ_ASSERT(nullptr != aText1, "null ptr");
-  MOZ_ASSERT(nullptr != aText2, "null ptr");
-
-  if (!aText1 || !aText2 || (0 == aTextLen1) || (0 == aTextLen2)) return false;
-
-  return GetClass(aText1[aTextLen1 - 1]) != GetClass(aText2[0]);
-}
+using mozilla::unicode::GetGenCategory;
 
 #define IS_ASCII(c) (0 == (0xFF80 & (c)))
 #define ASCII_IS_ALPHA(c) \
@@ -39,62 +29,82 @@ bool WordBreaker::BreakInBetween(const char16_t* aText1, uint32_t aTextLen1,
 #define IS_KATAKANA(c) ((0x30A0 <= (c)) && ((c) <= 0x30FF))
 #define IS_HIRAGANA(c) ((0x3040 <= (c)) && ((c) <= 0x309F))
 #define IS_HALFWIDTHKATAKANA(c) ((0xFF60 <= (c)) && ((c) <= 0xFF9F))
-#define IS_THAI(c) (0x0E00 == (0xFF80 & (c)))  // Look at the higest 9 bits
+
+// Return true if aChar belongs to a SEAsian script that is written without
+// word spaces, so we need to use the "complex breaker" to find possible word
+// boundaries. (https://en.wikipedia.org/wiki/Scriptio_continua)
+// (How well this works depends on the level of platform support for finding
+// possible line breaks - or possible word boundaries - in the particular
+// script. Thai, at least, works pretty well on the major desktop OSes. If
+// the script is not supported by the platform, we just won't find any useful
+// boundaries.)
+static bool IsScriptioContinua(char16_t aChar) {
+  Script sc = UnicodeProperties::GetScriptCode(aChar);
+  return sc == Script::THAI || sc == Script::MYANMAR || sc == Script::KHMER ||
+         sc == Script::JAVANESE || sc == Script::BALINESE ||
+         sc == Script::SUNDANESE || sc == Script::LAO;
+}
 
 /* static */
-WordBreakClass WordBreaker::GetClass(char16_t c) {
+WordBreaker::WordBreakClass WordBreaker::GetClass(char16_t c) {
   // begin of the hack
 
   if (IS_ALPHABETICAL_SCRIPT(c)) {
     if (IS_ASCII(c)) {
       if (ASCII_IS_SPACE(c)) {
         return kWbClassSpace;
-      } else if (ASCII_IS_ALPHA(c) || ASCII_IS_DIGIT(c) ||
-                 (c == '_' && !StaticPrefs::layout_word_select_stop_at_underscore())) {
-        return kWbClassAlphaLetter;
-      } else {
-        return kWbClassPunct;
       }
-    } else if (IS_THAI(c)) {
-      return kWbClassThaiLetter;
-    } else if (c == 0x00A0 /*NBSP*/) {
+      if (ASCII_IS_ALPHA(c) || ASCII_IS_DIGIT(c) ||
+          (c == '_' && !StaticPrefs::layout_word_select_stop_at_underscore())) {
+        return kWbClassAlphaLetter;
+      }
+      return kWbClassPunct;
+    }
+    if (c == 0x00A0 /*NBSP*/) {
       return kWbClassSpace;
-    } else {
-      return kWbClassAlphaLetter;
     }
-  } else {
-    if (IS_HAN(c)) {
-      return kWbClassHanLetter;
-    } else if (IS_KATAKANA(c)) {
-      return kWbClassKatakanaLetter;
-    } else if (IS_HIRAGANA(c)) {
-      return kWbClassHiraganaLetter;
-    } else if (IS_HALFWIDTHKATAKANA(c)) {
-      return kWbClassHWKatakanaLetter;
-    } else {
-      return kWbClassAlphaLetter;
+    if (GetGenCategory(c) == nsUGenCategory::kPunctuation) {
+      return kWbClassPunct;
     }
+    if (IsScriptioContinua(c)) {
+      return kWbClassScriptioContinua;
+    }
+    return kWbClassAlphaLetter;
   }
-  return static_cast<WordBreakClass>(0);
+  if (IS_HAN(c)) {
+    return kWbClassHanLetter;
+  }
+  if (IS_KATAKANA(c)) {
+    return kWbClassKatakanaLetter;
+  }
+  if (IS_HIRAGANA(c)) {
+    return kWbClassHiraganaLetter;
+  }
+  if (IS_HALFWIDTHKATAKANA(c)) {
+    return kWbClassHWKatakanaLetter;
+  }
+  if (GetGenCategory(c) == nsUGenCategory::kPunctuation) {
+    return kWbClassPunct;
+  }
+  if (IsScriptioContinua(c)) {
+    return kWbClassScriptioContinua;
+  }
+  return kWbClassAlphaLetter;
 }
 
-WordRange WordBreaker::FindWord(const char16_t* aText, uint32_t aTextLen,
-                                uint32_t aOffset) {
-  WordRange range;
-  MOZ_ASSERT(nullptr != aText, "null ptr");
-  MOZ_ASSERT(0 != aTextLen, "len = 0");
-  MOZ_ASSERT(aOffset <= aTextLen, "aOffset > aTextLen");
+WordRange WordBreaker::FindWord(const char16_t* aText, uint32_t aLen,
+                                uint32_t aPos) {
+  MOZ_ASSERT(aText);
 
-  range.mBegin = aTextLen + 1;
-  range.mEnd = aTextLen + 1;
+  if (aPos >= aLen) {
+    return {aLen, aLen};
+  }
 
-  if (!aText || aOffset > aTextLen) return range;
+  WordBreakClass c = GetClass(aText[aPos]);
+  WordRange range{0, aLen};
 
-  WordBreakClass c = GetClass(aText[aOffset]);
-  uint32_t i;
   // Scan forward
-  range.mEnd--;
-  for (i = aOffset + 1; i <= aTextLen; i++) {
+  for (uint32_t i = aPos + 1; i <= aLen; i++) {
     if (c != GetClass(aText[i])) {
       range.mEnd = i;
       break;
@@ -102,37 +112,72 @@ WordRange WordBreaker::FindWord(const char16_t* aText, uint32_t aTextLen,
   }
 
   // Scan backward
-  range.mBegin = 0;
-  for (i = aOffset; i > 0; i--) {
+  for (uint32_t i = aPos; i > 0; i--) {
     if (c != GetClass(aText[i - 1])) {
       range.mBegin = i;
       break;
     }
   }
-  if (kWbClassThaiLetter == c) {
-    // need to call Thai word breaker from here
-    // we should pass the whole Thai segment to the thai word breaker to find a
+
+  if (kWbClassScriptioContinua == c) {
+    // we pass the whole text segment to the complex word breaker to find a
     // shorter answer
+    AutoTArray<uint8_t, 256> breakBefore;
+    breakBefore.SetLength(range.mEnd - range.mBegin);
+    NS_GetComplexLineBreaks(aText + range.mBegin, range.mEnd - range.mBegin,
+                            breakBefore.Elements());
+
+    // Scan forward
+    for (uint32_t i = aPos + 1; i < range.mEnd; i++) {
+      if (breakBefore[i - range.mBegin]) {
+        range.mEnd = i;
+        break;
+      }
+    }
+
+    // Scan backward
+    for (uint32_t i = aPos; i > range.mBegin; i--) {
+      if (breakBefore[i - range.mBegin]) {
+        range.mBegin = i;
+        break;
+      }
+    }
   }
   return range;
 }
 
-int32_t WordBreaker::NextWord(const char16_t* aText, uint32_t aLen,
-                              uint32_t aPos) {
-  WordBreakClass c1, c2;
-  uint32_t cur = aPos;
-  if (cur == aLen) return NS_WORDBREAKER_NEED_MORE_TEXT;
-  c1 = GetClass(aText[cur]);
+int32_t WordBreaker::Next(const char16_t* aText, uint32_t aLen, uint32_t aPos) {
+  MOZ_ASSERT(aText);
 
-  for (cur++; cur < aLen; cur++) {
-    c2 = GetClass(aText[cur]);
-    if (c2 != c1) break;
+  if (aPos >= aLen) {
+    return NS_WORDBREAKER_NEED_MORE_TEXT;
   }
-  if (kWbClassThaiLetter == c1) {
-    // need to call Thai word breaker from here
-    // we should pass the whole Thai segment to the thai word breaker to find a
-    // shorter answer
+
+  const WordBreakClass posClass = GetClass(aText[aPos]);
+  uint32_t nextBreakPos;
+  for (nextBreakPos = aPos + 1; nextBreakPos < aLen; ++nextBreakPos) {
+    if (posClass != GetClass(aText[nextBreakPos])) {
+      break;
+    }
   }
-  if (cur == aLen) return NS_WORDBREAKER_NEED_MORE_TEXT;
-  return cur;
+
+  if (kWbClassScriptioContinua == posClass) {
+    // We pass the whole text segment to the complex word breaker to find a
+    // shorter answer.
+    const char16_t* segStart = aText + aPos;
+    const uint32_t segLen = nextBreakPos - aPos + 1;
+    AutoTArray<uint8_t, 256> breakBefore;
+    breakBefore.SetLength(segLen);
+    NS_GetComplexLineBreaks(segStart, segLen, breakBefore.Elements());
+
+    for (uint32_t i = aPos + 1; i < nextBreakPos; ++i) {
+      if (breakBefore[i - aPos]) {
+        nextBreakPos = i;
+        break;
+      }
+    }
+  }
+
+  MOZ_ASSERT(nextBreakPos != aPos);
+  return nextBreakPos;
 }

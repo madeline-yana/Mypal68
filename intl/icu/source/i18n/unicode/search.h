@@ -59,7 +59,7 @@ U_NAMESPACE_BEGIN
  * <p>
  * <tt>SearchIterator</tt> provides an API that is similar to that of
  * other text iteration classes such as <tt>BreakIterator</tt>. Using 
- * this class, it is easy to scan through text looking for all occurances of 
+ * this class, it is easy to scan through text looking for all occurrences of
  * a given pattern. The following example uses a <tt>StringSearch</tt> 
  * object to find all instances of "fox" in the target string. Any other 
  * subclass of <tt>SearchIterator</tt> can be used in an identical 
@@ -265,27 +265,27 @@ public:
     // operator overloading ----------------------------------------------
 
     /**
-     * Equality operator. 
+     * Equality operator.
      * @param that SearchIterator instance to be compared.
      * @return true if both BreakIterators are of the same class, have the
      *         same behavior, terates over the same text and have the same
      *         attributes. false otherwise.
      * @stable ICU 2.0
      */
-    virtual UBool operator==(const SearchIterator &that) const;
+    virtual bool operator==(const SearchIterator &that) const;
 
     /**
-     * Not-equal operator. 
+     * Not-equal operator.
      * @param that SearchIterator instance to be compared.
      * @return false if operator== returns true, and vice versa.
      * @stable ICU 2.0
      */
-    UBool operator!=(const SearchIterator &that) const;
+    bool operator!=(const SearchIterator &that) const;
 
     // public methods ----------------------------------------------------
 
     /**
-     * Returns a copy of SearchIterator with the same behavior, and 
+     * Returns a copy of SearchIterator with the same behavior, and
      * iterating over the same text, as this one. Note that all data will be
      * replicated, except for the text string to be searched.
      * @return cloned object
@@ -566,7 +566,7 @@ protected:
     void setMatchNotFound();
 };
 
-inline UBool SearchIterator::operator!=(const SearchIterator &that) const
+inline bool SearchIterator::operator!=(const SearchIterator &that) const
 {
    return !operator==(that); 
 }

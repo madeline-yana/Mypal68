@@ -213,6 +213,14 @@ bool OSPreferences::ReadDateTimePattern(DateTimeFormatStyle aDateStyle,
     }
   }
 
+  wchar_t buf[50];
+  MultiByteToWideChar(CP_ACP, 0, aRetVal.BeginReading(), aRetVal.Length(), buf,
+                      50);
+  buf[aRetVal.Length()] = 0;
+  buf[aRetVal.Length() + 1] = 0;
+  aRetVal.Truncate();
+  aRetVal = NS_ConvertUTF16toUTF8(buf);
+
   return true;
 }
 

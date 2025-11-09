@@ -37,7 +37,7 @@ U_NAMESPACE_BEGIN
  * StringSearch ensures that language eccentricity can be
  * handled, e.g. for the German collator, characters &szlig; and SS will be matched
  * if case is chosen to be ignored.
- * See the <a href="http://source.icu-project.org/repos/icu/icuhtml/trunk/design/collation/ICU_collation_design.htm">
+ * See the <a href="https://htmlpreview.github.io/?https://github.com/unicode-org/icu-docs/blob/main/design/collation/ICU_collation_design.htm">
  * "ICU Collation Design Document"</a> for more information.
  * <p>
  * There are 2 match options for selection:<br>
@@ -290,31 +290,31 @@ public:
     StringSearch & operator=(const StringSearch &that);
 
     /**
-     * Equality operator. 
+     * Equality operator.
      * @param that instance to be compared.
      * @return true if both instances have the same attributes,
-     *         breakiterators, collators and iterate over the same text 
+     *         breakiterators, collators and iterate over the same text
      *         while looking for the same pattern.
      * @stable ICU 2.0
      */
-    virtual UBool operator==(const SearchIterator &that) const;
+    virtual bool operator==(const SearchIterator &that) const override;
 
     // public get and set methods ----------------------------------------
 
     /**
-     * Sets the index to point to the given position, and clears any state 
+     * Sets the index to point to the given position, and clears any state
      * that's affected.
      * <p>
-     * This method takes the argument index and sets the position in the text 
-     * string accordingly without checking if the index is pointing to a 
-     * valid starting point to begin searching. 
+     * This method takes the argument index and sets the position in the text
+     * string accordingly without checking if the index is pointing to a
+     * valid starting point to begin searching.
      * @param position within the text to be set. If position is less
-     *          than or greater than the text range for searching, 
+     *          than or greater than the text range for searching,
      *          an U_INDEX_OUTOFBOUNDS_ERROR will be returned
      * @param status for errors if it occurs
      * @stable ICU 2.0
      */
-    virtual void setOffset(int32_t position, UErrorCode &status);
+    virtual void setOffset(int32_t position, UErrorCode &status) override;
 
     /**
      * Return the current index in the text being searched.
@@ -324,42 +324,42 @@ public:
      * @return current index in the text being searched.
      * @stable ICU 2.0
      */
-    virtual int32_t getOffset(void) const;
+    virtual int32_t getOffset(void) const override;
 
     /**
      * Set the target text to be searched.
-     * Text iteration will hence begin at the start of the text string. 
-     * This method is 
-     * useful if you want to re-use an iterator to search for the same 
+     * Text iteration will hence begin at the start of the text string.
+     * This method is
+     * useful if you want to re-use an iterator to search for the same
      * pattern within a different body of text.
      * @param text text string to be searched
-     * @param status for errors if any. If the text length is 0 then an 
+     * @param status for errors if any. If the text length is 0 then an
      *        U_ILLEGAL_ARGUMENT_ERROR is returned.
      * @stable ICU 2.0
      */
-    virtual void setText(const UnicodeString &text, UErrorCode &status);
-    
+    virtual void setText(const UnicodeString &text, UErrorCode &status) override;
+
     /**
      * Set the target text to be searched.
-     * Text iteration will hence begin at the start of the text string. 
-     * This method is 
-     * useful if you want to re-use an iterator to search for the same 
+     * Text iteration will hence begin at the start of the text string.
+     * This method is
+     * useful if you want to re-use an iterator to search for the same
      * pattern within a different body of text.
-     * Note: No parsing of the text within the <tt>CharacterIterator</tt> 
-     * will be done during searching for this version. The block of text 
+     * Note: No parsing of the text within the <tt>CharacterIterator</tt>
+     * will be done during searching for this version. The block of text
      * in <tt>CharacterIterator</tt> will be used as it is.
      * @param text text string to be searched
-     * @param status for errors if any. If the text length is 0 then an 
+     * @param status for errors if any. If the text length is 0 then an
      *        U_ILLEGAL_ARGUMENT_ERROR is returned.
      * @stable ICU 2.0
      */
-    virtual void setText(CharacterIterator &text, UErrorCode &status);
+    virtual void setText(CharacterIterator &text, UErrorCode &status) override;
 
     /**
      * Gets the collator used for the language rules.
      * <p>
      * Caller may modify but <b>must not</b> delete the <tt>RuleBasedCollator</tt>!
-     * Modifications to this collator will affect the original collator passed in to 
+     * Modifications to this collator will affect the original collator passed in to
      * the <tt>StringSearch></tt> constructor or to setCollator, if any.
      * @return collator used for string search
      * @stable ICU 2.0
@@ -403,7 +403,7 @@ public:
      * search will begin at the end of the text string.
      * @stable ICU 2.0
      */
-    virtual void reset();
+    virtual void reset() override;
 
     /**
      * Returns a copy of StringSearch with the same behavior, and 
@@ -413,14 +413,14 @@ public:
      * @return cloned object
      * @stable ICU 2.0
      */
-    virtual StringSearch * safeClone() const;
+    virtual StringSearch * safeClone() const override;
     
     /**
      * ICU "poor man's RTTI", returns a UClassID for the actual class.
      *
      * @stable ICU 2.2
      */
-    virtual UClassID getDynamicClassID() const;
+    virtual UClassID getDynamicClassID() const override;
 
     /**
      * ICU "poor man's RTTI", returns a UClassID for this class.
@@ -455,7 +455,7 @@ protected:
      *         USEARCH_DONE if no match was found.
      * @stable ICU 2.0
      */
-    virtual int32_t handleNext(int32_t position, UErrorCode &status);
+    virtual int32_t handleNext(int32_t position, UErrorCode &status) override;
 
     /**
      * Search backward for matching text, starting at a given location.
@@ -479,7 +479,7 @@ protected:
      *         USEARCH_DONE if no match was found.
      * @stable ICU 2.0
      */
-    virtual int32_t handlePrev(int32_t position, UErrorCode &status);
+    virtual int32_t handlePrev(int32_t position, UErrorCode &status) override;
     
 private :
     StringSearch(); // default constructor not implemented

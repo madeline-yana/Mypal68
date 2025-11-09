@@ -392,11 +392,11 @@ typedef void* UMessageFormat;
  * @param pattern       A pattern specifying the format to use.
  * @param patternLength Length of the pattern to use
  * @param locale        The locale for which the messages are formatted.
- * @param parseError    A pointer to UParseError struct to receive any errors 
- *                      occured during parsing. Can be NULL.
+ * @param parseError    A pointer to UParseError struct to receive any errors
+ *                      occurred during parsing. Can be NULL.
  * @param status        A pointer to an UErrorCode to receive any errors.
- * @return              A pointer to a UMessageFormat to use for formatting 
- *                      messages, or 0 if an error occurred. 
+ * @return              A pointer to a UMessageFormat to use for formatting
+ *                      messages, or 0 if an error occurred.
  * @stable ICU 2.0
  */
 U_CAPI UMessageFormat* U_EXPORT2

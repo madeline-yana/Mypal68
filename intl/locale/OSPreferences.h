@@ -6,7 +6,7 @@
 #define mozilla_intl_IntlOSPreferences_h__
 
 #include "mozilla/StaticPtr.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsString.h"
 #include "nsTArray.h"
 
@@ -41,7 +41,7 @@ namespace intl {
  */
 class OSPreferences : public mozIOSPreferences {
  public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZIOSPREFERENCES
 
   enum class DateTimeFormatStyle {
@@ -104,7 +104,7 @@ class OSPreferences : public mozIOSPreferences {
   nsTArray<nsCString> mRegionalPrefsLocales;
 
   const size_t kMaxCachedPatterns = 15;
-  nsDataHashtable<nsCStringHashKey, nsCString> mPatternCache;
+  nsTHashMap<nsCStringHashKey, nsCString> mPatternCache;
 
  private:
   virtual ~OSPreferences();
@@ -158,6 +158,12 @@ class OSPreferences : public mozIOSPreferences {
   bool ReadDateTimePattern(DateTimeFormatStyle aDateFormatStyle,
                            DateTimeFormatStyle aTimeFormatStyle,
                            const nsACString& aLocale, nsACString& aRetVal);
+
+  /**
+   * This is called to override the hour cycle in the skeleton based upon
+   * the OS preference for AM/PM or 24 hour display.
+   */
+  void OverrideSkeletonHourCycle(bool aIs24Hour, nsAutoCString& aSkeleton);
 
   /**
    * This is called by the destructor to clean up any OS specific observers

@@ -139,7 +139,7 @@ already_AddRefed<nsHyphenator> nsHyphenationManager::GetHyphenator(
   hyphCapPref.Append(nsAtomCString(aLocale));
   hyph = new nsHyphenator(uri, Preferences::GetBool(hyphCapPref.get()));
   if (hyph->IsValid()) {
-    mHyphenators.Put(aLocale, RefPtr{hyph});
+    mHyphenators.InsertOrUpdate(aLocale, RefPtr{hyph});
     return hyph.forget();
   }
 #ifdef DEBUG
@@ -245,7 +245,7 @@ void nsHyphenationManager::LoadPatternListFromOmnijar(Omnijar::Type aType) {
       continue;
     }
     RefPtr<nsAtom> localeAtom = LocaleAtomFromPath(locale);
-    mPatternFiles.Put(localeAtom, uri);
+    mPatternFiles.InsertOrUpdate(localeAtom, uri);
   }
 
   delete find;
@@ -287,7 +287,7 @@ void nsHyphenationManager::LoadPatternListFromDir(nsIFile* aDir) {
       printf("adding hyphenation patterns for %s: %s\n",
              nsAtomCString(localeAtom).get(), path.get());
 #endif
-      mPatternFiles.Put(localeAtom, uri);
+      mPatternFiles.InsertOrUpdate(localeAtom, uri);
     }
   }
 }
@@ -311,7 +311,7 @@ void nsHyphenationManager::LoadAliases() {
         ToLowerCase(value);
         RefPtr<nsAtom> aliasAtom = NS_Atomize(alias);
         RefPtr<nsAtom> valueAtom = NS_Atomize(value);
-        mHyphAliases.Put(aliasAtom, std::move(valueAtom));
+        mHyphAliases.InsertOrUpdate(aliasAtom, std::move(valueAtom));
       }
     }
   }

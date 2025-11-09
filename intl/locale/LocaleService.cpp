@@ -10,7 +10,7 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPrefs_privacy.h"
-#include "mozilla/intl/MozLocale.h"
+#include "mozilla/intl/Locale.h"
 #include "mozilla/intl/OSPreferences.h"
 #include "nsDirectoryService.h"
 #include "nsDirectoryServiceDefs.h"
@@ -284,9 +284,20 @@ LocaleService::Observe(nsISupports* aSubject, const char* aTopic,
 
 bool LocaleService::LanguagesMatch(const nsACString& aRequested,
                                    const nsACString& aAvailable) {
-  Locale requested = Locale(aRequested);
-  Locale available = Locale(aAvailable);
-  return requested.GetLanguage().Equals(available.GetLanguage());
+  Locale requested;
+  auto requestedResult = LocaleParser::TryParse(aRequested, requested);
+  Locale available;
+  auto availableResult = LocaleParser::TryParse(aAvailable, available);
+
+  if (requestedResult.isErr() || availableResult.isErr()) {
+    return false;
+  }
+
+  if (requested.Canonicalize().isErr() || available.Canonicalize().isErr()) {
+    return false;
+  }
+
+  return requested.Language().Span() == available.Language().Span();
 }
 
 bool LocaleService::IsServer() { return mIsServer; }
@@ -370,8 +381,10 @@ LocaleService::GetDefaultLocale(nsACString& aRetVal) {
     // just use our hard-coded default below.
     GetGREFileContents("update.locale", &locale);
     locale.Trim(" \t\n\r");
+#ifdef MOZ_UPDATER
     // This should never be empty.
     MOZ_ASSERT(!locale.IsEmpty());
+#endif
     if (CanonicalizeLanguageId(locale)) {
       mDefaultLocale.Assign(locale);
     }
@@ -506,9 +519,14 @@ LocaleService::NegotiateLanguages(const nsTArray<nsCString>& aRequested,
     return NS_ERROR_INVALID_ARG;
   }
 
+#ifdef DEBUG
+  Locale parsedLocale;
+  auto result = LocaleParser::TryParse(aDefaultLocale, parsedLocale);
+
   MOZ_ASSERT(
-      aDefaultLocale.IsEmpty() || Locale(aDefaultLocale).IsWellFormed(),
+      aDefaultLocale.IsEmpty() || result.isOk(),
       "If specified, default locale must be a well-formed BCP47 language tag.");
+#endif
 
   if (aStrategy == kLangNegStrategyLookup && aDefaultLocale.IsEmpty()) {
     NS_WARNING(

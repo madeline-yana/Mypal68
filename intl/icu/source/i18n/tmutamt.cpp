@@ -38,14 +38,14 @@ TimeUnitAmount::TimeUnitAmount(const TimeUnitAmount& other)
 }
 
 
-TimeUnitAmount& 
+TimeUnitAmount&
 TimeUnitAmount::operator=(const TimeUnitAmount& other) {
     Measure::operator=(other);
     return *this;
 }
 
 
-UBool
+bool
 TimeUnitAmount::operator==(const UObject& other) const {
     return Measure::operator==(other);
 }

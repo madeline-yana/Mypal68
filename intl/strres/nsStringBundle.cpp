@@ -729,9 +729,9 @@ nsresult nsStringBundleService::Init() {
 size_t nsStringBundleService::SizeOfIncludingThis(
     mozilla::MallocSizeOf aMallocSizeOf) const {
   size_t n = mBundleMap.ShallowSizeOfExcludingThis(aMallocSizeOf);
-  for (auto iter = mBundleMap.ConstIter(); !iter.Done(); iter.Next()) {
-    n += aMallocSizeOf(iter.Data());
-    n += iter.Data()->mHashKey.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
+  for (const auto& data : mBundleMap.Values()) {
+    n += aMallocSizeOf(data);
+    n += data->mHashKey.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
   }
   return aMallocSizeOf(this) + n;
 }
@@ -899,7 +899,7 @@ bundleCacheEntry_t* nsStringBundleService::insertIntoCache(
   cacheEntry->mHashKey = aHashKey;
   cacheEntry->mBundle = aBundle;
 
-  mBundleMap.Put(cacheEntry->mHashKey, cacheEntry.get());
+  mBundleMap.InsertOrUpdate(cacheEntry->mHashKey, cacheEntry.get());
 
   return cacheEntry.release();
 }
