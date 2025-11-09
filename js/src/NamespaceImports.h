@@ -48,6 +48,9 @@ using JS::NullValue;
 using JS::NumberValue;
 using JS::ObjectOrNullValue;
 using JS::ObjectValue;
+#ifdef ENABLE_RECORD_TUPLE
+using JS::ExtendedPrimitiveValue;
+#endif
 using JS::PrivateGCThingValue;
 using JS::PrivateUint32Value;
 using JS::PrivateValue;
@@ -145,6 +148,11 @@ using JS::Realm;
 using JS::Zone;
 
 using JS::BigInt;
+
+#ifdef ENABLE_RECORD_TUPLE
+using JS::RecordType;
+using JS::TupleType;
+#endif
 
 } /* namespace js */
 

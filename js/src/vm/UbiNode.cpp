@@ -149,7 +149,7 @@ Node::Size Concrete<void>::size(mozilla::MallocSizeOf mallocSizeof) const {
   MOZ_CRASH("null ubi::Node");
 }
 
-Node::Node(const JS::GCCellPtr& thing) {
+Node::Node(JS::GCCellPtr thing) {
   ApplyGCThingTyped(thing, [this](auto t) { this->construct(t); });
 }
 
@@ -195,7 +195,7 @@ class EdgeVectorTracer final : public JS::CallbackTracer {
   // True if we should populate the edge's names.
   bool wantNames;
 
-  void onChild(const JS::GCCellPtr& thing) override {
+  void onChild(JS::GCCellPtr thing) override {
     if (!okay) {
       return;
     }

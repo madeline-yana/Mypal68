@@ -431,8 +431,8 @@ fn float64_to_js_value(val: &wast::Float64) -> String {
 fn f32_pattern_to_js_value(pattern: &wast::NanPattern<wast::Float32>) -> String {
     use wast::NanPattern::*;
     match pattern {
-        CanonicalNan => format!("`f32_canonical_nan`"),
-        ArithmeticNan => format!("`f32_arithmetic_nan`"),
+        CanonicalNan => format!("`canonical_nan`"),
+        ArithmeticNan => format!("`arithmetic_nan`"),
         Value(x) => float32_to_js_value(x),
     }
 }
@@ -440,8 +440,8 @@ fn f32_pattern_to_js_value(pattern: &wast::NanPattern<wast::Float32>) -> String 
 fn f64_pattern_to_js_value(pattern: &wast::NanPattern<wast::Float64>) -> String {
     use wast::NanPattern::*;
     match pattern {
-        CanonicalNan => format!("`f64_canonical_nan`"),
-        ArithmeticNan => format!("`f64_arithmetic_nan`"),
+        CanonicalNan => format!("`canonical_nan`"),
+        ArithmeticNan => format!("`arithmetic_nan`"),
         Value(x) => float64_to_js_value(x),
     }
 }
@@ -455,7 +455,7 @@ fn assert_expression_to_js_value(v: &wast::AssertExpression<'_>) -> Result<Strin
         F32(x) => f32_pattern_to_js_value(x),
         F64(x) => f64_pattern_to_js_value(x),
         RefNull(x) => match x {
-            Some(wast::HeapType::Func) => format!("value('funcref', null)"),
+            Some(wast::HeapType::Func) => format!("value('anyfunc', null)"),
             Some(wast::HeapType::Extern) => format!("value('externref', null)"),
             other => bail!(
                 "couldn't convert ref.null {:?} to a js assertion value",

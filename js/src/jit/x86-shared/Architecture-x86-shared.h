@@ -11,6 +11,7 @@
 
 #include "mozilla/MathAlgorithms.h"
 
+#include <algorithm>
 #include <string.h>
 
 #include "jit/shared/Architecture-shared.h"
@@ -122,7 +123,8 @@ class Registers {
       (1 << X86Encoding::rax) | (1 << X86Encoding::rcx) |
       (1 << X86Encoding::rdx) | (1 << X86Encoding::rbx);
 
-  static const SetType NonAllocatableMask = (1 << X86Encoding::rsp);
+  static const SetType NonAllocatableMask =
+      (1 << X86Encoding::rsp) | (1 << X86Encoding::rbp);
 
   // Registers returned from a JS -> JS call.
   static const SetType JSCallMask =
@@ -148,7 +150,8 @@ class Registers {
   static const SetType SingleByteRegs = AllMask & ~(1 << X86Encoding::rsp);
 
   static const SetType NonAllocatableMask =
-      (1 << X86Encoding::rsp) | (1 << X86Encoding::r11);  // This is ScratchReg.
+      (1 << X86Encoding::rsp) | (1 << X86Encoding::rbp) |
+      (1 << X86Encoding::r11);  // This is ScratchReg.
 
   // Registers returned from a JS -> JS call.
   static const SetType JSCallMask = (1 << X86Encoding::rcx);
@@ -258,6 +261,10 @@ class FloatRegisters {
   static const SetType WrapperMask = VolatileMask;
   static const SetType AllocatableMask = AllMask & ~NonAllocatableMask;
 };
+
+static const uint32_t SpillSlotSize =
+    std::max(sizeof(Registers::RegisterContent),
+             sizeof(FloatRegisters::RegisterContent));
 
 template <typename T>
 class TypedRegisterSet;

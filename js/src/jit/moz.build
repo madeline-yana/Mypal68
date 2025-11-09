@@ -73,6 +73,7 @@ UNIFIED_SOURCES += [
     "Safepoints.cpp",
     "ScalarReplacement.cpp",
     "shared/Assembler-shared.cpp",
+    "shared/AtomicOperations-shared-jit.cpp",
     "shared/CodeGenerator-shared.cpp",
     "shared/Disassembler-shared.cpp",
     "shared/Lowering-shared.cpp",
@@ -91,17 +92,18 @@ UNIFIED_SOURCES += [
     "XrayJitInfo.cpp",
 ]
 
+if CONFIG["ENABLE_WASM_SIMD"]:
+    UNIFIED_SOURCES += ["ShuffleAnalysis.cpp"]
+
 if CONFIG["JS_CODEGEN_NONE"]:
     UNIFIED_SOURCES += ["none/Trampoline-none.cpp"]
 elif CONFIG["JS_CODEGEN_X86"] or CONFIG["JS_CODEGEN_X64"]:
     UNIFIED_SOURCES += [
-        "shared/AtomicOperations-shared-jit.cpp",
         "x86-shared/Architecture-x86-shared.cpp",
         "x86-shared/Assembler-x86-shared.cpp",
         "x86-shared/AssemblerBuffer-x86-shared.cpp",
         "x86-shared/CodeGenerator-x86-shared.cpp",
         "x86-shared/Lowering-x86-shared.cpp",
-        "x86-shared/MacroAssembler-x86-shared-SIMD-unused.cpp",
         "x86-shared/MacroAssembler-x86-shared-SIMD.cpp",
         "x86-shared/MacroAssembler-x86-shared.cpp",
         "x86-shared/MoveEmitter-x86-shared.cpp",
@@ -136,7 +138,6 @@ elif CONFIG["JS_CODEGEN_ARM"]:
         "arm/MacroAssembler-arm.cpp",
         "arm/MoveEmitter-arm.cpp",
         "arm/Trampoline-arm.cpp",
-        "shared/AtomicOperations-shared-jit.cpp",
     ]
     if CONFIG["JS_SIMULATOR_ARM"]:
         UNIFIED_SOURCES += ["arm/Simulator-arm.cpp"]
@@ -165,7 +166,6 @@ elif CONFIG["JS_CODEGEN_ARM64"]:
         "arm64/vixl/MozCpu-vixl.cpp",
         "arm64/vixl/MozInstructions-vixl.cpp",
         "arm64/vixl/Utils-vixl.cpp",
-        "shared/AtomicOperations-shared-jit.cpp",
     ]
     vixl_werror_sources = [
         "arm64/vixl/Disasm-vixl.cpp",
@@ -218,6 +218,19 @@ elif CONFIG["JS_CODEGEN_MIPS32"] or CONFIG["JS_CODEGEN_MIPS64"]:
         ]
         if CONFIG["JS_SIMULATOR_MIPS64"]:
             UNIFIED_SOURCES += ["mips64/Simulator-mips64.cpp"]
+elif CONFIG["JS_CODEGEN_LOONG64"]:
+    UNIFIED_SOURCES += [
+        "loong64/Architecture-loong64.cpp",
+        "loong64/Assembler-loong64.cpp",
+        "loong64/Bailouts-loong64.cpp",
+        "loong64/CodeGenerator-loong64.cpp",
+        "loong64/Lowering-loong64.cpp",
+        "loong64/MacroAssembler-loong64.cpp",
+        "loong64/MoveEmitter-loong64.cpp",
+        "loong64/Trampoline-loong64.cpp",
+    ]
+    if CONFIG["JS_SIMULATOR_LOONG64"]:
+        UNIFIED_SOURCES += ["loong64/Simulator-loong64.cpp"]
 
 
 # Generate jit/MIROpsGenerated.h from jit/MIROps.yaml
@@ -243,6 +256,13 @@ GeneratedFile(
     script="GenerateCacheIRFiles.py",
     entry_point="generate_cacheirops_header",
     inputs=["CacheIROps.yaml"],
+)
+
+GeneratedFile(
+    "AtomicOperationsGenerated.h",
+    script="GenerateAtomicOperations.py",
+    entry_point="generate_atomics_header",
+    inputs=[],
 )
 
 if CONFIG["FUZZING_INTERFACES"] or CONFIG["FUZZING_JS_FUZZILLI"]:

@@ -421,9 +421,7 @@ void JitRuntime::generateArgumentsRectifier(MacroAssembler& masm,
   masm.And(x5, x1, Operand(CalleeTokenMask));
 
   // Get the arguments from the function object.
-  masm.Ldr(ARMRegister(x6.code(), 32),
-           MemOperand(x5, JSFunction::offsetOfFlagsAndArgCount()));
-  masm.Lsr(x6, x6, JSFunction::ArgCountShift);
+  masm.loadFunctionArgCount(x5.asUnsized(), x6.asUnsized());
 
   static_assert(CalleeToken_FunctionConstructing == 0x1,
                 "Constructing must be low-order bit");
@@ -736,7 +734,7 @@ bool JitRuntime::generateVMWrapper(JSContext* cx, MacroAssembler& masm,
 
   // Test for failure.
   switch (f.failType()) {
-    case Type_Object:
+    case Type_Cell:
       masm.branchTestPtr(Assembler::Zero, r0, r0, masm.failureLabel());
       break;
     case Type_Bool:
@@ -773,7 +771,6 @@ bool JitRuntime::generateVMWrapper(JSContext* cx, MacroAssembler& masm,
       break;
 
     case Type_Double:
-      MOZ_ASSERT(JitOptions.supportsFloatingPoint);
       masm.Ldr(ARMFPRegister(ReturnDoubleReg, 64),
                MemOperand(masm.GetStackPointer64()));
       masm.freeStack(sizeof(double));

@@ -7,7 +7,7 @@
 #include "jsapi.h"
 
 #include "ds/OrderedHashTable.h"
-#include "gc/FreeOp.h"
+#include "gc/GCContext.h"
 #include "jit/InlinableNatives.h"
 #include "js/MapAndSet.h"
 #include "js/PropertyAndElement.h"  // JS_DefineFunctions
@@ -23,6 +23,11 @@
 #include "vm/SelfHosting.h"
 #include "vm/SymbolType.h"
 
+#ifdef ENABLE_RECORD_TUPLE
+#  include "vm/RecordType.h"
+#  include "vm/TupleType.h"
+#endif
+
 #include "gc/Marking-inl.h"
 #include "vm/Interpreter-inl.h"
 #include "vm/NativeObject-inl.h"
@@ -34,33 +39,52 @@ using mozilla::NumberEqualsInt32;
 
 /*** HashableValue **********************************************************/
 
+static PreBarrieredValue NormalizeDoubleValue(double d) {
+  int32_t i;
+  if (NumberEqualsInt32(d, &i)) {
+    // Normalize int32_t-valued doubles to int32_t for faster hashing and
+    // testing. Note: we use NumberEqualsInt32 here instead of NumberIsInt32
+    // because we want -0 and 0 to be normalized to the same thing.
+    return Int32Value(i);
+  }
+
+  // Normalize the sign bit of a NaN.
+  return JS::CanonicalizedDoubleValue(d);
+}
+
 bool HashableValue::setValue(JSContext* cx, HandleValue v) {
   if (v.isString()) {
     // Atomize so that hash() and operator==() are fast and infallible.
-    JSString* str = AtomizeString(cx, v.toString(), DoNotPinAtom);
+    JSString* str = AtomizeString(cx, v.toString());
     if (!str) {
       return false;
     }
     value = StringValue(str);
   } else if (v.isDouble()) {
-    double d = v.toDouble();
-    int32_t i;
-    if (NumberEqualsInt32(d, &i)) {
-      // Normalize int32_t-valued doubles to int32_t for faster hashing and
-      // testing. Note: we use NumberEqualsInt32 here instead of NumberIsInt32
-      // because we want -0 and 0 to be normalized to the same thing.
-      value = Int32Value(i);
+    value = NormalizeDoubleValue(v.toDouble());
+#ifdef ENABLE_RECORD_TUPLE
+  } else if (v.isExtendedPrimitive()) {
+    JSObject& obj = v.toExtendedPrimitive();
+    if (obj.is<RecordType>()) {
+      if (!obj.as<RecordType>().ensureAtomized(cx)) {
+        return false;
+      }
     } else {
-      // Normalize the sign bit of a NaN.
-      value = JS::CanonicalizedDoubleValue(d);
+      MOZ_ASSERT(obj.is<TupleType>());
+      if (!obj.as<TupleType>().ensureAtomized(cx)) {
+        return false;
+      }
     }
+    value = v;
+#endif
   } else {
     value = v;
   }
 
   MOZ_ASSERT(value.isUndefined() || value.isNull() || value.isBoolean() ||
              value.isNumber() || value.isString() || value.isSymbol() ||
-             value.isObject() || value.isBigInt());
+             value.isObject() || value.isBigInt() ||
+             IF_RECORD_TUPLE(value.isExtendedPrimitive(), false));
   return true;
 }
 
@@ -84,6 +108,21 @@ static HashNumber HashValue(const Value& v,
   if (v.isBigInt()) {
     return MaybeForwarded(v.toBigInt())->hash();
   }
+#ifdef ENABLE_RECORD_TUPLE
+  if (v.isExtendedPrimitive()) {
+    JSObject* obj = MaybeForwarded(&v.toExtendedPrimitive());
+    auto hasher = [&hcs](const Value& v) {
+      return HashValue(
+          v.isDouble() ? NormalizeDoubleValue(v.toDouble()).get() : v, hcs);
+    };
+
+    if (obj->is<RecordType>()) {
+      return obj->as<RecordType>().hash(hasher);
+    }
+    MOZ_ASSERT(obj->is<TupleType>());
+    return obj->as<TupleType>().hash(hasher);
+  }
+#endif
   if (v.isObject()) {
     return hcs.scramble(v.asRawBits());
   }
@@ -96,14 +135,30 @@ HashNumber HashableValue::hash(const mozilla::HashCodeScrambler& hcs) const {
   return HashValue(value, hcs);
 }
 
+#ifdef ENABLE_RECORD_TUPLE
+inline bool SameExtendedPrimitiveType(const PreBarrieredValue& a,
+                                      const PreBarrieredValue& b) {
+  return a.toExtendedPrimitive().getClass() ==
+         b.toExtendedPrimitive().getClass();
+}
+#endif
+
 bool HashableValue::operator==(const HashableValue& other) const {
   // Two HashableValues are equal if they have equal bits.
   bool b = (value.asRawBits() == other.value.asRawBits());
 
-  // BigInt values are considered equal if they represent the same
-  // mathematical value.
-  if (!b && (value.isBigInt() && other.value.isBigInt())) {
-    b = BigInt::equal(value.toBigInt(), other.value.toBigInt());
+  if (!b && (value.type() == other.value.type())) {
+    if (value.isBigInt()) {
+      // BigInt values are considered equal if they represent the same
+      // mathematical value.
+      b = BigInt::equal(value.toBigInt(), other.value.toBigInt());
+    }
+#ifdef ENABLE_RECORD_TUPLE
+    else if (value.isExtendedPrimitive() &&
+             SameExtendedPrimitiveType(value, other.value)) {
+      b = js::SameValueZeroLinear(value, other.value);
+    }
+#endif
   }
 
 #ifdef DEBUG
@@ -111,7 +166,7 @@ bool HashableValue::operator==(const HashableValue& other) const {
   JSContext* cx = TlsContext.get();
   RootedValue valueRoot(cx, value);
   RootedValue otherRoot(cx, other.value);
-  MOZ_ASSERT(SameValue(cx, valueRoot, otherRoot, &same));
+  MOZ_ASSERT(SameValueZero(cx, valueRoot, otherRoot, &same));
   MOZ_ASSERT(same == b);
 #endif
   return b;
@@ -136,7 +191,6 @@ static const JSClassOps MapIteratorObjectClassOps = {
     nullptr,                      // mayResolve
     MapIteratorObject::finalize,  // finalize
     nullptr,                      // call
-    nullptr,                      // hasInstance
     nullptr,                      // construct
     nullptr,                      // trace
 };
@@ -256,16 +310,16 @@ MapIteratorObject* MapIteratorObject::create(JSContext* cx, HandleObject obj,
   return iterobj;
 }
 
-void MapIteratorObject::finalize(JSFreeOp* fop, JSObject* obj) {
-  MOZ_ASSERT(fop->onMainThread());
+void MapIteratorObject::finalize(JS::GCContext* gcx, JSObject* obj) {
+  MOZ_ASSERT(gcx->onMainThread());
   MOZ_ASSERT(!IsInsideNursery(obj));
 
   auto range = MapIteratorObjectRange(&obj->as<NativeObject>());
-  MOZ_ASSERT(!fop->runtime()->gc.nursery().isInside(range));
+  MOZ_ASSERT(!gcx->runtime()->gc.nursery().isInside(range));
 
   // Bug 1560019: Malloc memory associated with MapIteratorObjects is not
   // currently tracked.
-  fop->deleteUntracked(range);
+  gcx->deleteUntracked(range);
 }
 
 size_t MapIteratorObject::objectMoved(JSObject* obj, JSObject* old) {
@@ -376,7 +430,6 @@ const JSClassOps MapObject::classOps_ = {
     nullptr,   // mayResolve
     finalize,  // finalize
     nullptr,   // call
-    nullptr,   // hasInstance
     nullptr,   // construct
     trace,     // trace
 };
@@ -440,8 +493,7 @@ const JSPropertySpec MapObject::staticProperties[] = {
   // 23.1.3.12 Map.prototype[@@iterator]()
   // The initial value of the @@iterator property is the same function object
   // as the initial value of the "entries" property.
-  RootedId iteratorId(
-      cx, SYMBOL_TO_JSID(JS::GetWellKnownSymbol(cx, JS::SymbolCode::iterator)));
+  RootedId iteratorId(cx, PropertyKey::Symbol(cx->wellKnownSymbols().iterator));
   return NativeDefineDataProperty(cx, nativeProto, iteratorId, entriesFn, 0);
 }
 
@@ -538,7 +590,7 @@ class js::OrderedHashTableRef : public gc::BufferableRef {
 template <typename ObjectT>
 [[nodiscard]] inline static bool PostWriteBarrierImpl(ObjectT* obj,
                                                       const Value& keyValue) {
-  if (MOZ_LIKELY(!keyValue.isObject() && !keyValue.isBigInt())) {
+  if (MOZ_LIKELY(!keyValue.hasObjectPayload() && !keyValue.isBigInt())) {
     MOZ_ASSERT_IF(keyValue.isGCThing(), !IsInsideNursery(keyValue.toGCThing()));
     return true;
   }
@@ -656,18 +708,18 @@ size_t MapObject::sizeOfData(mozilla::MallocSizeOf mallocSizeOf) {
   return size;
 }
 
-void MapObject::finalize(JSFreeOp* fop, JSObject* obj) {
-  MOZ_ASSERT(fop->onMainThread());
+void MapObject::finalize(JS::GCContext* gcx, JSObject* obj) {
+  MOZ_ASSERT(gcx->onMainThread());
   if (ValueMap* map = obj->as<MapObject>().getData()) {
-    fop->delete_(obj, map, MemoryUse::MapObjectTable);
+    gcx->delete_(obj, map, MemoryUse::MapObjectTable);
   }
 }
 
 /* static */
-void MapObject::sweepAfterMinorGC(JSFreeOp* fop, MapObject* mapobj) {
+void MapObject::sweepAfterMinorGC(JS::GCContext* gcx, MapObject* mapobj) {
   bool wasInsideNursery = IsInsideNursery(mapobj);
   if (wasInsideNursery && !IsForwarded(mapobj)) {
-    finalize(fop, mapobj);
+    finalize(gcx, mapobj);
     return;
   }
 
@@ -951,7 +1003,6 @@ static const JSClassOps SetIteratorObjectClassOps = {
     nullptr,                      // mayResolve
     SetIteratorObject::finalize,  // finalize
     nullptr,                      // call
-    nullptr,                      // hasInstance
     nullptr,                      // construct
     nullptr,                      // trace
 };
@@ -1062,16 +1113,16 @@ SetIteratorObject* SetIteratorObject::create(JSContext* cx, HandleObject obj,
   return iterobj;
 }
 
-void SetIteratorObject::finalize(JSFreeOp* fop, JSObject* obj) {
-  MOZ_ASSERT(fop->onMainThread());
+void SetIteratorObject::finalize(JS::GCContext* gcx, JSObject* obj) {
+  MOZ_ASSERT(gcx->onMainThread());
   MOZ_ASSERT(!IsInsideNursery(obj));
 
   auto range = SetIteratorObjectRange(&obj->as<NativeObject>());
-  MOZ_ASSERT(!fop->runtime()->gc.nursery().isInside(range));
+  MOZ_ASSERT(!gcx->runtime()->gc.nursery().isInside(range));
 
   // Bug 1560019: Malloc memory associated with SetIteratorObjects is not
   // currently tracked.
-  fop->deleteUntracked(range);
+  gcx->deleteUntracked(range);
 }
 
 size_t SetIteratorObject::objectMoved(JSObject* obj, JSObject* old) {
@@ -1159,7 +1210,6 @@ const JSClassOps SetObject::classOps_ = {
     nullptr,   // mayResolve
     finalize,  // finalize
     nullptr,   // call
-    nullptr,   // hasInstance
     nullptr,   // construct
     trace,     // trace
 };
@@ -1199,6 +1249,15 @@ const JSFunctionSpec SetObject::methods[] = {
     JS_FN("entries", entries, 0, 0),
     JS_FN("clear", clear, 0, 0),
     JS_SELF_HOSTED_FN("forEach", "SetForEach", 2, 0),
+#ifdef ENABLE_NEW_SET_METHODS
+    JS_SELF_HOSTED_FN("union", "SetUnion", 1, 0),
+    JS_SELF_HOSTED_FN("difference", "SetDifference", 1, 0),
+    JS_SELF_HOSTED_FN("intersection", "SetIntersection", 1, 0),
+    JS_SELF_HOSTED_FN("symmetricDifference", "SetSymmetricDifference", 1, 0),
+    JS_SELF_HOSTED_FN("isSubsetOf", "SetIsSubsetOf", 1, 0),
+    JS_SELF_HOSTED_FN("isSupersetOf", "SetIsSupersetOf", 1, 0),
+    JS_SELF_HOSTED_FN("isDisjointFrom", "SetIsDisjointFrom", 1, 0),
+#endif
     JS_FN("values", values, 0, 0),
     // @@iterator and |keys| re-defined in finishInit so that they have the
     // same identity as |values|.
@@ -1231,8 +1290,7 @@ const JSPropertySpec SetObject::staticProperties[] = {
 
   // 23.2.3.11 Set.prototype[@@iterator]()
   // See above.
-  RootedId iteratorId(
-      cx, SYMBOL_TO_JSID(JS::GetWellKnownSymbol(cx, JS::SymbolCode::iterator)));
+  RootedId iteratorId(cx, PropertyKey::Symbol(cx->wellKnownSymbols().iterator));
   return NativeDefineDataProperty(cx, nativeProto, iteratorId, valuesFn, 0);
 }
 
@@ -1321,19 +1379,19 @@ size_t SetObject::sizeOfData(mozilla::MallocSizeOf mallocSizeOf) {
   return size;
 }
 
-void SetObject::finalize(JSFreeOp* fop, JSObject* obj) {
-  MOZ_ASSERT(fop->onMainThread());
+void SetObject::finalize(JS::GCContext* gcx, JSObject* obj) {
+  MOZ_ASSERT(gcx->onMainThread());
   SetObject* setobj = static_cast<SetObject*>(obj);
   if (ValueSet* set = setobj->getData()) {
-    fop->delete_(obj, set, MemoryUse::MapObjectTable);
+    gcx->delete_(obj, set, MemoryUse::MapObjectTable);
   }
 }
 
 /* static */
-void SetObject::sweepAfterMinorGC(JSFreeOp* fop, SetObject* setobj) {
+void SetObject::sweepAfterMinorGC(JS::GCContext* gcx, SetObject* setobj) {
   bool wasInsideNursery = IsInsideNursery(setobj);
   if (wasInsideNursery && !IsForwarded(setobj)) {
-    finalize(fop, setobj);
+    finalize(gcx, setobj);
     return;
   }
 

@@ -10,6 +10,7 @@
 
 #include "xpcprivate.h"
 #include "xpcpublic.h"
+#include "XPCMaps.h"
 #include "XPCWrapper.h"
 #include "XPCJSMemoryReporter.h"
 #include "XPCJSThreadPool.h"
@@ -480,6 +481,12 @@ void Scriptability::SetDocShellAllowsScript(bool aAllowed) {
 }
 
 /* static */
+bool Scriptability::AllowedIfExists(JSObject* aScope) {
+  RealmPrivate* realmPrivate = RealmPrivate::Get(aScope);
+  return realmPrivate ? realmPrivate->scriptability.Allowed() : true;
+}
+
+/* static */
 Scriptability& Scriptability::Get(JSObject* aScope) {
   return RealmPrivate::Get(aScope)->scriptability;
 }
@@ -641,7 +648,7 @@ void NukeAllWrappersForRealm(
 
 }  // namespace xpc
 
-static void CompartmentDestroyedCallback(JSFreeOp* fop,
+static void CompartmentDestroyedCallback(JS::GCContext* gcx,
                                          JS::Compartment* compartment) {
   // NB - This callback may be called in JS_DestroyContext, which happens
   // after the XPCJSRuntime has been torn down.
@@ -682,7 +689,11 @@ void XPCJSRuntime::TraceNativeBlackRoots(JSTracer* trc) {
     }
   }
 
-  dom::TraceBlackJS(trc, nsIXPConnect::XPConnect()->GetIsShuttingDown());
+  if (mIID2NativeInterfaceMap) {
+    mIID2NativeInterfaceMap->Trace(trc);
+  }
+
+  dom::TraceBlackJS(trc);
 }
 
 void XPCJSRuntime::TraceAdditionalNativeGrayRoots(JSTracer* trc) {
@@ -795,7 +806,7 @@ void XPCJSRuntime::CustomGCCallback(JSGCStatus status) {
 }
 
 /* static */
-void XPCJSRuntime::FinalizeCallback(JSFreeOp* fop, JSFinalizeStatus status,
+void XPCJSRuntime::FinalizeCallback(JS::GCContext* gcx, JSFinalizeStatus status,
                                     void* data) {
   XPCJSRuntime* self = nsXPConnect::GetRuntimeInstance();
   if (!self) {
@@ -868,25 +879,20 @@ void XPCJSRuntime::FinalizeCallback(JSFreeOp* fop, JSFinalizeStatus status,
       XPCWrappedNativeScope::SweepAllWrappedNativeTearOffs();
 
       // Now we need to kill the 'Dying' XPCWrappedNativeProtos.
-      // We transfered these native objects to this table when their
-      // JSObject's were finalized. We did not destroy them immediately
-      // at that point because the ordering of JS finalization is not
-      // deterministic and we did not yet know if any wrappers that
-      // might still be referencing the protos where still yet to be
-      // finalized and destroyed. We *do* know that the protos'
-      // JSObjects would not have been finalized if there were any
-      // wrappers that referenced the proto but where not themselves
-      // slated for finalization in this gc cycle. So... at this point
-      // we know that any and all wrappers that might have been
-      // referencing the protos in the dying list are themselves dead.
-      // So, we can safely delete all the protos in the list.
-
-      for (auto i = self->mDyingWrappedNativeProtoMap->Iter(); !i.Done();
-           i.Next()) {
-        auto* entry = static_cast<XPCWrappedNativeProtoMap::Entry*>(i.Get());
-        delete static_cast<const XPCWrappedNativeProto*>(entry->key);
-        i.Remove();
-      }
+      //
+      // We transferred these native objects to this list when their JSObjects
+      // were finalized. We did not destroy them immediately at that point
+      // because the ordering of JS finalization is not deterministic and we did
+      // not yet know if any wrappers that might still be referencing the protos
+      // were still yet to be finalized and destroyed. We *do* know that the
+      // protos' JSObjects would not have been finalized if there were any
+      // wrappers that referenced the proto but were not themselves slated for
+      // finalization in this gc cycle.
+      //
+      // At this point we know that any and all wrappers that might have been
+      // referencing the protos in the dying list are themselves dead. So, we
+      // can safely delete all the protos in the list.
+      self->mDyingWrappedNativeProtos.clear();
 
       MOZ_ASSERT(self->mGCIsRunning, "bad state");
       self->mGCIsRunning = false;
@@ -897,32 +903,32 @@ void XPCJSRuntime::FinalizeCallback(JSFreeOp* fop, JSFinalizeStatus status,
 }
 
 /* static */
-void XPCJSRuntime::WeakPointerZonesCallback(JSContext* cx, void* data) {
+void XPCJSRuntime::WeakPointerZonesCallback(JSTracer* trc, void* data) {
   // Called before each sweeping slice -- after processing any final marking
   // triggered by barriers -- to clear out any references to things that are
   // about to be finalized and update any pointers to moved GC things.
   XPCJSRuntime* self = static_cast<XPCJSRuntime*>(data);
 
-  self->mWrappedJSMap->UpdateWeakPointersAfterGC();
-  self->mUAWidgetScopeMap.sweep();
+  self->mWrappedJSMap->UpdateWeakPointersAfterGC(trc);
+  self->mUAWidgetScopeMap.traceWeak(trc);
 }
 
 /* static */
-void XPCJSRuntime::WeakPointerCompartmentCallback(JSContext* cx,
+void XPCJSRuntime::WeakPointerCompartmentCallback(JSTracer* trc,
                                                   JS::Compartment* comp,
                                                   void* data) {
   // Called immediately after the ZoneGroup weak pointer callback, but only
   // once for each compartment that is being swept.
   CompartmentPrivate* xpcComp = CompartmentPrivate::Get(comp);
   if (xpcComp) {
-    xpcComp->UpdateWeakPointersAfterGC();
+    xpcComp->UpdateWeakPointersAfterGC(trc);
   }
 }
 
-void CompartmentPrivate::UpdateWeakPointersAfterGC() {
-  mRemoteProxies.sweep();
-  mWrappedJSMap->UpdateWeakPointersAfterGC();
-  mScope->UpdateWeakPointersAfterGC();
+void CompartmentPrivate::UpdateWeakPointersAfterGC(JSTracer* trc) {
+  mRemoteProxies.traceWeak(trc);
+  mWrappedJSMap->UpdateWeakPointersAfterGC(trc);
+  mScope->UpdateWeakPointersAfterGC(trc);
 }
 
 void XPCJSRuntime::CustomOutOfMemoryCallback() {
@@ -1087,8 +1093,6 @@ void XPCJSRuntime::Shutdown(JSContext* cx) {
   mClassInfo2NativeSetMap = nullptr;
 
   mNativeSetMap = nullptr;
-
-  mDyingWrappedNativeProtoMap = nullptr;
 
   // Prevent ~LinkedList assertion failures if we leaked things.
   mWrappedNativeScopes.clear();
@@ -2560,7 +2564,7 @@ static void GetRealmNameCallback(JSContext* cx, Realm* realm, char* buf,
   memcpy(buf, name.get(), name.Length() + 1);
 }
 
-static void DestroyRealm(JSFreeOp* fop, JS::Realm* realm) {
+static void DestroyRealm(JS::GCContext* gcx, JS::Realm* realm) {
   // Get the current compartment private into an AutoPtr (which will do the
   // cleanup for us), and null out the private field.
   mozilla::UniquePtr<RealmPrivate> priv(RealmPrivate::Get(realm));
@@ -2733,8 +2737,6 @@ XPCJSRuntime::XPCJSRuntime(JSContext* aCx)
       mClassInfo2NativeSetMap(mozilla::MakeUnique<ClassInfo2NativeSetMap>()),
       mNativeSetMap(mozilla::MakeUnique<NativeSetMap>()),
       mWrappedNativeScopes(),
-      mDyingWrappedNativeProtoMap(
-          mozilla::MakeUnique<XPCWrappedNativeProtoMap>()),
       mGCIsRunning(false),
       mNativesToReleaseArray(),
       mDoingFinalization(false),
@@ -2834,7 +2836,7 @@ void XPCJSRuntime::Initialize(JSContext* cx) {
   mLoaderGlobal.init(cx, nullptr);
 
   // these jsids filled in later when we have a JSContext to work with.
-  mStrIDs[0] = JSID_VOID;
+  mStrIDs[0] = JS::PropertyKey::Void();
 
   nsScriptSecurityManager::GetScriptSecurityManager()->InitJSCallbacks(cx);
 
@@ -2863,17 +2865,6 @@ void XPCJSRuntime::Initialize(JSContext* cx) {
   JS_InitReadPrincipalsCallback(cx, nsJSPrincipals::ReadPrincipals);
 
   js::SetWindowProxyClass(cx, &OuterWindowProxyClass);
-
-  {
-    JS::AbortSignalIsAborted isAborted = [](JSObject* obj) {
-      dom::AbortSignal* domObj = dom::UnwrapDOMObject<dom::AbortSignal>(obj);
-      MOZ_ASSERT(domObj);
-      return domObj->Aborted();
-    };
-
-    JS::InitPipeToHandling(dom::AbortSignal_Binding::GetJSClass(), isAborted,
-                           cx);
-  }
 
   JS::SetXrayJitInfo(&gXrayJitInfo);
   JS::SetProcessLargeAllocationFailureCallback(
@@ -2932,16 +2923,15 @@ void XPCJSRuntime::Initialize(JSContext* cx) {
 
 bool XPCJSRuntime::InitializeStrings(JSContext* cx) {
   // if it is our first context then we need to generate our string ids
-  if (JSID_IS_VOID(mStrIDs[0])) {
+  if (mStrIDs[0].isVoid()) {
     RootedString str(cx);
     for (unsigned i = 0; i < XPCJSContext::IDX_TOTAL_COUNT; i++) {
       str = JS_AtomizeAndPinString(cx, mStrings[i]);
       if (!str) {
-        mStrIDs[0] = JSID_VOID;
+        mStrIDs[0] = JS::PropertyKey::Void();
         return false;
       }
       mStrIDs[i] = PropertyKey::fromPinnedString(str);
-      mStrJSVals[i].setString(str);
     }
 
     if (!mozilla::dom::DefineStaticJSVals(cx)) {
@@ -3018,9 +3008,8 @@ void XPCJSRuntime::DebugDump(int16_t depth) {
   // iterate sets...
   if (depth && mNativeSetMap->Count()) {
     XPC_LOG_INDENT();
-    for (auto i = mNativeSetMap->Iter(); !i.Done(); i.Next()) {
-      auto* entry = static_cast<NativeSetMap::Entry*>(i.Get());
-      entry->key_value->DebugDump(depth);
+    for (auto i = mNativeSetMap->Iter(); !i.done(); i.next()) {
+      i.get()->DebugDump(depth);
     }
     XPC_LOG_OUTDENT();
   }
@@ -3092,8 +3081,7 @@ JSObject* XPCJSRuntime::GetUAWidgetScope(JSContext* cx,
 
     // Use an ExpandedPrincipal to create asymmetric security.
     MOZ_ASSERT(!nsContentUtils::IsExpandedPrincipal(principal));
-    nsTArray<nsCOMPtr<nsIPrincipal>> principalAsArray(1);
-    principalAsArray.AppendElement(principal);
+    nsTArray<nsCOMPtr<nsIPrincipal>> principalAsArray{principal};
     RefPtr<ExpandedPrincipal> ep = ExpandedPrincipal::Create(
         principalAsArray, principal->OriginAttributesRef());
 

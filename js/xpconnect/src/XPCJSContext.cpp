@@ -730,6 +730,9 @@ static mozilla::Atomic<bool> sPropertyErrorMessageFixEnabled(false);
 static mozilla::Atomic<bool> sWeakRefsEnabled(false);
 static mozilla::Atomic<bool> sWeakRefsExposeCleanupSome(false);
 static mozilla::Atomic<bool> sIteratorHelpersEnabled(false);
+#ifdef NIGHTLY_BUILD
+static mozilla::Atomic<bool> sArrayGroupingEnabled(true);
+#endif
 
 static JS::WeakRefSpecifier GetWeakRefsEnabled() {
   if (!sWeakRefsEnabled) {
@@ -746,12 +749,73 @@ static JS::WeakRefSpecifier GetWeakRefsEnabled() {
 void xpc::SetPrefableRealmOptions(JS::RealmOptions& options) {
   options.creationOptions()
       .setSharedMemoryAndAtomicsEnabled(sSharedMemoryEnabled)
-      .setStreamsEnabled(sStreamsEnabled)
       .setWritableStreamsEnabled(
           StaticPrefs::javascript_options_writable_streams())
       .setPropertyErrorMessageFixEnabled(sPropertyErrorMessageFixEnabled)
       .setWeakRefsEnabled(GetWeakRefsEnabled())
-      .setIteratorHelpersEnabled(sIteratorHelpersEnabled);
+      .setIteratorHelpersEnabled(sIteratorHelpersEnabled)
+#ifdef NIGHTLY_BUILD
+      .setArrayGroupingEnabled(sArrayGroupingEnabled)
+#endif
+#ifdef ENABLE_NEW_SET_METHODS
+      .setNewSetMethodsEnabled(enableNewSetMethods)
+#endif
+      ;
+}
+
+void xpc::SetPrefableContextOptions(JS::ContextOptions& options) {
+  options
+      .setAsmJS(Preferences::GetBool(JS_OPTIONS_DOT_STR "asmjs"))
+#ifdef FUZZING
+      .setFuzzing(Preferences::GetBool(JS_OPTIONS_DOT_STR "fuzzing.enabled"))
+#endif
+      .setWasm(Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm"))
+      .setWasmForTrustedPrinciples(
+          Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_trustedprincipals"))
+#ifdef ENABLE_WASM_CRANELIFT
+      .setWasmCranelift(
+          Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_optimizingjit"))
+      .setWasmIon(false)
+#else
+      .setWasmCranelift(false)
+      .setWasmIon(Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_optimizingjit"))
+#endif
+      .setWasmBaseline(
+          Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_baselinejit"))
+#define WASM_FEATURE(NAME, LOWER_NAME, COMPILE_PRED, COMPILER_PRED, FLAG_PRED, \
+                     SHELL, PREF)                                              \
+  .setWasm##NAME(Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_" PREF))
+#ifdef ENABLE_WASM_SIMD
+          JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE, WASM_FEATURE)
+else
+          JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
+#endif
+#undef WASM_FEATURE
+#ifdef ENABLE_WASM_SIMD_WORMHOLE
+#  ifdef EARLY_BETA_OR_EARLIER
+      .setWasmSimdWormhole(
+          Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_simd_wormhole"))
+#  else
+      .setWasmSimdWormhole(false)
+#  endif
+#endif
+      .setWasmVerbose(Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_verbose"))
+      .setThrowOnAsmJSValidationFailure(Preferences::GetBool(
+          JS_OPTIONS_DOT_STR "throw_on_asmjs_validation_failure"))
+      .setSourcePragmas(
+          Preferences::GetBool(JS_OPTIONS_DOT_STR "source_pragmas"))
+      .setAsyncStack(Preferences::GetBool(JS_OPTIONS_DOT_STR "asyncstack"))
+      .setAsyncStackCaptureDebuggeeOnly(Preferences::GetBool(
+          JS_OPTIONS_DOT_STR "asyncstack_capture_debuggee_only"))
+#ifdef ENABLE_CHANGE_ARRAY_BY_COPY
+      .setChangeArrayByCopy(Preferences::GetBool(
+          JS_OPTIONS_DOT_STR "experimental.enable_change_array_by_copy"))
+#endif
+#ifdef NIGHTLY_BUILD
+      .setImportAssertions(Preferences::GetBool(
+          JS_OPTIONS_DOT_STR "experimental.import_assertions"))
+#endif
+      ;
 }
 
 // Mirrored value of javascript.options.self_hosted.use_shared_memory.
@@ -861,6 +925,11 @@ static void LoadStartupJSPrefs(XPCJSContext* xpccx) {
           javascript_options_spectre_jit_to_cxx_calls_DoNotUseDirectly());
 #endif
 
+  JS_SetGlobalJitCompilerOption(
+      cx, JSJITCOMPILER_WATCHTOWER_MEGAMORPHIC,
+      StaticPrefs::
+          javascript_options_watchtower_megamorphic_DoNotUseDirectly());
+
   if (disableWasmHugeMemory) {
     bool disabledHugeMemory = JS::DisableWasmHugeMemory();
     MOZ_RELEASE_ASSERT(disabledHugeMemory);
@@ -880,56 +949,8 @@ static void ReloadPrefsCallback(const char* pref, void* aXpccx) {
   auto xpccx = static_cast<XPCJSContext*>(aXpccx);
   JSContext* cx = xpccx->Context();
 
-  bool useAsmJS = Preferences::GetBool(JS_OPTIONS_DOT_STR "asmjs");
-  bool useWasm = Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm");
-  bool useWasmTrustedPrincipals =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_trustedprincipals");
-  bool useWasmOptimizing =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_optimizingjit");
-  bool useWasmBaseline =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_baselinejit");
-
-#define WASM_FEATURE(NAME, LOWER_NAME, COMPILE_PRED, COMPILER_PRED, FLAG_PRED, \
-                     SHELL, PREF)                                              \
-  bool useWasm##NAME = Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_" PREF);
-#ifdef ENABLE_WASM_SIMD
-  JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
-#else
-  JS_FOR_WASM_FEATURES(WASM_FEATURE)
-#endif
-#undef WASM_FEATURE
-
-#ifdef ENABLE_WASM_SIMD_WORMHOLE
-  bool useWasmSimdWormhole = false;
-#  ifdef EARLY_BETA_OR_EARLIER
-  // In late beta and release, the functionality is available but only to
-  // privileged content.
-  useWasmSimdWormhole =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_simd_wormhole");
-#  endif
-#endif
-  bool useWasmVerbose = Preferences::GetBool(JS_OPTIONS_DOT_STR "wasm_verbose");
-  bool throwOnAsmJSValidationFailure = Preferences::GetBool(
-      JS_OPTIONS_DOT_STR "throw_on_asmjs_validation_failure");
-
-  bool parallelParsing =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "parallel_parsing");
-
   sDiscardSystemSource =
       Preferences::GetBool(JS_OPTIONS_DOT_STR "discardSystemSource");
-
-  bool useSourcePragmas =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "source_pragmas");
-  bool useAsyncStack = Preferences::GetBool(JS_OPTIONS_DOT_STR "asyncstack");
-  bool useAsyncStackCaptureDebuggeeOnly = Preferences::GetBool(
-      JS_OPTIONS_DOT_STR "asyncstack_capture_debuggee_only");
-
-  bool throwOnDebuggeeWouldRun =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "throw_on_debuggee_would_run");
-
-  bool dumpStackOnDebuggeeWouldRun = Preferences::GetBool(
-      JS_OPTIONS_DOT_STR "dump_stack_on_debuggee_would_run");
-
   sSharedMemoryEnabled =
       Preferences::GetBool(JS_OPTIONS_DOT_STR "shared_memory");
   sStreamsEnabled = Preferences::GetBool(JS_OPTIONS_DOT_STR "streams");
@@ -939,20 +960,16 @@ static void ReloadPrefsCallback(const char* pref, void* aXpccx) {
   sWeakRefsExposeCleanupSome = Preferences::GetBool(
       JS_OPTIONS_DOT_STR "experimental.weakrefs.expose_cleanupSome");
 
-  bool privateFieldsEnabled =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "experimental.private_fields");
-  bool privateMethodsEnabled =
-      Preferences::GetBool(JS_OPTIONS_DOT_STR "experimental.private_methods");
-
-  bool ergnomicBrandChecksEnabled = Preferences::GetBool(
-      JS_OPTIONS_DOT_STR "experimental.ergonomic_brand_checks");
-
-  bool classStaticBlocksEnabled = Preferences::GetBool(
-      JS_OPTIONS_DOT_STR "experimental.class_static_blocks");
-
 #ifdef NIGHTLY_BUILD
   sIteratorHelpersEnabled =
       Preferences::GetBool(JS_OPTIONS_DOT_STR "experimental.iterator_helpers");
+  sArrayGroupingEnabled =
+      Preferences::GetBool(JS_OPTIONS_DOT_STR "experimental.array_grouping");
+#endif
+
+#ifdef ENABLE_NEW_SET_METHODS
+  bool enableNewSetMethods =
+      Preferences::GetBool(JS_OPTIONS_DOT_STR "experimental.new_set_methods");
 #endif
 
 #ifdef JS_GC_ZEAL
@@ -964,46 +981,15 @@ static void ReloadPrefsCallback(const char* pref, void* aXpccx) {
   }
 #endif  // JS_GC_ZEAL
 
-#ifdef FUZZING
-  bool fuzzingEnabled = StaticPrefs::fuzzing_enabled();
-#endif
+  auto& contextOptions = JS::ContextOptionsRef(cx);
+  SetPrefableContextOptions(contextOptions);
 
-  JS::ContextOptionsRef(cx)
-      .setAsmJS(useAsmJS)
-#ifdef FUZZING
-      .setFuzzing(fuzzingEnabled)
-#endif
-      .setWasm(useWasm)
-      .setWasmForTrustedPrinciples(useWasmTrustedPrincipals)
-#ifdef ENABLE_WASM_CRANELIFT
-      .setWasmCranelift(useWasmOptimizing)
-      .setWasmIon(false)
-#else
-      .setWasmCranelift(false)
-      .setWasmIon(useWasmOptimizing)
-#endif
-      .setWasmBaseline(useWasmBaseline)
-#define WASM_FEATURE(NAME, ...) .setWasm##NAME(useWasm##NAME)
-#ifdef ENABLE_WASM_SIMD
-          JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
-#  ifdef ENABLE_WASM_SIMD_WORMHOLE
-      .setWasmSimdWormhole(useWasmSimdWormhole)
-#  endif
-#else
-          JS_FOR_WASM_FEATURES(WASM_FEATURE)
-#endif
-#undef WASM_FEATURE
-      .setWasmVerbose(useWasmVerbose)
-      .setThrowOnAsmJSValidationFailure(throwOnAsmJSValidationFailure)
-      .setSourcePragmas(useSourcePragmas)
-      .setAsyncStack(useAsyncStack)
-      .setAsyncStackCaptureDebuggeeOnly(useAsyncStackCaptureDebuggeeOnly)
-      .setThrowOnDebuggeeWouldRun(throwOnDebuggeeWouldRun)
-      .setDumpStackOnDebuggeeWouldRun(dumpStackOnDebuggeeWouldRun)
-      .setPrivateClassFields(privateFieldsEnabled)
-      .setPrivateClassMethods(privateMethodsEnabled)
-      .setClassStaticBlocks(classStaticBlocksEnabled)
-      .setErgnomicBrandChecks(ergnomicBrandChecksEnabled);
+  // Set options not shared with workers.
+  contextOptions
+      .setThrowOnDebuggeeWouldRun(Preferences::GetBool(
+          JS_OPTIONS_DOT_STR "throw_on_debuggee_would_run"))
+      .setDumpStackOnDebuggeeWouldRun(Preferences::GetBool(
+          JS_OPTIONS_DOT_STR "dump_stack_on_debuggee_would_run"));
 
   JS::SetUseFdlibmForSinCosTan(
       Preferences::GetBool(JS_OPTIONS_DOT_STR "use_fdlibm_for_sin_cos_tan") ||
@@ -1014,11 +1000,12 @@ static void ReloadPrefsCallback(const char* pref, void* aXpccx) {
     bool safeMode = false;
     xr->GetInSafeMode(&safeMode);
     if (safeMode) {
-      JS::ContextOptionsRef(cx).disableOptionsForSafeMode();
+      contextOptions.disableOptionsForSafeMode();
     }
   }
 
-  JS_SetParallelParsingEnabled(cx, parallelParsing);
+  JS_SetParallelParsingEnabled(
+      cx, Preferences::GetBool(JS_OPTIONS_DOT_STR "parallel_parsing"));
 }
 
 XPCJSContext::~XPCJSContext() {
@@ -1062,7 +1049,7 @@ XPCJSContext::~XPCJSContext() {
 XPCJSContext::XPCJSContext()
     : mCallContext(nullptr),
       mAutoRoots(nullptr),
-      mResolveName(JSID_VOID),
+      mResolveName(JS::PropertyKey::Void()),
       mResolvingWrapper(nullptr),
       mWatchdogManager(GetWatchdogManager()),
       mSlowScriptSecondHalf(false),

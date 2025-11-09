@@ -23,9 +23,12 @@
 #include "wasm/WasmBCDefs.h"
 #include "wasm/WasmBCRegDefs.h"
 #include "wasm/WasmBCStk.h"
-#include "wasm/WasmConstants.h"        // For MaxFrameSize
+#include "wasm/WasmConstants.h"  // For MaxFrameSize
 
-// The stack frame.
+// [SMDOC] Wasm baseline compiler's stack frame.
+//
+// For background, see "Wasm's ABIs" in WasmFrame.h, the following should never
+// be in conflict with that.
 //
 // The stack frame has four parts ("below" means at lower addresses):
 //
@@ -51,7 +54,7 @@
 //         |      |    Non-arg local             |    |  |             ||
 //         |      |    ...                       |    |  |             ||
 //         |      |    (padding)                 |    |  |             ||
-//         |      |    Tls pointer               |    |  |             ||
+//         |      |    Instance pointer          |    |  |             ||
 //         |      +------------------------------+    |  |             ||
 //         v      |    (padding)                 |    |  v             ||
 // -------------  +==============================+ currentStackHeight  ||
@@ -492,8 +495,8 @@ class BaseStackFrame final : public BaseStackFrameAllocator {
   // Low byte offset of pointer to stack results, if any.
   Maybe<int32_t> stackResultsPtrOffset_;
 
-  // The offset of TLS pointer.
-  uint32_t tlsPointerOffset_;
+  // The offset of instance pointer.
+  uint32_t instancePointerOffset_;
 
   // Low byte offset of local area for true locals (not parameters).
   uint32_t varLow_;
@@ -510,7 +513,7 @@ class BaseStackFrame final : public BaseStackFrameAllocator {
         masm(masm),
         maxFramePushed_(0),
         stackAddOffset_(0),
-        tlsPointerOffset_(UINT32_MAX),
+        instancePointerOffset_(UINT32_MAX),
         varLow_(UINT32_MAX),
         varHigh_(UINT32_MAX),
         sp_(masm.getStackPointer()) {}
@@ -538,9 +541,10 @@ class BaseStackFrame final : public BaseStackFrameAllocator {
   void checkStack(Register tmp, BytecodeOffset trapOffset) {
     stackAddOffset_ = masm.sub32FromStackPtrWithPatch(tmp);
     Label ok;
-    masm.branchPtr(Assembler::Below,
-                   Address(WasmTlsReg, offsetof(wasm::TlsData, stackLimit)),
-                   tmp, &ok);
+    masm.branchPtr(
+        Assembler::Below,
+        Address(InstanceReg, wasm::Instance::offsetOfStackLimit()), tmp,
+        &ok);
     masm.wasmTrap(Trap::StackOverflow, trapOffset);
     masm.bind(&ok);
   }
@@ -604,10 +608,10 @@ class BaseStackFrame final : public BaseStackFrameAllocator {
     }
     varHigh_ = i.frameSize();
 
-    // Reserve an additional stack slot for the TLS pointer.
+    // Reserve an additional stack slot for the instance pointer.
     const uint32_t pointerAlignedVarHigh = AlignBytes(varHigh_, sizeof(void*));
     const uint32_t localSize = pointerAlignedVarHigh + sizeof(void*);
-    tlsPointerOffset_ = localSize;
+    instancePointerOffset_ = localSize;
 
     setLocalSize(AlignBytes(localSize, WasmStackAlignment));
 
@@ -720,15 +724,15 @@ class BaseStackFrame final : public BaseStackFrameAllocator {
                   Address(sp_, stackOffset(stackResultsPtrOffset_.value())));
   }
 
-  void loadTlsPtr(Register dst) {
-    masm.loadPtr(Address(sp_, stackOffset(tlsPointerOffset_)), dst);
+  void loadInstancePtr(Register dst) {
+    masm.loadPtr(Address(sp_, stackOffset(instancePointerOffset_)), dst);
   }
 
-  void storeTlsPtr(Register tls) {
-    masm.storePtr(tls, Address(sp_, stackOffset(tlsPointerOffset_)));
+  void storeInstancePtr(Register instance) {
+    masm.storePtr(instance, Address(sp_, stackOffset(instancePointerOffset_)));
   }
 
-  int32_t getTlsPtrOffset() { return stackOffset(tlsPointerOffset_); }
+  int32_t getInstancePtrOffset() { return stackOffset(instancePointerOffset_); }
 
   // An outgoing stack result area pointer is for stack results of callees of
   // the function being compiled.
@@ -1122,14 +1126,7 @@ class MachineStackTracker {
   }
 
   // Clone this MachineStackTracker, writing the result at |dst|.
-  [[nodiscard]] bool cloneTo(MachineStackTracker* dst) {
-    MOZ_ASSERT(dst->vec_.empty());
-    if (!dst->vec_.appendAll(vec_)) {
-      return false;
-    }
-    dst->numPtrs_ = numPtrs_;
-    return true;
-  }
+  [[nodiscard]] bool cloneTo(MachineStackTracker* dst);
 
   // Notionally push |n| non-pointers on the stack.
   [[nodiscard]] bool pushNonGCPointers(size_t n) {
@@ -1186,7 +1183,7 @@ struct StackMapGenerator {
 
   // For generating stackmaps, we'll need to know the offsets of registers
   // as saved by the trap exit stub.
-  const MachineState& trapExitLayout_;
+  const RegisterOffsets& trapExitLayout_;
   const size_t trapExitLayoutNumWords_;
 
   // Completed stackmaps are added here
@@ -1239,7 +1236,7 @@ struct StackMapGenerator {
   // costs resulting from making it local to createStackMap().
   MachineStackTracker augmentedMst;
 
-  StackMapGenerator(StackMaps* stackMaps, const MachineState& trapExitLayout,
+  StackMapGenerator(StackMaps* stackMaps, const RegisterOffsets& trapExitLayout,
                     const size_t trapExitLayoutNumWords,
                     const MacroAssembler& masm)
       : trapExitLayout_(trapExitLayout),
@@ -1259,12 +1256,9 @@ struct StackMapGenerator {
   // created for the integer registers as saved by (code generated by)
   // GenerateTrapExit().  To do that we use trapExitLayout_ and
   // trapExitLayoutNumWords_, which together comprise a description of the
-  // layout and are created by GenerateTrapExitMachineState().
+  // layout and are created by GenerateTrapExitRegisterOffsets().
   [[nodiscard]] bool generateStackmapEntriesForTrapExit(
-      const ArgTypeVector& args, ExitStubMapVector* extras) {
-    return GenerateStackmapEntriesForTrapExit(args, trapExitLayout_,
-                                              trapExitLayoutNumWords_, extras);
-  }
+      const ArgTypeVector& args, ExitStubMapVector* extras);
 
   // Creates a stackmap associated with the instruction denoted by
   // |assemblerOffset|, incorporating pointers from the current operand
@@ -1274,247 +1268,7 @@ struct StackMapGenerator {
   [[nodiscard]] bool createStackMap(
       const char* who, const ExitStubMapVector& extras,
       uint32_t assemblerOffset,
-      HasDebugFrameWithLiveRefs debugFrameWithLiveRefs, const StkVector& stk) {
-    size_t countedPointers = machineStackTracker.numPtrs() + memRefsOnStk;
-#ifndef DEBUG
-    // An important optimization.  If there are obviously no pointers, as
-    // we expect in the majority of cases, exit quickly.
-    if (countedPointers == 0 &&
-        debugFrameWithLiveRefs == HasDebugFrameWithLiveRefs::No) {
-      // We can skip creating the map if there are no |true| elements in
-      // |extras|.
-      bool extrasHasRef = false;
-      for (bool b : extras) {
-        if (b) {
-          extrasHasRef = true;
-          break;
-        }
-      }
-      if (!extrasHasRef) {
-        return true;
-      }
-    }
-#else
-    // In the debug case, create the stackmap regardless, and cross-check
-    // the pointer-counting below.  We expect the final map to have
-    // |countedPointers| in total.  This doesn't include those in the
-    // DebugFrame, but they do not appear in the map's bitmap.  Note that
-    // |countedPointers| is debug-only from this point onwards.
-    for (bool b : extras) {
-      countedPointers += (b ? 1 : 0);
-    }
-#endif
-
-    // Start with the frame-setup map, and add operand-stack information to
-    // that.  augmentedMst holds live data only within individual calls to
-    // createStackMap.
-    augmentedMst.clear();
-    if (!machineStackTracker.cloneTo(&augmentedMst)) {
-      return false;
-    }
-
-    // At this point, augmentedMst only contains entries covering the
-    // incoming argument area (if any) and for the area allocated by this
-    // function's prologue.  We now need to calculate how far the machine's
-    // stack pointer is below where it was at the start of the body.  But we
-    // must take care not to include any words pushed as arguments to an
-    // upcoming function call, since those words "belong" to the stackmap of
-    // the callee, not to the stackmap of this function.  Note however that
-    // any alignment padding pushed prior to pushing the args *does* belong to
-    // this function.
-    //
-    // That padding is taken into account at the point where
-    // framePushedExcludingOutboundCallArgs is set, viz, in startCallArgs(),
-    // and comprises two components:
-    //
-    // * call->frameAlignAdjustment
-    // * the padding applied to the stack arg area itself.  That is:
-    //   StackArgAreaSize(argTys) - StackArgAreaSizeUnpadded(argTys)
-    Maybe<uint32_t> framePushedExcludingArgs;
-    if (framePushedAtEntryToBody.isNothing()) {
-      // Still in the prologue.  framePushedExcludingArgs remains Nothing.
-      MOZ_ASSERT(framePushedExcludingOutboundCallArgs.isNothing());
-    } else {
-      // In the body.
-      MOZ_ASSERT(masm_.framePushed() >= framePushedAtEntryToBody.value());
-      if (framePushedExcludingOutboundCallArgs.isSome()) {
-        // In the body, and we've potentially pushed some args onto the stack.
-        // We must ignore them when sizing the stackmap.
-        MOZ_ASSERT(masm_.framePushed() >=
-                   framePushedExcludingOutboundCallArgs.value());
-        MOZ_ASSERT(framePushedExcludingOutboundCallArgs.value() >=
-                   framePushedAtEntryToBody.value());
-        framePushedExcludingArgs =
-            Some(framePushedExcludingOutboundCallArgs.value());
-      } else {
-        // In the body, but not with call args on the stack.  The stackmap
-        // must be sized so as to extend all the way "down" to
-        // masm_.framePushed().
-        framePushedExcludingArgs = Some(masm_.framePushed());
-      }
-    }
-
-    if (framePushedExcludingArgs.isSome()) {
-      uint32_t bodyPushedBytes =
-          framePushedExcludingArgs.value() - framePushedAtEntryToBody.value();
-      MOZ_ASSERT(0 == bodyPushedBytes % sizeof(void*));
-      if (!augmentedMst.pushNonGCPointers(bodyPushedBytes / sizeof(void*))) {
-        return false;
-      }
-    }
-
-    // Scan the operand stack, marking pointers in the just-added new
-    // section.
-    MOZ_ASSERT_IF(framePushedAtEntryToBody.isNothing(), stk.empty());
-    MOZ_ASSERT_IF(framePushedExcludingArgs.isNothing(), stk.empty());
-
-    for (const Stk& v : stk) {
-#ifndef DEBUG
-      // We don't track roots in registers, per rationale below, so if this
-      // doesn't hold, something is seriously wrong, and we're likely to get a
-      // GC-related crash.
-      MOZ_RELEASE_ASSERT(v.kind() != Stk::RegisterRef);
-      if (v.kind() != Stk::MemRef) {
-        continue;
-      }
-#else
-      // Take the opportunity to check everything we reasonably can about
-      // operand stack elements.
-      switch (v.kind()) {
-        case Stk::MemI32:
-        case Stk::MemI64:
-        case Stk::MemF32:
-        case Stk::MemF64:
-        case Stk::ConstI32:
-        case Stk::ConstI64:
-        case Stk::ConstF32:
-        case Stk::ConstF64:
-#  ifdef ENABLE_WASM_SIMD
-        case Stk::MemV128:
-        case Stk::ConstV128:
-#  endif
-          // All of these have uninteresting type.
-          continue;
-        case Stk::LocalI32:
-        case Stk::LocalI64:
-        case Stk::LocalF32:
-        case Stk::LocalF64:
-#  ifdef ENABLE_WASM_SIMD
-        case Stk::LocalV128:
-#  endif
-          // These also have uninteresting type.  Check that they live in the
-          // section of stack set up by beginFunction().  The unguarded use of
-          // |value()| here is safe due to the assertion above this loop.
-          MOZ_ASSERT(v.offs() <= framePushedAtEntryToBody.value());
-          continue;
-        case Stk::RegisterI32:
-        case Stk::RegisterI64:
-        case Stk::RegisterF32:
-        case Stk::RegisterF64:
-#  ifdef ENABLE_WASM_SIMD
-        case Stk::RegisterV128:
-#  endif
-          // These also have uninteresting type, but more to the point: all
-          // registers holding live values should have been flushed to the
-          // machine stack immediately prior to the instruction to which this
-          // stackmap pertains.  So these can't happen.
-          MOZ_CRASH("createStackMap: operand stack has Register-non-Ref");
-        case Stk::MemRef:
-          // This is the only case we care about.  We'll handle it after the
-          // switch.
-          break;
-        case Stk::LocalRef:
-          // We need the stackmap to mention this pointer, but it should
-          // already be in the machineStackTracker section created by
-          // beginFunction().
-          MOZ_ASSERT(v.offs() <= framePushedAtEntryToBody.value());
-          continue;
-        case Stk::ConstRef:
-          // This can currently only be a null pointer.
-          MOZ_ASSERT(v.refval() == 0);
-          continue;
-        case Stk::RegisterRef:
-          // This can't happen, per rationale above.
-          MOZ_CRASH("createStackMap: operand stack contains RegisterRef");
-        default:
-          MOZ_CRASH("createStackMap: unknown operand stack element");
-      }
-#endif
-      // v.offs() holds masm.framePushed() at the point immediately after it
-      // was pushed on the stack.  Since it's still on the stack,
-      // masm.framePushed() can't be less.
-      MOZ_ASSERT(v.offs() <= framePushedExcludingArgs.value());
-      uint32_t offsFromMapLowest = framePushedExcludingArgs.value() - v.offs();
-      MOZ_ASSERT(0 == offsFromMapLowest % sizeof(void*));
-      augmentedMst.setGCPointer(offsFromMapLowest / sizeof(void*));
-    }
-
-    // Create the final StackMap.  The initial map is zeroed out, so there's
-    // no need to write zero bits in it.
-    const uint32_t extraWords = extras.length();
-    const uint32_t augmentedMstWords = augmentedMst.length();
-    const uint32_t numMappedWords = extraWords + augmentedMstWords;
-    StackMap* stackMap = StackMap::create(numMappedWords);
-    if (!stackMap) {
-      return false;
-    }
-
-    {
-      // First the exit stub extra words, if any.
-      uint32_t i = 0;
-      for (bool b : extras) {
-        if (b) {
-          stackMap->setBit(i);
-        }
-        i++;
-      }
-    }
-    // Followed by the "main" part of the map.
-    for (uint32_t i = 0; i < augmentedMstWords; i++) {
-      if (augmentedMst.isGCPointer(i)) {
-        stackMap->setBit(extraWords + i);
-      }
-    }
-
-    stackMap->setExitStubWords(extraWords);
-
-    // Record in the map, how far down from the highest address the Frame* is.
-    // Take the opportunity to check that we haven't marked any part of the
-    // Frame itself as a pointer.
-    stackMap->setFrameOffsetFromTop(numStackArgWords +
-                                    sizeof(Frame) / sizeof(void*));
-#ifdef DEBUG
-    for (uint32_t i = 0; i < sizeof(Frame) / sizeof(void*); i++) {
-      MOZ_ASSERT(stackMap->getBit(stackMap->numMappedWords -
-                                  stackMap->frameOffsetFromTop + i) == 0);
-    }
-#endif
-
-    // Note the presence of a DebugFrame with live pointers, if any.
-    if (debugFrameWithLiveRefs != HasDebugFrameWithLiveRefs::No) {
-      stackMap->setHasDebugFrameWithLiveRefs();
-    }
-
-    // Add the completed map to the running collection thereof.
-    if (!stackMaps_->add((uint8_t*)(uintptr_t)assemblerOffset, stackMap)) {
-      stackMap->destroy();
-      return false;
-    }
-
-#ifdef DEBUG
-    {
-      // Crosscheck the map pointer counting.
-      uint32_t nw = stackMap->numMappedWords;
-      uint32_t np = 0;
-      for (uint32_t i = 0; i < nw; i++) {
-        np += stackMap->getBit(i);
-      }
-      MOZ_ASSERT(size_t(np) == countedPointers);
-    }
-#endif
-
-    return true;
-  }
+      HasDebugFrameWithLiveRefs debugFrameWithLiveRefs, const StkVector& stk);
 };
 
 }  // namespace wasm

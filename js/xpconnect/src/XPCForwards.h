@@ -35,7 +35,6 @@ class IID2NativeInterfaceMap;
 class ClassInfo2NativeSetMap;
 class ClassInfo2WrappedNativeProtoMap;
 class NativeSetMap;
-class XPCWrappedNativeProtoMap;
 class JSObject2JSObjectMap;
 
 class nsXPCComponents;

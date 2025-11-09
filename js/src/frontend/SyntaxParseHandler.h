@@ -10,14 +10,16 @@
 
 #include <string.h>
 
+#include "jstypes.h"
+
 #include "frontend/CompilationStencil.h"  // CompilationState
 #include "frontend/FunctionSyntaxKind.h"  // FunctionSyntaxKind
 #include "frontend/NameAnalysisTypes.h"   // PrivateNameKind
 #include "frontend/ParseNode.h"
 #include "frontend/ParserAtom.h"  // TaggedParserAtomIndex
 #include "frontend/TokenStream.h"
-#include "js/GCAnnotations.h"
-#include "vm/JSContext.h"
+
+struct JS_PUBLIC_API JSContext;
 
 namespace js {
 
@@ -316,6 +318,13 @@ class SyntaxParseHandler {
   ListNodeType newObjectLiteral(uint32_t begin) {
     return NodeUnparenthesizedObject;
   }
+
+#ifdef ENABLE_RECORD_TUPLE
+  ListNodeType newRecordLiteral(uint32_t begin) { return NodeGeneric; }
+
+  ListNodeType newTupleLiteral(uint32_t begin) { return NodeGeneric; }
+#endif
+
   ListNodeType newClassMemberList(uint32_t begin) { return NodeGeneric; }
   ClassNamesType newClassNames(Node outer, Node inner, const TokenPos& pos) {
     return NodeGeneric;
@@ -333,8 +342,9 @@ class SyntaxParseHandler {
     return NodeLexicalDeclaration;
   }
 
-  BinaryNodeType newNewTarget(NullaryNodeType newHolder,
-                              NullaryNodeType targetHolder) {
+  NewTargetNodeType newNewTarget(NullaryNodeType newHolder,
+                                 NullaryNodeType targetHolder,
+                                 NameNodeType newTargetName) {
     return NodeGeneric;
   }
   NullaryNodeType newPosHolder(const TokenPos& pos) { return NodeGeneric; }
@@ -416,7 +426,14 @@ class SyntaxParseHandler {
     return NodeEmptyStatement;
   }
 
-  BinaryNodeType newImportDeclaration(Node importSpecSet, Node moduleSpec,
+  BinaryNodeType newImportAssertion(Node keyNode, Node valueNode) {
+    return NodeGeneric;
+  }
+  BinaryNodeType newModuleRequest(Node moduleSpec, Node importAssertionList,
+                                  const TokenPos& pos) {
+    return NodeGeneric;
+  }
+  BinaryNodeType newImportDeclaration(Node importSpecSet, Node moduleRequest,
                                       const TokenPos& pos) {
     return NodeGeneric;
   }
@@ -430,7 +447,7 @@ class SyntaxParseHandler {
     return NodeGeneric;
   }
   BinaryNodeType newExportFromDeclaration(uint32_t begin, Node exportSpecSet,
-                                          Node moduleSpec) {
+                                          Node moduleRequest) {
     return NodeGeneric;
   }
   BinaryNodeType newExportDefaultDeclaration(Node kid, Node maybeBinding,
@@ -451,6 +468,9 @@ class SyntaxParseHandler {
     return NodeGeneric;
   }
   BinaryNodeType newCallImport(NullaryNodeType importHolder, Node singleArg) {
+    return NodeGeneric;
+  }
+  BinaryNodeType newCallImportSpec(Node specifierArg, Node optionalArg) {
     return NodeGeneric;
   }
 

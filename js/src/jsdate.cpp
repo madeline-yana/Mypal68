@@ -135,7 +135,7 @@ namespace {
 
 class DateTimeHelper {
  private:
-#if JS_HAS_INTL_API && !MOZ_SYSTEM_ICU
+#if JS_HAS_INTL_API
   static double localTZA(double t, DateTimeInfo::TimeZoneOffset offset);
 #else
   static int equivalentYearForDST(int year);
@@ -150,7 +150,7 @@ class DateTimeHelper {
   static double UTC(double t);
   static JSString* timeZoneComment(JSContext* cx, double utcTime,
                                    double localTime);
-#if !JS_HAS_INTL_API || MOZ_SYSTEM_ICU
+#if !JS_HAS_INTL_API
   static size_t formatTime(char* buf, size_t buflen, const char* fmt,
                            double utcTime, double localTime);
 #endif
@@ -445,7 +445,7 @@ JS_PUBLIC_API void JS::SetTimeResolutionUsec(uint32_t resolution, bool jitter) {
   sJitter = jitter;
 }
 
-#if JS_HAS_INTL_API && !MOZ_SYSTEM_ICU
+#if JS_HAS_INTL_API
 // ES2019 draft rev 0ceb728a1adbffe42b26972a6541fd7f398b1557
 // 20.3.1.7 LocalTZA ( t, isUTC )
 double DateTimeHelper::localTZA(double t, DateTimeInfo::TimeZoneOffset offset) {
@@ -567,7 +567,7 @@ double DateTimeHelper::UTC(double t) {
 
   return t - adjustTime(t - DateTimeInfo::localTZA() - msPerHour);
 }
-#endif /* JS_HAS_INTL_API && !MOZ_SYSTEM_ICU */
+#endif /* JS_HAS_INTL_API */
 
 static double LocalTime(double t) { return DateTimeHelper::localTime(t); }
 
@@ -2801,7 +2801,7 @@ static bool date_toJSON(JSContext* cx, unsigned argc, Value* vp) {
   return Call(cx, toISO, obj, args.rval());
 }
 
-#if JS_HAS_INTL_API && !MOZ_SYSTEM_ICU
+#if JS_HAS_INTL_API
 JSString* DateTimeHelper::timeZoneComment(JSContext* cx, double utcTime,
                                           double localTime) {
   const char* locale = cx->runtime()->getDefaultLocale();
@@ -2905,7 +2905,7 @@ JSString* DateTimeHelper::timeZoneComment(JSContext* cx, double utcTime,
 
   return cx->names().empty;
 }
-#endif /* JS_HAS_INTL_API && !MOZ_SYSTEM_ICU */
+#endif /* JS_HAS_INTL_API */
 
 static JSString* TimeZoneComment(JSContext* cx, double utcTime,
                                  double localTime) {

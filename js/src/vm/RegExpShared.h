@@ -46,11 +46,7 @@ enum RegExpRunStatus : int32_t {
 };
 
 inline bool IsNativeRegExpEnabled() {
-#ifdef JS_CODEGEN_NONE
-  return false;
-#else
-  return jit::JitOptions.nativeRegExp;
-#endif
+  return jit::HasJitBackend() && jit::JitOptions.nativeRegExp;
 }
 
 /*
@@ -224,7 +220,7 @@ class RegExpShared
 
   void traceChildren(JSTracer* trc);
   void discardJitCode();
-  void finalize(JSFreeOp* fop);
+  void finalize(JS::GCContext* gcx);
 
   static size_t offsetOfSource() { return offsetOfHeaderPtr(); }
 

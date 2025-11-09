@@ -16,7 +16,6 @@
 #include "frontend/EmitterScope.h"               // EmitterScope
 #include "frontend/JumpList.h"                   // JumpList, JumpTarget
 #include "frontend/TDZCheckCache.h"              // TDZCheckCache
-#include "gc/Rooting.h"                          // Handle
 #include "js/AllocPolicy.h"                      // SystemAllocPolicy
 #include "js/Value.h"                            // JSVAL_INT_MAX, JSVAL_INT_MIN
 #include "js/Vector.h"                           // Vector
@@ -384,6 +383,7 @@ class MOZ_STACK_CLASS SwitchEmitter {
   //      |                                     |
   //      +-------------------------------------+
   //
+ protected:
   enum class State {
     // The initial state.
     Start,
@@ -454,6 +454,16 @@ class MOZ_STACK_CLASS SwitchEmitter {
  private:
   [[nodiscard]] bool emitCaseOrDefaultJump(uint32_t caseIndex, bool isDefault);
   [[nodiscard]] bool emitImplicitDefault();
+};
+
+// Class for emitting bytecode for switch-case-default block that doesn't
+// correspond to a syntactic `switch`.
+// Compared to SwitchEmitter, this class doesn't require `emitDiscriminant`,
+// and the discriminant can already be on the stack. Usage is otherwise
+// the same as SwitchEmitter.
+class MOZ_STACK_CLASS InternalSwitchEmitter : public SwitchEmitter {
+ public:
+  explicit InternalSwitchEmitter(BytecodeEmitter* bce);
 };
 
 } /* namespace frontend */

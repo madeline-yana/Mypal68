@@ -11,7 +11,6 @@
 #include <stdint.h>  // uint32_t
 
 #include "frontend/BytecodeControlStructures.h"  // LoopControl
-#include "frontend/BytecodeOffset.h"             // BytecodeOffset
 #include "frontend/TDZCheckCache.h"              // TDZCheckCache
 
 namespace js {

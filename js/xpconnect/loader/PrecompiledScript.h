@@ -53,7 +53,6 @@ class PrecompiledScript : public nsISupports, public nsWrapperCache {
   RefPtr<JS::Stencil> mStencil;
   nsCString mURL;
   const bool mHasReturnValue;
-  const bool mLazilyParse;
 };
 
 }  // namespace dom

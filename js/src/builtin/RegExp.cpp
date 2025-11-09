@@ -12,7 +12,6 @@
 
 #include "frontend/TokenStream.h"
 #include "irregexp/RegExpAPI.h"
-#include "jit/InlinableNatives.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_NEWREGEXP_FLAGGED
 #include "js/PropertySpec.h"
 #include "js/RegExpFlags.h"  // JS::RegExpFlag, JS::RegExpFlags
@@ -25,7 +24,6 @@
 
 #include "vm/EnvironmentObject-inl.h"
 #include "vm/JSObject-inl.h"
-#include "vm/NativeObject-inl.h"
 #include "vm/ObjectOperations-inl.h"
 #include "vm/PlainObject-inl.h"
 
@@ -470,7 +468,7 @@ bool js::IsRegExp(JSContext* cx, HandleValue value, bool* result) {
 
   /* Steps 2-3. */
   RootedValue isRegExp(cx);
-  RootedId matchId(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().match));
+  RootedId matchId(cx, PropertyKey::Symbol(cx->wellKnownSymbols().match));
   if (!GetProperty(cx, obj, obj, matchId, &isRegExp)) {
     return false;
   }
@@ -855,8 +853,10 @@ static bool regexp_source(JSContext* cx, unsigned argc, JS::Value* vp) {
       [cx, args](RegExpObject* unwrapped) {
         RootedAtom src(cx, unwrapped->getSource());
         MOZ_ASSERT(src);
-        // Mark potentially cross-compartment JSAtom.
-        cx->markAtom(src);
+        // Mark potentially cross-zone JSAtom.
+        if (cx->zone() != unwrapped->zone()) {
+          cx->markAtom(src);
+        }
 
         // Step 7.
         JSString* escaped = EscapeRegExpPattern(cx, src);
@@ -1178,19 +1178,17 @@ bool js::RegExpMatcher(JSContext* cx, unsigned argc, Value* vp) {
  * This code cannot re-enter JIT code.
  */
 bool js::RegExpMatcherRaw(JSContext* cx, HandleObject regexp,
-                          HandleString input, int32_t maybeLastIndex,
+                          HandleString input, int32_t lastIndex,
                           MatchPairs* maybeMatches, MutableHandleValue output) {
+  MOZ_ASSERT(lastIndex >= 0 && size_t(lastIndex) <= input->length());
+
   // RegExp execution was successful only if the pairs have actually been
   // filled in. Note that IC code always passes a nullptr maybeMatches.
   if (maybeMatches && maybeMatches->pairsRaw()[0] > MatchPair::NoMatch) {
     RootedRegExpShared shared(cx, regexp->as<RegExpObject>().getShared());
     return CreateRegExpMatchResult(cx, shared, input, *maybeMatches, output);
   }
-
-  // |maybeLastIndex| only contains a valid value when the RegExp execution
-  // was not successful.
-  MOZ_ASSERT(maybeLastIndex >= 0);
-  return RegExpMatcherImpl(cx, regexp, input, maybeLastIndex, output);
+  return RegExpMatcherImpl(cx, regexp, input, lastIndex, output);
 }
 
 /*
@@ -1989,7 +1987,7 @@ bool js::RegExpPrototypeOptimizableRaw(JSContext* cx, JSObject* proto) {
   // those values should be tested in selfhosted JS.
   bool has = false;
   if (!HasOwnDataPropertyPure(
-          cx, proto, SYMBOL_TO_JSID(cx->wellKnownSymbols().match), &has)) {
+          cx, proto, PropertyKey::Symbol(cx->wellKnownSymbols().match), &has)) {
     return false;
   }
   if (!has) {
@@ -1997,7 +1995,8 @@ bool js::RegExpPrototypeOptimizableRaw(JSContext* cx, JSObject* proto) {
   }
 
   if (!HasOwnDataPropertyPure(
-          cx, proto, SYMBOL_TO_JSID(cx->wellKnownSymbols().search), &has)) {
+          cx, proto, PropertyKey::Symbol(cx->wellKnownSymbols().search),
+          &has)) {
     return false;
   }
   if (!has) {

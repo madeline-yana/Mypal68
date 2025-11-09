@@ -7,7 +7,7 @@ function run_test() {
   var scope = {};
   var exports = ChromeUtils.import("resource://gre/modules/XPCOMUtils.jsm", scope);
   Assert.equal(typeof(scope.XPCOMUtils), "object");
-  Assert.equal(typeof(scope.XPCOMUtils.generateNSGetFactory), "function");
+  Assert.equal(typeof(scope.XPCOMUtils.defineLazyGetter), "function");
 
   equal(scope.XPCOMUtils, exports.XPCOMUtils);
   deepEqual(Object.keys(scope), ["XPCOMUtils"]);
@@ -19,24 +19,22 @@ function run_test() {
 
   // access module's global object directly without importing any
   // symbols
-  var module = ChromeUtils.import("resource://gre/modules/XPCOMUtils.jsm", null);
-  Assert.equal(typeof(XPCOMUtils), "undefined");
-  Assert.equal(typeof(module), "object");
-  Assert.equal(typeof(module.XPCOMUtils), "object");
-  Assert.equal(typeof(module.XPCOMUtils.generateNSGetFactory), "function");
-  Assert.ok(scope.XPCOMUtils == module.XPCOMUtils);
+  Assert.throws(
+    () => ChromeUtils.import("resource://gre/modules/XPCOMUtils.jsm", null),
+    TypeError
+  );
 
   // import symbols to our global object
   Assert.equal(typeof(Cu.import), "function");
   ({XPCOMUtils} = ChromeUtils.import("resource://gre/modules/XPCOMUtils.jsm"));
   Assert.equal(typeof(XPCOMUtils), "object");
-  Assert.equal(typeof(XPCOMUtils.generateNSGetFactory), "function");
+  Assert.equal(typeof(XPCOMUtils.defineLazyGetter), "function");
 
   // try on a new object
   var scope2 = {};
   ChromeUtils.import("resource://gre/modules/XPCOMUtils.jsm", scope2);
   Assert.equal(typeof(scope2.XPCOMUtils), "object");
-  Assert.equal(typeof(scope2.XPCOMUtils.generateNSGetFactory), "function");
+  Assert.equal(typeof(scope2.XPCOMUtils.defineLazyGetter), "function");
 
   Assert.ok(scope2.XPCOMUtils == scope.XPCOMUtils);
 
@@ -49,8 +47,10 @@ function run_test() {
   dump("resURI: " + resURI + "\n");
   var filePath = res.resolveURI(resURI);
   var scope3 = {};
-  Assert.throws(() => ChromeUtils.import(filePath, scope3),
-                /NS_ERROR_UNEXPECTED/);
+  Assert.throws(
+    () => ChromeUtils.import(filePath, scope3),
+    /SecurityError/, "Expecting file URI not to be imported"
+  );
 
   // make sure we throw when the second arg is bogus
   var didThrow = false;
@@ -88,4 +88,12 @@ function run_test() {
               .createInstance(Ci.nsIClassInfo);
   Assert.ok(Boolean(bar));
   Assert.ok(bar.contractID == contractID + "2");
+
+  // make sure we throw when the URL scheme is not known
+  var scope4 = {};
+  const wrongScheme = "data:text/javascript,var a = {a:1}";
+  Assert.throws(
+    () => ChromeUtils.import(wrongScheme, scope4),
+    /SecurityError/, "Expecting data URI not to be imported"
+  );
 }

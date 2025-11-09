@@ -5,6 +5,8 @@
 #ifndef BackstagePass_h__
 #define BackstagePass_h__
 
+#include "js/loader/ModuleLoaderBase.h"
+#include "mozilla/StorageAccess.h"
 #include "nsISupports.h"
 #include "nsWeakReference.h"
 #include "nsIGlobalObject.h"
@@ -27,6 +29,8 @@ class BackstagePass : public nsIGlobalObject,
   NS_DECL_NSIXPCSCRIPTABLE
   NS_DECL_NSICLASSINFO
 
+  using ModuleLoaderBase = JS::loader::ModuleLoaderBase;
+
   virtual nsIPrincipal* GetPrincipal() override { return mPrincipal; }
 
   virtual nsIPrincipal* GetEffectiveStoragePrincipal() override {
@@ -40,15 +44,31 @@ class BackstagePass : public nsIGlobalObject,
   JSObject* GetGlobalJSObject() override;
   JSObject* GetGlobalJSObjectPreserveColor() const override;
 
+  ModuleLoaderBase* GetModuleLoader(JSContext* aCx) override {
+    return mModuleLoader;
+  }
+
+  mozilla::StorageAccess GetStorageAccess() final {
+    MOZ_ASSERT(NS_IsMainThread());
+    return mozilla::StorageAccess::eAllow;
+  }
+
   void ForgetGlobalObject() { mWrapper = nullptr; }
 
   void SetGlobalObject(JSObject* global);
+
+  void InitModuleLoader(ModuleLoaderBase* aModuleLoader) {
+    MOZ_ASSERT(!mModuleLoader);
+    mModuleLoader = aModuleLoader;
+  }
 
  private:
   virtual ~BackstagePass() = default;
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
   XPCWrappedNative* mWrapper;
+
+  RefPtr<JS::loader::ModuleLoaderBase> mModuleLoader;
 };
 
 #endif  // BackstagePass_h__

@@ -13,7 +13,7 @@
 #include "builtin/intl/CommonFunctions.h"
 #include "builtin/intl/FormatBuffer.h"
 #include "builtin/intl/LanguageTag.h"
-#include "gc/FreeOp.h"
+#include "gc/GCContext.h"
 #include "js/CharacterEncoding.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "js/PropertySpec.h"
@@ -28,9 +28,6 @@
 
 using namespace js;
 
-using js::intl::CallICU;
-using js::intl::IcuLocale;
-
 /**************** RelativeTimeFormat *****************/
 
 const JSClassOps RelativeTimeFormatObject::classOps_ = {
@@ -42,7 +39,6 @@ const JSClassOps RelativeTimeFormatObject::classOps_ = {
     nullptr,                             // mayResolve
     RelativeTimeFormatObject::finalize,  // finalize
     nullptr,                             // call
-    nullptr,                             // hasInstance
     nullptr,                             // construct
     nullptr,                             // trace
 };
@@ -133,12 +129,12 @@ static bool RelativeTimeFormat(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
-void js::RelativeTimeFormatObject::finalize(JSFreeOp* fop, JSObject* obj) {
-  MOZ_ASSERT(fop->onMainThread());
+void js::RelativeTimeFormatObject::finalize(JS::GCContext* gcx, JSObject* obj) {
+  MOZ_ASSERT(gcx->onMainThread());
 
   if (mozilla::intl::RelativeTimeFormat* rtf =
           obj->as<RelativeTimeFormatObject>().getRelativeTimeFormatter()) {
-    intl::RemoveICUCellMemory(fop, obj,
+    intl::RemoveICUCellMemory(gcx, obj,
                               RelativeTimeFormatObject::EstimatedMemoryUse);
 
     // This was allocated using `new` in mozilla::intl::RelativeTimeFormat,
@@ -166,14 +162,14 @@ static mozilla::intl::RelativeTimeFormat* NewRelativeTimeFormatter(
 
   // ICU expects numberingSystem as a Unicode locale extensions on locale.
 
-  intl::LanguageTag tag(cx);
+  mozilla::intl::Locale tag;
   {
-    JSLinearString* locale = value.toString()->ensureLinear(cx);
+    RootedLinearString locale(cx, value.toString()->ensureLinear(cx));
     if (!locale) {
       return nullptr;
     }
 
-    if (!intl::LanguageTagParser::parse(cx, locale, tag)) {
+    if (!intl::ParseLocale(cx, locale, tag)) {
       return nullptr;
     }
   }
@@ -204,7 +200,13 @@ static mozilla::intl::RelativeTimeFormat* NewRelativeTimeFormatter(
     return nullptr;
   }
 
-  UniqueChars locale = tag.toStringZ(cx);
+  intl::FormatBuffer<char> buffer(cx);
+  if (auto result = tag.ToString(buffer); result.isErr()) {
+    intl::ReportInternalError(cx, result.unwrapErr());
+    return nullptr;
+  }
+
+  UniqueChars locale = buffer.extractStringZ();
   if (!locale) {
     return nullptr;
   }
@@ -262,6 +264,26 @@ static mozilla::intl::RelativeTimeFormat* NewRelativeTimeFormatter(
   return nullptr;
 }
 
+static mozilla::intl::RelativeTimeFormat* GetOrCreateRelativeTimeFormat(
+    JSContext* cx, Handle<RelativeTimeFormatObject*> relativeTimeFormat) {
+  // Obtain a cached RelativeDateTimeFormatter object.
+  mozilla::intl::RelativeTimeFormat* rtf =
+      relativeTimeFormat->getRelativeTimeFormatter();
+  if (rtf) {
+    return rtf;
+  }
+
+  rtf = NewRelativeTimeFormatter(cx, relativeTimeFormat);
+  if (!rtf) {
+    return nullptr;
+  }
+  relativeTimeFormat->setRelativeTimeFormatter(rtf);
+
+  intl::AddICUCellMemory(relativeTimeFormat,
+                         RelativeTimeFormatObject::EstimatedMemoryUse);
+  return rtf;
+}
+
 bool js::intl_FormatRelativeTime(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   MOZ_ASSERT(args.length() == 4);
@@ -284,18 +306,10 @@ bool js::intl_FormatRelativeTime(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  // Obtain a cached URelativeDateTimeFormatter object.
   mozilla::intl::RelativeTimeFormat* rtf =
-      relativeTimeFormat->getRelativeTimeFormatter();
+      GetOrCreateRelativeTimeFormat(cx, relativeTimeFormat);
   if (!rtf) {
-    rtf = NewRelativeTimeFormatter(cx, relativeTimeFormat);
-    if (!rtf) {
-      return false;
-    }
-    relativeTimeFormat->setRelativeTimeFormatter(rtf);
-
-    intl::AddICUCellMemory(relativeTimeFormat,
-                           RelativeTimeFormatObject::EstimatedMemoryUse);
+    return false;
   }
 
   intl::FieldType jsUnitType;
@@ -378,7 +392,7 @@ bool js::intl_FormatRelativeTime(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  JSString* str = buffer.toString();
+  JSString* str = buffer.toString(cx);
   if (!str) {
     return false;
   }

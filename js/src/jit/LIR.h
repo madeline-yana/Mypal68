@@ -547,27 +547,21 @@ class LDefinition {
     return (Policy)((bits_ >> POLICY_SHIFT) & POLICY_MASK);
   }
   Type type() const { return (Type)((bits_ >> TYPE_SHIFT) & TYPE_MASK); }
-#ifndef ENABLE_WASM_SIMD
-  bool isSimdType() const {
-    return type() == SIMD128INT || type() == SIMD128FLOAT;
+
+  static bool isFloatRegCompatible(Type type, FloatRegister reg) {
+    if (type == FLOAT32) {
+      return reg.isSingle();
+    }
+    if (type == DOUBLE) {
+      return reg.isDouble();
+    }
+    MOZ_ASSERT(type == SIMD128);
+    return reg.isSimd128();
   }
-#endif
+
   bool isCompatibleReg(const AnyRegister& r) const {
     if (isFloatReg() && r.isFloat()) {
-      if (type() == FLOAT32) {
-        return r.fpu().isSingle();
-      }
-      if (type() == DOUBLE) {
-        return r.fpu().isDouble();
-      }
-#ifdef ENABLE_WASM_SIMD
-      if (type() == SIMD128) {
-#else
-      if (isSimdType()) {
-#endif
-        return r.fpu().isSimd128();
-      }
-      MOZ_CRASH("Unexpected MDefinition type");
+      return isFloatRegCompatible(type(), r.fpu());
     }
     return !isFloatReg() && !r.isFloat();
   }
@@ -582,13 +576,15 @@ class LDefinition {
 #endif
   }
 
-  bool isFloatReg() const {
+  static bool isFloatReg(Type type) {
 #ifdef ENABLE_WASM_SIMD
-    return type() == FLOAT32 || type() == DOUBLE || type() == SIMD128;
+    return type == FLOAT32 || type == DOUBLE || type == SIMD128;
 #else
-    return type() == FLOAT32 || type() == DOUBLE || isSimdType();
+    return type == FLOAT32 || type == DOUBLE || type == SIMD128INT || type == SIMD128FLOAT;
 #endif
   }
+  bool isFloatReg() const { return isFloatReg(type()); }
+
   uint32_t virtualRegister() const {
     uint32_t index = (bits_ >> VREG_SHIFT) & VREG_MASK;
     // MOZ_ASSERT(index != 0);
@@ -1436,7 +1432,7 @@ class LSafepoint : public TempObject {
   // For call instructions, the live regs are empty. Call instructions may
   // have register inputs or temporaries, which will *not* be in the live
   // registers: if passed to the call, the values passed will be marked via
-  // MarkJitExitFrame, and no registers can be live after the instruction
+  // TraceJitExitFrame, and no registers can be live after the instruction
   // except its outputs.
   LiveRegisterSet liveRegs_;
 
@@ -1963,6 +1959,8 @@ AnyRegister LAllocation::toRegister() const {
 #  include "jit/arm/LIR-arm.h"
 #elif defined(JS_CODEGEN_ARM64)
 #  include "jit/arm64/LIR-arm64.h"
+#elif defined(JS_CODEGEN_LOONG64)
+#  include "jit/loong64/LIR-loong64.h"
 #elif defined(JS_CODEGEN_MIPS32) || defined(JS_CODEGEN_MIPS64)
 #  if defined(JS_CODEGEN_MIPS32)
 #    include "jit/mips32/LIR-mips32.h"

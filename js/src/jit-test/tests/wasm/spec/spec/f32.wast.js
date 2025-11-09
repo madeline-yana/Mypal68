@@ -31,28 +31,19 @@ let $0 = instantiate(`(module
 )`);
 
 // ./test/core/f32.wast:19
-assert_return(
-  () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `add`, [value("f32", -0), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:20
-assert_return(
-  () =>
-    invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0)]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `add`, [value("f32", -0), value("f32", 0)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:21
-assert_return(
-  () =>
-    invoke($0, `add`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `add`, [value("f32", 0), value("f32", -0)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:22
 assert_return(() => invoke($0, `add`, [value("f32", 0), value("f32", 0)]), [
@@ -63,7 +54,7 @@ assert_return(() => invoke($0, `add`, [value("f32", 0), value("f32", 0)]), [
 assert_return(
   () =>
     invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
   [value("f32", -0.000000000000000000000000000000000000000000001)],
@@ -73,7 +64,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
   [value("f32", 0.000000000000000000000000000000000000000000001)],
@@ -103,7 +94,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
   [value("f32", -0.000000000000000000000000000000000000011754944)],
@@ -113,7 +104,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
   [value("f32", 0.000000000000000000000000000000000000011754944)],
@@ -140,21 +131,14 @@ assert_return(
 );
 
 // ./test/core/f32.wast:31
-assert_return(
-  () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -0.5),
-    ]),
-  [value("f32", -0.5)],
-);
+assert_return(() => invoke($0, `add`, [value("f32", -0), value("f32", -0.5)]), [
+  value("f32", -0.5),
+]);
 
 // ./test/core/f32.wast:32
-assert_return(
-  () =>
-    invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0.5)]),
-  [value("f32", 0.5)],
-);
+assert_return(() => invoke($0, `add`, [value("f32", -0), value("f32", 0.5)]), [
+  value("f32", 0.5),
+]);
 
 // ./test/core/f32.wast:33
 assert_return(() => invoke($0, `add`, [value("f32", 0), value("f32", -0.5)]), [
@@ -167,18 +151,14 @@ assert_return(() => invoke($0, `add`, [value("f32", 0), value("f32", 0.5)]), [
 ]);
 
 // ./test/core/f32.wast:35
-assert_return(
-  () =>
-    invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", -1)]),
-  [value("f32", -1)],
-);
+assert_return(() => invoke($0, `add`, [value("f32", -0), value("f32", -1)]), [
+  value("f32", -1),
+]);
 
 // ./test/core/f32.wast:36
-assert_return(
-  () =>
-    invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 1)]),
-  [value("f32", 1)],
-);
+assert_return(() => invoke($0, `add`, [value("f32", -0), value("f32", 1)]), [
+  value("f32", 1),
+]);
 
 // ./test/core/f32.wast:37
 assert_return(() => invoke($0, `add`, [value("f32", 0), value("f32", -1)]), [
@@ -192,21 +172,13 @@ assert_return(() => invoke($0, `add`, [value("f32", 0), value("f32", 1)]), [
 
 // ./test/core/f32.wast:39
 assert_return(
-  () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -6.2831855),
-    ]),
+  () => invoke($0, `add`, [value("f32", -0), value("f32", -6.2831855)]),
   [value("f32", -6.2831855)],
 );
 
 // ./test/core/f32.wast:40
 assert_return(
-  () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", 6.2831855),
-    ]),
+  () => invoke($0, `add`, [value("f32", -0), value("f32", 6.2831855)]),
   [value("f32", 6.2831855)],
 );
 
@@ -226,7 +198,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -340282350000000000000000000000000000000),
     ]),
   [value("f32", -340282350000000000000000000000000000000)],
@@ -236,7 +208,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 340282350000000000000000000000000000000),
     ]),
   [value("f32", 340282350000000000000000000000000000000)],
@@ -264,21 +236,13 @@ assert_return(
 
 // ./test/core/f32.wast:47
 assert_return(
-  () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -Infinity),
-    ]),
+  () => invoke($0, `add`, [value("f32", -0), value("f32", -Infinity)]),
   [value("f32", -Infinity)],
 );
 
 // ./test/core/f32.wast:48
 assert_return(
-  () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", Infinity),
-    ]),
+  () => invoke($0, `add`, [value("f32", -0), value("f32", Infinity)]),
   [value("f32", Infinity)],
 );
 
@@ -297,69 +261,57 @@ assert_return(
 // ./test/core/f32.wast:51
 assert_return(
   () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `add`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:52
 assert_return(
   () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `add`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:53
 assert_return(
   () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `add`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:54
 assert_return(
   () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `add`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:55
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:56
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:57
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:58
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:59
@@ -367,7 +319,7 @@ assert_return(
   () =>
     invoke($0, `add`, [
       value("f32", -0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -0.000000000000000000000000000000000000000000001)],
 );
@@ -387,7 +339,7 @@ assert_return(
   () =>
     invoke($0, `add`, [
       value("f32", 0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 0.000000000000000000000000000000000000000000001)],
 );
@@ -689,7 +641,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:92
@@ -699,7 +651,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:93
@@ -709,7 +661,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:94
@@ -719,7 +671,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:95
@@ -729,7 +681,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:96
@@ -739,7 +691,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:97
@@ -749,7 +701,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:98
@@ -759,7 +711,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:99
@@ -767,7 +719,7 @@ assert_return(
   () =>
     invoke($0, `add`, [
       value("f32", -0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -0.000000000000000000000000000000000000011754944)],
 );
@@ -787,7 +739,7 @@ assert_return(
   () =>
     invoke($0, `add`, [
       value("f32", 0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 0.000000000000000000000000000000000000011754944)],
 );
@@ -1089,7 +1041,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:132
@@ -1099,7 +1051,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:133
@@ -1109,7 +1061,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:134
@@ -1119,7 +1071,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:135
@@ -1129,7 +1081,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:136
@@ -1139,7 +1091,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:137
@@ -1149,7 +1101,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:138
@@ -1159,18 +1111,13 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:139
-assert_return(
-  () =>
-    invoke($0, `add`, [
-      value("f32", -0.5),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [value("f32", -0.5)],
-);
+assert_return(() => invoke($0, `add`, [value("f32", -0.5), value("f32", -0)]), [
+  value("f32", -0.5),
+]);
 
 // ./test/core/f32.wast:140
 assert_return(() => invoke($0, `add`, [value("f32", -0.5), value("f32", 0)]), [
@@ -1178,11 +1125,9 @@ assert_return(() => invoke($0, `add`, [value("f32", -0.5), value("f32", 0)]), [
 ]);
 
 // ./test/core/f32.wast:141
-assert_return(
-  () =>
-    invoke($0, `add`, [value("f32", 0.5), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", 0.5)],
-);
+assert_return(() => invoke($0, `add`, [value("f32", 0.5), value("f32", -0)]), [
+  value("f32", 0.5),
+]);
 
 // ./test/core/f32.wast:142
 assert_return(() => invoke($0, `add`, [value("f32", 0.5), value("f32", 0)]), [
@@ -1407,7 +1352,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:172
@@ -1417,7 +1362,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:173
@@ -1427,7 +1372,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:174
@@ -1437,7 +1382,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:175
@@ -1447,7 +1392,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:176
@@ -1457,7 +1402,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:177
@@ -1467,7 +1412,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:178
@@ -1477,15 +1422,13 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:179
-assert_return(
-  () =>
-    invoke($0, `add`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", -1)],
-);
+assert_return(() => invoke($0, `add`, [value("f32", -1), value("f32", -0)]), [
+  value("f32", -1),
+]);
 
 // ./test/core/f32.wast:180
 assert_return(() => invoke($0, `add`, [value("f32", -1), value("f32", 0)]), [
@@ -1493,11 +1436,9 @@ assert_return(() => invoke($0, `add`, [value("f32", -1), value("f32", 0)]), [
 ]);
 
 // ./test/core/f32.wast:181
-assert_return(
-  () =>
-    invoke($0, `add`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", 1)],
-);
+assert_return(() => invoke($0, `add`, [value("f32", 1), value("f32", -0)]), [
+  value("f32", 1),
+]);
 
 // ./test/core/f32.wast:182
 assert_return(() => invoke($0, `add`, [value("f32", 1), value("f32", 0)]), [
@@ -1716,65 +1657,61 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:212
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:213
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:214
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:215
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:216
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:217
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:218
 assert_return(
   () =>
     invoke($0, `add`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:219
 assert_return(
-  () =>
-    invoke($0, `add`, [
-      value("f32", -6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `add`, [value("f32", -6.2831855), value("f32", -0)]),
   [value("f32", -6.2831855)],
 );
 
@@ -1786,11 +1723,7 @@ assert_return(
 
 // ./test/core/f32.wast:221
 assert_return(
-  () =>
-    invoke($0, `add`, [
-      value("f32", 6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `add`, [value("f32", 6.2831855), value("f32", -0)]),
   [value("f32", 6.2831855)],
 );
 
@@ -2023,7 +1956,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:252
@@ -2033,7 +1966,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:253
@@ -2043,7 +1976,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:254
@@ -2053,7 +1986,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:255
@@ -2063,7 +1996,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:256
@@ -2073,7 +2006,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:257
@@ -2083,7 +2016,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:258
@@ -2093,7 +2026,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:259
@@ -2101,7 +2034,7 @@ assert_return(
   () =>
     invoke($0, `add`, [
       value("f32", -340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -340282350000000000000000000000000000000)],
 );
@@ -2121,7 +2054,7 @@ assert_return(
   () =>
     invoke($0, `add`, [
       value("f32", 340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 340282350000000000000000000000000000000)],
 );
@@ -2423,7 +2356,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:292
@@ -2433,7 +2366,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:293
@@ -2443,7 +2376,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:294
@@ -2453,7 +2386,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:295
@@ -2463,7 +2396,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:296
@@ -2473,7 +2406,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:297
@@ -2483,7 +2416,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:298
@@ -2493,16 +2426,12 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:299
 assert_return(
-  () =>
-    invoke($0, `add`, [
-      value("f32", -Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `add`, [value("f32", -Infinity), value("f32", -0)]),
   [value("f32", -Infinity)],
 );
 
@@ -2514,11 +2443,7 @@ assert_return(
 
 // ./test/core/f32.wast:301
 assert_return(
-  () =>
-    invoke($0, `add`, [
-      value("f32", Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `add`, [value("f32", Infinity), value("f32", -0)]),
   [value("f32", Infinity)],
 );
 
@@ -2729,13 +2654,13 @@ assert_return(
 // ./test/core/f32.wast:328
 assert_return(
   () => invoke($0, `add`, [value("f32", -Infinity), value("f32", Infinity)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:329
 assert_return(
   () => invoke($0, `add`, [value("f32", Infinity), value("f32", -Infinity)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:330
@@ -2751,7 +2676,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:332
@@ -2761,7 +2686,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:333
@@ -2771,7 +2696,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:334
@@ -2781,7 +2706,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:335
@@ -2791,7 +2716,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:336
@@ -2801,7 +2726,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:337
@@ -2811,7 +2736,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:338
@@ -2821,75 +2746,63 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:339
 assert_return(
   () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:340
 assert_return(
   () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:341
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:342
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:343
 assert_return(
   () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:344
 assert_return(
   () =>
-    invoke($0, `add`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:345
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:346
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:347
@@ -2899,7 +2812,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:348
@@ -2909,7 +2822,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:349
@@ -2919,7 +2832,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:350
@@ -2929,7 +2842,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:351
@@ -2939,7 +2852,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:352
@@ -2949,7 +2862,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:353
@@ -2959,7 +2872,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:354
@@ -2969,7 +2882,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:355
@@ -2979,7 +2892,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:356
@@ -2989,7 +2902,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:357
@@ -2999,7 +2912,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:358
@@ -3009,7 +2922,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:359
@@ -3019,7 +2932,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:360
@@ -3029,7 +2942,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:361
@@ -3039,7 +2952,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:362
@@ -3049,7 +2962,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:363
@@ -3059,7 +2972,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:364
@@ -3069,7 +2982,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:365
@@ -3079,7 +2992,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:366
@@ -3089,7 +3002,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:367
@@ -3099,7 +3012,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:368
@@ -3109,7 +3022,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:369
@@ -3119,7 +3032,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:370
@@ -3129,63 +3042,63 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:371
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:372
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:373
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:374
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:375
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:376
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:377
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:378
 assert_return(
   () =>
     invoke($0, `add`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:379
@@ -3195,7 +3108,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:380
@@ -3205,7 +3118,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:381
@@ -3215,7 +3128,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:382
@@ -3225,7 +3138,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:383
@@ -3235,7 +3148,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:384
@@ -3245,7 +3158,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:385
@@ -3255,7 +3168,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:386
@@ -3265,7 +3178,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:387
@@ -3275,7 +3188,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:388
@@ -3285,7 +3198,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:389
@@ -3295,7 +3208,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:390
@@ -3305,7 +3218,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:391
@@ -3315,7 +3228,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:392
@@ -3325,7 +3238,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:393
@@ -3335,7 +3248,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:394
@@ -3345,7 +3258,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:395
@@ -3355,7 +3268,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:396
@@ -3365,7 +3278,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:397
@@ -3375,7 +3288,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:398
@@ -3385,7 +3298,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:399
@@ -3395,7 +3308,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:400
@@ -3405,7 +3318,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:401
@@ -3415,7 +3328,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:402
@@ -3425,7 +3338,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:403
@@ -3435,7 +3348,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:404
@@ -3445,7 +3358,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:405
@@ -3455,7 +3368,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:406
@@ -3465,7 +3378,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:407
@@ -3475,7 +3388,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:408
@@ -3485,7 +3398,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:409
@@ -3495,7 +3408,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:410
@@ -3505,7 +3418,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:411
@@ -3515,7 +3428,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:412
@@ -3525,7 +3438,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:413
@@ -3535,7 +3448,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:414
@@ -3545,7 +3458,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:415
@@ -3555,7 +3468,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:416
@@ -3565,7 +3478,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:417
@@ -3575,7 +3488,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:418
@@ -3585,32 +3498,23 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:419
-assert_return(
-  () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", -0), value("f32", -0)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:420
-assert_return(
-  () =>
-    invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", -0), value("f32", 0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:421
-assert_return(
-  () =>
-    invoke($0, `sub`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", 0), value("f32", -0)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:422
 assert_return(() => invoke($0, `sub`, [value("f32", 0), value("f32", 0)]), [
@@ -3621,7 +3525,7 @@ assert_return(() => invoke($0, `sub`, [value("f32", 0), value("f32", 0)]), [
 assert_return(
   () =>
     invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
   [value("f32", 0.000000000000000000000000000000000000000000001)],
@@ -3631,7 +3535,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
   [value("f32", -0.000000000000000000000000000000000000000000001)],
@@ -3661,7 +3565,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
   [value("f32", 0.000000000000000000000000000000000000011754944)],
@@ -3671,7 +3575,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
   [value("f32", -0.000000000000000000000000000000000000011754944)],
@@ -3698,21 +3602,14 @@ assert_return(
 );
 
 // ./test/core/f32.wast:431
-assert_return(
-  () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -0.5),
-    ]),
-  [value("f32", 0.5)],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", -0), value("f32", -0.5)]), [
+  value("f32", 0.5),
+]);
 
 // ./test/core/f32.wast:432
-assert_return(
-  () =>
-    invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0.5)]),
-  [value("f32", -0.5)],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", -0), value("f32", 0.5)]), [
+  value("f32", -0.5),
+]);
 
 // ./test/core/f32.wast:433
 assert_return(() => invoke($0, `sub`, [value("f32", 0), value("f32", -0.5)]), [
@@ -3725,18 +3622,14 @@ assert_return(() => invoke($0, `sub`, [value("f32", 0), value("f32", 0.5)]), [
 ]);
 
 // ./test/core/f32.wast:435
-assert_return(
-  () =>
-    invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", -1)]),
-  [value("f32", 1)],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", -0), value("f32", -1)]), [
+  value("f32", 1),
+]);
 
 // ./test/core/f32.wast:436
-assert_return(
-  () =>
-    invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 1)]),
-  [value("f32", -1)],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", -0), value("f32", 1)]), [
+  value("f32", -1),
+]);
 
 // ./test/core/f32.wast:437
 assert_return(() => invoke($0, `sub`, [value("f32", 0), value("f32", -1)]), [
@@ -3750,21 +3643,13 @@ assert_return(() => invoke($0, `sub`, [value("f32", 0), value("f32", 1)]), [
 
 // ./test/core/f32.wast:439
 assert_return(
-  () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -6.2831855),
-    ]),
+  () => invoke($0, `sub`, [value("f32", -0), value("f32", -6.2831855)]),
   [value("f32", 6.2831855)],
 );
 
 // ./test/core/f32.wast:440
 assert_return(
-  () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", 6.2831855),
-    ]),
+  () => invoke($0, `sub`, [value("f32", -0), value("f32", 6.2831855)]),
   [value("f32", -6.2831855)],
 );
 
@@ -3784,7 +3669,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -340282350000000000000000000000000000000),
     ]),
   [value("f32", 340282350000000000000000000000000000000)],
@@ -3794,7 +3679,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 340282350000000000000000000000000000000),
     ]),
   [value("f32", -340282350000000000000000000000000000000)],
@@ -3822,21 +3707,13 @@ assert_return(
 
 // ./test/core/f32.wast:447
 assert_return(
-  () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -Infinity),
-    ]),
+  () => invoke($0, `sub`, [value("f32", -0), value("f32", -Infinity)]),
   [value("f32", Infinity)],
 );
 
 // ./test/core/f32.wast:448
 assert_return(
-  () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", Infinity),
-    ]),
+  () => invoke($0, `sub`, [value("f32", -0), value("f32", Infinity)]),
   [value("f32", -Infinity)],
 );
 
@@ -3855,69 +3732,57 @@ assert_return(
 // ./test/core/f32.wast:451
 assert_return(
   () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `sub`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:452
 assert_return(
   () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `sub`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:453
 assert_return(
   () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `sub`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:454
 assert_return(
   () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `sub`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:455
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:456
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:457
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:458
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:459
@@ -3925,7 +3790,7 @@ assert_return(
   () =>
     invoke($0, `sub`, [
       value("f32", -0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -0.000000000000000000000000000000000000000000001)],
 );
@@ -3945,7 +3810,7 @@ assert_return(
   () =>
     invoke($0, `sub`, [
       value("f32", 0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 0.000000000000000000000000000000000000000000001)],
 );
@@ -4247,7 +4112,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:492
@@ -4257,7 +4122,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:493
@@ -4267,7 +4132,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:494
@@ -4277,7 +4142,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:495
@@ -4287,7 +4152,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:496
@@ -4297,7 +4162,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:497
@@ -4307,7 +4172,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:498
@@ -4317,7 +4182,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:499
@@ -4325,7 +4190,7 @@ assert_return(
   () =>
     invoke($0, `sub`, [
       value("f32", -0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -0.000000000000000000000000000000000000011754944)],
 );
@@ -4345,7 +4210,7 @@ assert_return(
   () =>
     invoke($0, `sub`, [
       value("f32", 0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 0.000000000000000000000000000000000000011754944)],
 );
@@ -4647,7 +4512,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:532
@@ -4657,7 +4522,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:533
@@ -4667,7 +4532,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:534
@@ -4677,7 +4542,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:535
@@ -4687,7 +4552,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:536
@@ -4697,7 +4562,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:537
@@ -4707,7 +4572,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:538
@@ -4717,18 +4582,13 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:539
-assert_return(
-  () =>
-    invoke($0, `sub`, [
-      value("f32", -0.5),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [value("f32", -0.5)],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", -0.5), value("f32", -0)]), [
+  value("f32", -0.5),
+]);
 
 // ./test/core/f32.wast:540
 assert_return(() => invoke($0, `sub`, [value("f32", -0.5), value("f32", 0)]), [
@@ -4736,11 +4596,9 @@ assert_return(() => invoke($0, `sub`, [value("f32", -0.5), value("f32", 0)]), [
 ]);
 
 // ./test/core/f32.wast:541
-assert_return(
-  () =>
-    invoke($0, `sub`, [value("f32", 0.5), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", 0.5)],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", 0.5), value("f32", -0)]), [
+  value("f32", 0.5),
+]);
 
 // ./test/core/f32.wast:542
 assert_return(() => invoke($0, `sub`, [value("f32", 0.5), value("f32", 0)]), [
@@ -4965,7 +4823,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:572
@@ -4975,7 +4833,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:573
@@ -4985,7 +4843,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:574
@@ -4995,7 +4853,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:575
@@ -5005,7 +4863,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:576
@@ -5015,7 +4873,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:577
@@ -5025,7 +4883,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:578
@@ -5035,15 +4893,13 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:579
-assert_return(
-  () =>
-    invoke($0, `sub`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", -1)],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", -1), value("f32", -0)]), [
+  value("f32", -1),
+]);
 
 // ./test/core/f32.wast:580
 assert_return(() => invoke($0, `sub`, [value("f32", -1), value("f32", 0)]), [
@@ -5051,11 +4907,9 @@ assert_return(() => invoke($0, `sub`, [value("f32", -1), value("f32", 0)]), [
 ]);
 
 // ./test/core/f32.wast:581
-assert_return(
-  () =>
-    invoke($0, `sub`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", 1)],
-);
+assert_return(() => invoke($0, `sub`, [value("f32", 1), value("f32", -0)]), [
+  value("f32", 1),
+]);
 
 // ./test/core/f32.wast:582
 assert_return(() => invoke($0, `sub`, [value("f32", 1), value("f32", 0)]), [
@@ -5274,65 +5128,61 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:612
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:613
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:614
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:615
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:616
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:617
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:618
 assert_return(
   () =>
     invoke($0, `sub`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:619
 assert_return(
-  () =>
-    invoke($0, `sub`, [
-      value("f32", -6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `sub`, [value("f32", -6.2831855), value("f32", -0)]),
   [value("f32", -6.2831855)],
 );
 
@@ -5344,11 +5194,7 @@ assert_return(
 
 // ./test/core/f32.wast:621
 assert_return(
-  () =>
-    invoke($0, `sub`, [
-      value("f32", 6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `sub`, [value("f32", 6.2831855), value("f32", -0)]),
   [value("f32", 6.2831855)],
 );
 
@@ -5581,7 +5427,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:652
@@ -5591,7 +5437,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:653
@@ -5601,7 +5447,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:654
@@ -5611,7 +5457,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:655
@@ -5621,7 +5467,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:656
@@ -5631,7 +5477,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:657
@@ -5641,7 +5487,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:658
@@ -5651,7 +5497,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:659
@@ -5659,7 +5505,7 @@ assert_return(
   () =>
     invoke($0, `sub`, [
       value("f32", -340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -340282350000000000000000000000000000000)],
 );
@@ -5679,7 +5525,7 @@ assert_return(
   () =>
     invoke($0, `sub`, [
       value("f32", 340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 340282350000000000000000000000000000000)],
 );
@@ -5981,7 +5827,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:692
@@ -5991,7 +5837,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:693
@@ -6001,7 +5847,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:694
@@ -6011,7 +5857,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:695
@@ -6021,7 +5867,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:696
@@ -6031,7 +5877,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:697
@@ -6041,7 +5887,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:698
@@ -6051,16 +5897,12 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:699
 assert_return(
-  () =>
-    invoke($0, `sub`, [
-      value("f32", -Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `sub`, [value("f32", -Infinity), value("f32", -0)]),
   [value("f32", -Infinity)],
 );
 
@@ -6072,11 +5914,7 @@ assert_return(
 
 // ./test/core/f32.wast:701
 assert_return(
-  () =>
-    invoke($0, `sub`, [
-      value("f32", Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `sub`, [value("f32", Infinity), value("f32", -0)]),
   [value("f32", Infinity)],
 );
 
@@ -6281,7 +6119,7 @@ assert_return(
 // ./test/core/f32.wast:727
 assert_return(
   () => invoke($0, `sub`, [value("f32", -Infinity), value("f32", -Infinity)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:728
@@ -6299,7 +6137,7 @@ assert_return(
 // ./test/core/f32.wast:730
 assert_return(
   () => invoke($0, `sub`, [value("f32", Infinity), value("f32", Infinity)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:731
@@ -6309,7 +6147,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:732
@@ -6319,7 +6157,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:733
@@ -6329,7 +6167,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:734
@@ -6339,7 +6177,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:735
@@ -6349,7 +6187,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:736
@@ -6359,7 +6197,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:737
@@ -6369,7 +6207,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:738
@@ -6379,75 +6217,63 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:739
 assert_return(
   () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:740
 assert_return(
   () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:741
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:742
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:743
 assert_return(
   () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:744
 assert_return(
   () =>
-    invoke($0, `sub`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:745
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:746
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:747
@@ -6457,7 +6283,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:748
@@ -6467,7 +6293,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:749
@@ -6477,7 +6303,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:750
@@ -6487,7 +6313,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:751
@@ -6497,7 +6323,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:752
@@ -6507,7 +6333,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:753
@@ -6517,7 +6343,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:754
@@ -6527,7 +6353,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:755
@@ -6537,7 +6363,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:756
@@ -6547,7 +6373,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:757
@@ -6557,7 +6383,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:758
@@ -6567,7 +6393,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:759
@@ -6577,7 +6403,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:760
@@ -6587,7 +6413,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:761
@@ -6597,7 +6423,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:762
@@ -6607,7 +6433,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:763
@@ -6617,7 +6443,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:764
@@ -6627,7 +6453,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:765
@@ -6637,7 +6463,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:766
@@ -6647,7 +6473,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:767
@@ -6657,7 +6483,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:768
@@ -6667,7 +6493,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:769
@@ -6677,7 +6503,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:770
@@ -6687,63 +6513,63 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:771
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:772
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:773
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:774
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:775
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:776
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:777
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:778
 assert_return(
   () =>
     invoke($0, `sub`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:779
@@ -6753,7 +6579,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:780
@@ -6763,7 +6589,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:781
@@ -6773,7 +6599,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:782
@@ -6783,7 +6609,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:783
@@ -6793,7 +6619,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:784
@@ -6803,7 +6629,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:785
@@ -6813,7 +6639,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:786
@@ -6823,7 +6649,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:787
@@ -6833,7 +6659,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:788
@@ -6843,7 +6669,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:789
@@ -6853,7 +6679,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:790
@@ -6863,7 +6689,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:791
@@ -6873,7 +6699,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:792
@@ -6883,7 +6709,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:793
@@ -6893,7 +6719,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:794
@@ -6903,7 +6729,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:795
@@ -6913,7 +6739,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:796
@@ -6923,7 +6749,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:797
@@ -6933,7 +6759,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:798
@@ -6943,7 +6769,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:799
@@ -6953,7 +6779,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:800
@@ -6963,7 +6789,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:801
@@ -6973,7 +6799,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:802
@@ -6983,7 +6809,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:803
@@ -6993,7 +6819,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:804
@@ -7003,7 +6829,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:805
@@ -7013,7 +6839,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:806
@@ -7023,7 +6849,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:807
@@ -7033,7 +6859,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:808
@@ -7043,7 +6869,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:809
@@ -7053,7 +6879,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:810
@@ -7063,7 +6889,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:811
@@ -7073,7 +6899,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:812
@@ -7083,7 +6909,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:813
@@ -7093,7 +6919,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:814
@@ -7103,7 +6929,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:815
@@ -7113,7 +6939,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:816
@@ -7123,7 +6949,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:817
@@ -7133,7 +6959,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:818
@@ -7143,32 +6969,23 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:819
-assert_return(
-  () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", -0), value("f32", -0)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:820
-assert_return(
-  () =>
-    invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", -0), value("f32", 0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:821
-assert_return(
-  () =>
-    invoke($0, `mul`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", 0), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:822
 assert_return(() => invoke($0, `mul`, [value("f32", 0), value("f32", 0)]), [
@@ -7179,7 +6996,7 @@ assert_return(() => invoke($0, `mul`, [value("f32", 0), value("f32", 0)]), [
 assert_return(
   () =>
     invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
   [value("f32", 0)],
@@ -7189,10 +7006,10 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:825
@@ -7202,7 +7019,7 @@ assert_return(
       value("f32", 0),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:826
@@ -7219,7 +7036,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
   [value("f32", 0)],
@@ -7229,10 +7046,10 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:829
@@ -7242,7 +7059,7 @@ assert_return(
       value("f32", 0),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:830
@@ -7256,25 +7073,18 @@ assert_return(
 );
 
 // ./test/core/f32.wast:831
-assert_return(
-  () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -0.5),
-    ]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", -0), value("f32", -0.5)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:832
-assert_return(
-  () =>
-    invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0.5)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", -0), value("f32", 0.5)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:833
 assert_return(() => invoke($0, `mul`, [value("f32", 0), value("f32", -0.5)]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+  value("f32", -0),
 ]);
 
 // ./test/core/f32.wast:834
@@ -7283,22 +7093,18 @@ assert_return(() => invoke($0, `mul`, [value("f32", 0), value("f32", 0.5)]), [
 ]);
 
 // ./test/core/f32.wast:835
-assert_return(
-  () =>
-    invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", -1)]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", -0), value("f32", -1)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:836
-assert_return(
-  () =>
-    invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 1)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", -0), value("f32", 1)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:837
 assert_return(() => invoke($0, `mul`, [value("f32", 0), value("f32", -1)]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+  value("f32", -0),
 ]);
 
 // ./test/core/f32.wast:838
@@ -7308,28 +7114,20 @@ assert_return(() => invoke($0, `mul`, [value("f32", 0), value("f32", 1)]), [
 
 // ./test/core/f32.wast:839
 assert_return(
-  () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -6.2831855),
-    ]),
+  () => invoke($0, `mul`, [value("f32", -0), value("f32", -6.2831855)]),
   [value("f32", 0)],
 );
 
 // ./test/core/f32.wast:840
 assert_return(
-  () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", 6.2831855),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `mul`, [value("f32", -0), value("f32", 6.2831855)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:841
 assert_return(
   () => invoke($0, `mul`, [value("f32", 0), value("f32", -6.2831855)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:842
@@ -7342,7 +7140,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -340282350000000000000000000000000000000),
     ]),
   [value("f32", 0)],
@@ -7352,10 +7150,10 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:845
@@ -7365,7 +7163,7 @@ assert_return(
       value("f32", 0),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:846
@@ -7380,102 +7178,82 @@ assert_return(
 
 // ./test/core/f32.wast:847
 assert_return(
-  () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -Infinity),
-    ]),
-  [`f32_canonical_nan`],
+  () => invoke($0, `mul`, [value("f32", -0), value("f32", -Infinity)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:848
 assert_return(
-  () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", Infinity),
-    ]),
-  [`f32_canonical_nan`],
+  () => invoke($0, `mul`, [value("f32", -0), value("f32", Infinity)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:849
 assert_return(
   () => invoke($0, `mul`, [value("f32", 0), value("f32", -Infinity)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:850
 assert_return(
   () => invoke($0, `mul`, [value("f32", 0), value("f32", Infinity)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:851
 assert_return(
   () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `mul`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:852
 assert_return(
   () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `mul`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:853
 assert_return(
   () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `mul`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:854
 assert_return(
   () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `mul`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:855
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:856
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:857
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:858
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:859
@@ -7483,7 +7261,7 @@ assert_return(
   () =>
     invoke($0, `mul`, [
       value("f32", -0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 0)],
 );
@@ -7495,7 +7273,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       value("f32", 0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:861
@@ -7503,9 +7281,9 @@ assert_return(
   () =>
     invoke($0, `mul`, [
       value("f32", 0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:862
@@ -7535,7 +7313,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:865
@@ -7545,7 +7323,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:866
@@ -7575,7 +7353,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:869
@@ -7585,7 +7363,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:870
@@ -7615,7 +7393,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       value("f32", 0.5),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:873
@@ -7625,7 +7403,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       value("f32", -0.5),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:874
@@ -7805,7 +7583,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:892
@@ -7815,7 +7593,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:893
@@ -7825,7 +7603,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:894
@@ -7835,7 +7613,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:895
@@ -7845,7 +7623,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:896
@@ -7855,7 +7633,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:897
@@ -7865,7 +7643,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:898
@@ -7875,7 +7653,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:899
@@ -7883,7 +7661,7 @@ assert_return(
   () =>
     invoke($0, `mul`, [
       value("f32", -0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 0)],
 );
@@ -7895,7 +7673,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       value("f32", 0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:901
@@ -7903,9 +7681,9 @@ assert_return(
   () =>
     invoke($0, `mul`, [
       value("f32", 0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:902
@@ -7935,7 +7713,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:905
@@ -7945,7 +7723,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:906
@@ -7975,7 +7753,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:909
@@ -7985,7 +7763,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:910
@@ -8205,7 +7983,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:932
@@ -8215,7 +7993,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:933
@@ -8225,7 +8003,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:934
@@ -8235,7 +8013,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:935
@@ -8245,7 +8023,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:936
@@ -8255,7 +8033,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:937
@@ -8265,7 +8043,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:938
@@ -8275,30 +8053,23 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:939
-assert_return(
-  () =>
-    invoke($0, `mul`, [
-      value("f32", -0.5),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", -0.5), value("f32", -0)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:940
 assert_return(() => invoke($0, `mul`, [value("f32", -0.5), value("f32", 0)]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+  value("f32", -0),
 ]);
 
 // ./test/core/f32.wast:941
-assert_return(
-  () =>
-    invoke($0, `mul`, [value("f32", 0.5), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", 0.5), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:942
 assert_return(() => invoke($0, `mul`, [value("f32", 0.5), value("f32", 0)]), [
@@ -8322,7 +8093,7 @@ assert_return(
       value("f32", -0.5),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:945
@@ -8332,7 +8103,7 @@ assert_return(
       value("f32", 0.5),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:946
@@ -8523,7 +8294,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:972
@@ -8533,7 +8304,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:973
@@ -8543,7 +8314,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:974
@@ -8553,7 +8324,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:975
@@ -8563,7 +8334,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:976
@@ -8573,7 +8344,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:977
@@ -8583,7 +8354,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:978
@@ -8593,27 +8364,23 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:979
-assert_return(
-  () =>
-    invoke($0, `mul`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", -1), value("f32", -0)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:980
 assert_return(() => invoke($0, `mul`, [value("f32", -1), value("f32", 0)]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+  value("f32", -0),
 ]);
 
 // ./test/core/f32.wast:981
-assert_return(
-  () =>
-    invoke($0, `mul`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `mul`, [value("f32", 1), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:982
 assert_return(() => invoke($0, `mul`, [value("f32", 1), value("f32", 0)]), [
@@ -8832,82 +8599,74 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1012
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1013
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1014
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1015
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1016
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1017
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1018
 assert_return(
   () =>
     invoke($0, `mul`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1019
 assert_return(
-  () =>
-    invoke($0, `mul`, [
-      value("f32", -6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `mul`, [value("f32", -6.2831855), value("f32", -0)]),
   [value("f32", 0)],
 );
 
 // ./test/core/f32.wast:1020
 assert_return(
   () => invoke($0, `mul`, [value("f32", -6.2831855), value("f32", 0)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1021
 assert_return(
-  () =>
-    invoke($0, `mul`, [
-      value("f32", 6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `mul`, [value("f32", 6.2831855), value("f32", -0)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1022
@@ -9139,7 +8898,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1052
@@ -9149,7 +8908,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1053
@@ -9159,7 +8918,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1054
@@ -9169,7 +8928,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1055
@@ -9179,7 +8938,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1056
@@ -9189,7 +8948,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1057
@@ -9199,7 +8958,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1058
@@ -9209,7 +8968,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1059
@@ -9217,7 +8976,7 @@ assert_return(
   () =>
     invoke($0, `mul`, [
       value("f32", -340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 0)],
 );
@@ -9229,7 +8988,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       value("f32", 0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1061
@@ -9237,9 +8996,9 @@ assert_return(
   () =>
     invoke($0, `mul`, [
       value("f32", 340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1062
@@ -9539,7 +9298,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1092
@@ -9549,7 +9308,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1093
@@ -9559,7 +9318,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1094
@@ -9569,7 +9328,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1095
@@ -9579,7 +9338,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1096
@@ -9589,7 +9348,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1097
@@ -9599,7 +9358,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1098
@@ -9609,39 +9368,31 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1099
 assert_return(
-  () =>
-    invoke($0, `mul`, [
-      value("f32", -Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+  () => invoke($0, `mul`, [value("f32", -Infinity), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1100
 assert_return(
   () => invoke($0, `mul`, [value("f32", -Infinity), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1101
 assert_return(
-  () =>
-    invoke($0, `mul`, [
-      value("f32", Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+  () => invoke($0, `mul`, [value("f32", Infinity), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1102
 assert_return(
   () => invoke($0, `mul`, [value("f32", Infinity), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1103
@@ -9867,7 +9618,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1132
@@ -9877,7 +9628,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1133
@@ -9887,7 +9638,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1134
@@ -9897,7 +9648,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1135
@@ -9907,7 +9658,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1136
@@ -9917,7 +9668,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1137
@@ -9927,7 +9678,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1138
@@ -9937,75 +9688,63 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1139
 assert_return(
   () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1140
 assert_return(
   () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1141
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1142
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1143
 assert_return(
   () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1144
 assert_return(
   () =>
-    invoke($0, `mul`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1145
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1146
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1147
@@ -10015,7 +9754,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1148
@@ -10025,7 +9764,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1149
@@ -10035,7 +9774,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1150
@@ -10045,7 +9784,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1151
@@ -10055,7 +9794,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1152
@@ -10065,7 +9804,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1153
@@ -10075,7 +9814,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1154
@@ -10085,7 +9824,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1155
@@ -10095,7 +9834,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1156
@@ -10105,7 +9844,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1157
@@ -10115,7 +9854,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1158
@@ -10125,7 +9864,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1159
@@ -10135,7 +9874,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1160
@@ -10145,7 +9884,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1161
@@ -10155,7 +9894,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1162
@@ -10165,7 +9904,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1163
@@ -10175,7 +9914,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1164
@@ -10185,7 +9924,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1165
@@ -10195,7 +9934,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1166
@@ -10205,7 +9944,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1167
@@ -10215,7 +9954,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1168
@@ -10225,7 +9964,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1169
@@ -10235,7 +9974,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1170
@@ -10245,63 +9984,63 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1171
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1172
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1173
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1174
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1175
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1176
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1177
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1178
 assert_return(
   () =>
     invoke($0, `mul`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1179
@@ -10311,7 +10050,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1180
@@ -10321,7 +10060,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1181
@@ -10331,7 +10070,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1182
@@ -10341,7 +10080,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1183
@@ -10351,7 +10090,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1184
@@ -10361,7 +10100,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1185
@@ -10371,7 +10110,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1186
@@ -10381,7 +10120,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1187
@@ -10391,7 +10130,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1188
@@ -10401,7 +10140,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1189
@@ -10411,7 +10150,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1190
@@ -10421,7 +10160,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1191
@@ -10431,7 +10170,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1192
@@ -10441,7 +10180,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1193
@@ -10451,7 +10190,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1194
@@ -10461,7 +10200,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1195
@@ -10471,7 +10210,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1196
@@ -10481,7 +10220,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1197
@@ -10491,7 +10230,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1198
@@ -10501,7 +10240,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1199
@@ -10511,7 +10250,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1200
@@ -10521,7 +10260,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1201
@@ -10531,7 +10270,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1202
@@ -10541,7 +10280,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1203
@@ -10551,7 +10290,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1204
@@ -10561,7 +10300,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1205
@@ -10571,7 +10310,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1206
@@ -10581,7 +10320,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1207
@@ -10591,7 +10330,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1208
@@ -10601,7 +10340,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1209
@@ -10611,7 +10350,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1210
@@ -10621,7 +10360,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1211
@@ -10631,7 +10370,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1212
@@ -10641,7 +10380,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1213
@@ -10651,7 +10390,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1214
@@ -10661,7 +10400,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1215
@@ -10671,7 +10410,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1216
@@ -10681,7 +10420,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1217
@@ -10691,7 +10430,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1218
@@ -10701,43 +10440,34 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1219
-assert_return(
-  () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
-);
+assert_return(() => invoke($0, `div`, [value("f32", -0), value("f32", -0)]), [
+  `canonical_nan`,
+]);
 
 // ./test/core/f32.wast:1220
-assert_return(
-  () =>
-    invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0)]),
-  [`f32_canonical_nan`],
-);
+assert_return(() => invoke($0, `div`, [value("f32", -0), value("f32", 0)]), [
+  `canonical_nan`,
+]);
 
 // ./test/core/f32.wast:1221
-assert_return(
-  () =>
-    invoke($0, `div`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [`f32_canonical_nan`],
-);
+assert_return(() => invoke($0, `div`, [value("f32", 0), value("f32", -0)]), [
+  `canonical_nan`,
+]);
 
 // ./test/core/f32.wast:1222
 assert_return(() => invoke($0, `div`, [value("f32", 0), value("f32", 0)]), [
-  `f32_canonical_nan`,
+  `canonical_nan`,
 ]);
 
 // ./test/core/f32.wast:1223
 assert_return(
   () =>
     invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
   [value("f32", 0)],
@@ -10747,10 +10477,10 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1225
@@ -10760,7 +10490,7 @@ assert_return(
       value("f32", 0),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1226
@@ -10777,7 +10507,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
   [value("f32", 0)],
@@ -10787,10 +10517,10 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1229
@@ -10800,7 +10530,7 @@ assert_return(
       value("f32", 0),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1230
@@ -10814,25 +10544,18 @@ assert_return(
 );
 
 // ./test/core/f32.wast:1231
-assert_return(
-  () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -0.5),
-    ]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `div`, [value("f32", -0), value("f32", -0.5)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:1232
-assert_return(
-  () =>
-    invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0.5)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `div`, [value("f32", -0), value("f32", 0.5)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:1233
 assert_return(() => invoke($0, `div`, [value("f32", 0), value("f32", -0.5)]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+  value("f32", -0),
 ]);
 
 // ./test/core/f32.wast:1234
@@ -10841,22 +10564,18 @@ assert_return(() => invoke($0, `div`, [value("f32", 0), value("f32", 0.5)]), [
 ]);
 
 // ./test/core/f32.wast:1235
-assert_return(
-  () =>
-    invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", -1)]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `div`, [value("f32", -0), value("f32", -1)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:1236
-assert_return(
-  () =>
-    invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 1)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `div`, [value("f32", -0), value("f32", 1)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:1237
 assert_return(() => invoke($0, `div`, [value("f32", 0), value("f32", -1)]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+  value("f32", -0),
 ]);
 
 // ./test/core/f32.wast:1238
@@ -10866,28 +10585,20 @@ assert_return(() => invoke($0, `div`, [value("f32", 0), value("f32", 1)]), [
 
 // ./test/core/f32.wast:1239
 assert_return(
-  () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -6.2831855),
-    ]),
+  () => invoke($0, `div`, [value("f32", -0), value("f32", -6.2831855)]),
   [value("f32", 0)],
 );
 
 // ./test/core/f32.wast:1240
 assert_return(
-  () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", 6.2831855),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `div`, [value("f32", -0), value("f32", 6.2831855)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1241
 assert_return(
   () => invoke($0, `div`, [value("f32", 0), value("f32", -6.2831855)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1242
@@ -10900,7 +10611,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -340282350000000000000000000000000000000),
     ]),
   [value("f32", 0)],
@@ -10910,10 +10621,10 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1245
@@ -10923,7 +10634,7 @@ assert_return(
       value("f32", 0),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1246
@@ -10938,28 +10649,20 @@ assert_return(
 
 // ./test/core/f32.wast:1247
 assert_return(
-  () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -Infinity),
-    ]),
+  () => invoke($0, `div`, [value("f32", -0), value("f32", -Infinity)]),
   [value("f32", 0)],
 );
 
 // ./test/core/f32.wast:1248
 assert_return(
-  () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", Infinity),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `div`, [value("f32", -0), value("f32", Infinity)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1249
 assert_return(
   () => invoke($0, `div`, [value("f32", 0), value("f32", -Infinity)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1250
@@ -10971,69 +10674,57 @@ assert_return(
 // ./test/core/f32.wast:1251
 assert_return(
   () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `div`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1252
 assert_return(
   () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `div`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1253
 assert_return(
   () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `div`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1254
 assert_return(
   () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `div`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1255
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1256
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1257
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1258
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1259
@@ -11041,7 +10732,7 @@ assert_return(
   () =>
     invoke($0, `div`, [
       value("f32", -0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", Infinity)],
 );
@@ -11061,7 +10752,7 @@ assert_return(
   () =>
     invoke($0, `div`, [
       value("f32", 0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -Infinity)],
 );
@@ -11253,7 +10944,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       value("f32", 6.2831855),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1281
@@ -11263,7 +10954,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       value("f32", -6.2831855),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1282
@@ -11293,7 +10984,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1285
@@ -11303,7 +10994,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1286
@@ -11333,7 +11024,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       value("f32", Infinity),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1289
@@ -11343,7 +11034,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       value("f32", -Infinity),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1290
@@ -11363,7 +11054,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1292
@@ -11373,7 +11064,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1293
@@ -11383,7 +11074,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1294
@@ -11393,7 +11084,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1295
@@ -11403,7 +11094,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1296
@@ -11413,7 +11104,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1297
@@ -11423,7 +11114,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1298
@@ -11433,7 +11124,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1299
@@ -11441,7 +11132,7 @@ assert_return(
   () =>
     invoke($0, `div`, [
       value("f32", -0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", Infinity)],
 );
@@ -11461,7 +11152,7 @@ assert_return(
   () =>
     invoke($0, `div`, [
       value("f32", 0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -Infinity)],
 );
@@ -11693,7 +11384,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1325
@@ -11703,7 +11394,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1326
@@ -11733,7 +11424,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       value("f32", Infinity),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1329
@@ -11743,7 +11434,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       value("f32", -Infinity),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1330
@@ -11763,7 +11454,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1332
@@ -11773,7 +11464,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1333
@@ -11783,7 +11474,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1334
@@ -11793,7 +11484,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1335
@@ -11803,7 +11494,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1336
@@ -11813,7 +11504,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1337
@@ -11823,7 +11514,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1338
@@ -11833,18 +11524,13 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1339
-assert_return(
-  () =>
-    invoke($0, `div`, [
-      value("f32", -0.5),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [value("f32", Infinity)],
-);
+assert_return(() => invoke($0, `div`, [value("f32", -0.5), value("f32", -0)]), [
+  value("f32", Infinity),
+]);
 
 // ./test/core/f32.wast:1340
 assert_return(() => invoke($0, `div`, [value("f32", -0.5), value("f32", 0)]), [
@@ -11852,11 +11538,9 @@ assert_return(() => invoke($0, `div`, [value("f32", -0.5), value("f32", 0)]), [
 ]);
 
 // ./test/core/f32.wast:1341
-assert_return(
-  () =>
-    invoke($0, `div`, [value("f32", 0.5), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", -Infinity)],
-);
+assert_return(() => invoke($0, `div`, [value("f32", 0.5), value("f32", -0)]), [
+  value("f32", -Infinity),
+]);
 
 // ./test/core/f32.wast:1342
 assert_return(() => invoke($0, `div`, [value("f32", 0.5), value("f32", 0)]), [
@@ -12059,13 +11743,13 @@ assert_return(
 // ./test/core/f32.wast:1368
 assert_return(
   () => invoke($0, `div`, [value("f32", -0.5), value("f32", Infinity)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1369
 assert_return(
   () => invoke($0, `div`, [value("f32", 0.5), value("f32", -Infinity)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1370
@@ -12081,7 +11765,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1372
@@ -12091,7 +11775,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1373
@@ -12101,7 +11785,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1374
@@ -12111,7 +11795,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1375
@@ -12121,7 +11805,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1376
@@ -12131,7 +11815,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1377
@@ -12141,7 +11825,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1378
@@ -12151,15 +11835,13 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1379
-assert_return(
-  () =>
-    invoke($0, `div`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", Infinity)],
-);
+assert_return(() => invoke($0, `div`, [value("f32", -1), value("f32", -0)]), [
+  value("f32", Infinity),
+]);
 
 // ./test/core/f32.wast:1380
 assert_return(() => invoke($0, `div`, [value("f32", -1), value("f32", 0)]), [
@@ -12167,11 +11849,9 @@ assert_return(() => invoke($0, `div`, [value("f32", -1), value("f32", 0)]), [
 ]);
 
 // ./test/core/f32.wast:1381
-assert_return(
-  () =>
-    invoke($0, `div`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", -Infinity)],
-);
+assert_return(() => invoke($0, `div`, [value("f32", 1), value("f32", -0)]), [
+  value("f32", -Infinity),
+]);
 
 // ./test/core/f32.wast:1382
 assert_return(() => invoke($0, `div`, [value("f32", 1), value("f32", 0)]), [
@@ -12371,13 +12051,13 @@ assert_return(
 // ./test/core/f32.wast:1408
 assert_return(
   () => invoke($0, `div`, [value("f32", -1), value("f32", Infinity)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1409
 assert_return(
   () => invoke($0, `div`, [value("f32", 1), value("f32", -Infinity)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1410
@@ -12390,65 +12070,61 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1412
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1413
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1414
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1415
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1416
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1417
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1418
 assert_return(
   () =>
     invoke($0, `div`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1419
 assert_return(
-  () =>
-    invoke($0, `div`, [
-      value("f32", -6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `div`, [value("f32", -6.2831855), value("f32", -0)]),
   [value("f32", Infinity)],
 );
 
@@ -12460,11 +12136,7 @@ assert_return(
 
 // ./test/core/f32.wast:1421
 assert_return(
-  () =>
-    invoke($0, `div`, [
-      value("f32", 6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `div`, [value("f32", 6.2831855), value("f32", -0)]),
   [value("f32", -Infinity)],
 );
 
@@ -12675,13 +12347,13 @@ assert_return(
 // ./test/core/f32.wast:1448
 assert_return(
   () => invoke($0, `div`, [value("f32", -6.2831855), value("f32", Infinity)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1449
 assert_return(
   () => invoke($0, `div`, [value("f32", 6.2831855), value("f32", -Infinity)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1450
@@ -12697,7 +12369,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1452
@@ -12707,7 +12379,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1453
@@ -12717,7 +12389,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1454
@@ -12727,7 +12399,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1455
@@ -12737,7 +12409,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1456
@@ -12747,7 +12419,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1457
@@ -12757,7 +12429,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1458
@@ -12767,7 +12439,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1459
@@ -12775,7 +12447,7 @@ assert_return(
   () =>
     invoke($0, `div`, [
       value("f32", -340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", Infinity)],
 );
@@ -12795,7 +12467,7 @@ assert_return(
   () =>
     invoke($0, `div`, [
       value("f32", 340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -Infinity)],
 );
@@ -13067,7 +12739,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       value("f32", Infinity),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1489
@@ -13077,7 +12749,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       value("f32", -Infinity),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1490
@@ -13097,7 +12769,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1492
@@ -13107,7 +12779,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1493
@@ -13117,7 +12789,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1494
@@ -13127,7 +12799,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1495
@@ -13137,7 +12809,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1496
@@ -13147,7 +12819,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1497
@@ -13157,7 +12829,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1498
@@ -13167,16 +12839,12 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1499
 assert_return(
-  () =>
-    invoke($0, `div`, [
-      value("f32", -Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `div`, [value("f32", -Infinity), value("f32", -0)]),
   [value("f32", Infinity)],
 );
 
@@ -13188,11 +12856,7 @@ assert_return(
 
 // ./test/core/f32.wast:1501
 assert_return(
-  () =>
-    invoke($0, `div`, [
-      value("f32", Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `div`, [value("f32", Infinity), value("f32", -0)]),
   [value("f32", -Infinity)],
 );
 
@@ -13397,25 +13061,25 @@ assert_return(
 // ./test/core/f32.wast:1527
 assert_return(
   () => invoke($0, `div`, [value("f32", -Infinity), value("f32", -Infinity)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1528
 assert_return(
   () => invoke($0, `div`, [value("f32", -Infinity), value("f32", Infinity)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1529
 assert_return(
   () => invoke($0, `div`, [value("f32", Infinity), value("f32", -Infinity)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1530
 assert_return(
   () => invoke($0, `div`, [value("f32", Infinity), value("f32", Infinity)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1531
@@ -13425,7 +13089,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1532
@@ -13435,7 +13099,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1533
@@ -13445,7 +13109,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1534
@@ -13455,7 +13119,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1535
@@ -13465,7 +13129,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1536
@@ -13475,7 +13139,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1537
@@ -13485,7 +13149,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1538
@@ -13495,75 +13159,63 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1539
 assert_return(
   () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1540
 assert_return(
   () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1541
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1542
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1543
 assert_return(
   () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1544
 assert_return(
   () =>
-    invoke($0, `div`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1545
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1546
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1547
@@ -13573,7 +13225,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1548
@@ -13583,7 +13235,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1549
@@ -13593,7 +13245,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1550
@@ -13603,7 +13255,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1551
@@ -13613,7 +13265,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1552
@@ -13623,7 +13275,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1553
@@ -13633,7 +13285,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1554
@@ -13643,7 +13295,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1555
@@ -13653,7 +13305,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1556
@@ -13663,7 +13315,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1557
@@ -13673,7 +13325,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1558
@@ -13683,7 +13335,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1559
@@ -13693,7 +13345,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1560
@@ -13703,7 +13355,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1561
@@ -13713,7 +13365,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1562
@@ -13723,7 +13375,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1563
@@ -13733,7 +13385,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1564
@@ -13743,7 +13395,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1565
@@ -13753,7 +13405,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1566
@@ -13763,7 +13415,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1567
@@ -13773,7 +13425,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1568
@@ -13783,7 +13435,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1569
@@ -13793,7 +13445,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1570
@@ -13803,63 +13455,63 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1571
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1572
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1573
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1574
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1575
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1576
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1577
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1578
 assert_return(
   () =>
     invoke($0, `div`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1579
@@ -13869,7 +13521,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1580
@@ -13879,7 +13531,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1581
@@ -13889,7 +13541,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1582
@@ -13899,7 +13551,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1583
@@ -13909,7 +13561,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1584
@@ -13919,7 +13571,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1585
@@ -13929,7 +13581,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1586
@@ -13939,7 +13591,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1587
@@ -13949,7 +13601,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1588
@@ -13959,7 +13611,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1589
@@ -13969,7 +13621,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1590
@@ -13979,7 +13631,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1591
@@ -13989,7 +13641,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1592
@@ -13999,7 +13651,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1593
@@ -14009,7 +13661,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1594
@@ -14019,7 +13671,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1595
@@ -14029,7 +13681,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1596
@@ -14039,7 +13691,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1597
@@ -14049,7 +13701,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1598
@@ -14059,7 +13711,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1599
@@ -14069,7 +13721,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1600
@@ -14079,7 +13731,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1601
@@ -14089,7 +13741,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1602
@@ -14099,7 +13751,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1603
@@ -14109,7 +13761,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1604
@@ -14119,7 +13771,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1605
@@ -14129,7 +13781,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1606
@@ -14139,7 +13791,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1607
@@ -14149,7 +13801,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1608
@@ -14159,7 +13811,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1609
@@ -14169,7 +13821,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1610
@@ -14179,7 +13831,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1611
@@ -14189,7 +13841,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1612
@@ -14199,7 +13851,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1613
@@ -14209,7 +13861,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1614
@@ -14219,7 +13871,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1615
@@ -14229,7 +13881,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1616
@@ -14239,7 +13891,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1617
@@ -14249,7 +13901,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1618
@@ -14259,32 +13911,23 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1619
-assert_return(
-  () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `min`, [value("f32", -0), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:1620
-assert_return(
-  () =>
-    invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `min`, [value("f32", -0), value("f32", 0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:1621
-assert_return(
-  () =>
-    invoke($0, `min`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `min`, [value("f32", 0), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:1622
 assert_return(() => invoke($0, `min`, [value("f32", 0), value("f32", 0)]), [
@@ -14295,7 +13938,7 @@ assert_return(() => invoke($0, `min`, [value("f32", 0), value("f32", 0)]), [
 assert_return(
   () =>
     invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
   [value("f32", -0.000000000000000000000000000000000000000000001)],
@@ -14305,10 +13948,10 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1625
@@ -14335,7 +13978,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
   [value("f32", -0.000000000000000000000000000000000000011754944)],
@@ -14345,10 +13988,10 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1629
@@ -14372,21 +14015,14 @@ assert_return(
 );
 
 // ./test/core/f32.wast:1631
-assert_return(
-  () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -0.5),
-    ]),
-  [value("f32", -0.5)],
-);
+assert_return(() => invoke($0, `min`, [value("f32", -0), value("f32", -0.5)]), [
+  value("f32", -0.5),
+]);
 
 // ./test/core/f32.wast:1632
-assert_return(
-  () =>
-    invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0.5)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `min`, [value("f32", -0), value("f32", 0.5)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:1633
 assert_return(() => invoke($0, `min`, [value("f32", 0), value("f32", -0.5)]), [
@@ -14399,18 +14035,14 @@ assert_return(() => invoke($0, `min`, [value("f32", 0), value("f32", 0.5)]), [
 ]);
 
 // ./test/core/f32.wast:1635
-assert_return(
-  () =>
-    invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", -1)]),
-  [value("f32", -1)],
-);
+assert_return(() => invoke($0, `min`, [value("f32", -0), value("f32", -1)]), [
+  value("f32", -1),
+]);
 
 // ./test/core/f32.wast:1636
-assert_return(
-  () =>
-    invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 1)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `min`, [value("f32", -0), value("f32", 1)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:1637
 assert_return(() => invoke($0, `min`, [value("f32", 0), value("f32", -1)]), [
@@ -14424,22 +14056,14 @@ assert_return(() => invoke($0, `min`, [value("f32", 0), value("f32", 1)]), [
 
 // ./test/core/f32.wast:1639
 assert_return(
-  () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -6.2831855),
-    ]),
+  () => invoke($0, `min`, [value("f32", -0), value("f32", -6.2831855)]),
   [value("f32", -6.2831855)],
 );
 
 // ./test/core/f32.wast:1640
 assert_return(
-  () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", 6.2831855),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `min`, [value("f32", -0), value("f32", 6.2831855)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1641
@@ -14458,7 +14082,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -340282350000000000000000000000000000000),
     ]),
   [value("f32", -340282350000000000000000000000000000000)],
@@ -14468,10 +14092,10 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1645
@@ -14496,22 +14120,14 @@ assert_return(
 
 // ./test/core/f32.wast:1647
 assert_return(
-  () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -Infinity),
-    ]),
+  () => invoke($0, `min`, [value("f32", -0), value("f32", -Infinity)]),
   [value("f32", -Infinity)],
 );
 
 // ./test/core/f32.wast:1648
 assert_return(
-  () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", Infinity),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `min`, [value("f32", -0), value("f32", Infinity)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1649
@@ -14529,69 +14145,57 @@ assert_return(
 // ./test/core/f32.wast:1651
 assert_return(
   () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `min`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1652
 assert_return(
   () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `min`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1653
 assert_return(
   () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `min`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1654
 assert_return(
   () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `min`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1655
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1656
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1657
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1658
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1659
@@ -14599,7 +14203,7 @@ assert_return(
   () =>
     invoke($0, `min`, [
       value("f32", -0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -0.000000000000000000000000000000000000000000001)],
 );
@@ -14619,9 +14223,9 @@ assert_return(
   () =>
     invoke($0, `min`, [
       value("f32", 0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1662
@@ -14921,7 +14525,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1692
@@ -14931,7 +14535,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1693
@@ -14941,7 +14545,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1694
@@ -14951,7 +14555,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1695
@@ -14961,7 +14565,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1696
@@ -14971,7 +14575,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1697
@@ -14981,7 +14585,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1698
@@ -14991,7 +14595,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1699
@@ -14999,7 +14603,7 @@ assert_return(
   () =>
     invoke($0, `min`, [
       value("f32", -0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -0.000000000000000000000000000000000000011754944)],
 );
@@ -15019,9 +14623,9 @@ assert_return(
   () =>
     invoke($0, `min`, [
       value("f32", 0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1702
@@ -15321,7 +14925,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1732
@@ -15331,7 +14935,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1733
@@ -15341,7 +14945,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1734
@@ -15351,7 +14955,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1735
@@ -15361,7 +14965,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1736
@@ -15371,7 +14975,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1737
@@ -15381,7 +14985,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1738
@@ -15391,18 +14995,13 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1739
-assert_return(
-  () =>
-    invoke($0, `min`, [
-      value("f32", -0.5),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [value("f32", -0.5)],
-);
+assert_return(() => invoke($0, `min`, [value("f32", -0.5), value("f32", -0)]), [
+  value("f32", -0.5),
+]);
 
 // ./test/core/f32.wast:1740
 assert_return(() => invoke($0, `min`, [value("f32", -0.5), value("f32", 0)]), [
@@ -15410,11 +15009,9 @@ assert_return(() => invoke($0, `min`, [value("f32", -0.5), value("f32", 0)]), [
 ]);
 
 // ./test/core/f32.wast:1741
-assert_return(
-  () =>
-    invoke($0, `min`, [value("f32", 0.5), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `min`, [value("f32", 0.5), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:1742
 assert_return(() => invoke($0, `min`, [value("f32", 0.5), value("f32", 0)]), [
@@ -15639,7 +15236,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1772
@@ -15649,7 +15246,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1773
@@ -15659,7 +15256,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1774
@@ -15669,7 +15266,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1775
@@ -15679,7 +15276,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1776
@@ -15689,7 +15286,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1777
@@ -15699,7 +15296,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1778
@@ -15709,15 +15306,13 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1779
-assert_return(
-  () =>
-    invoke($0, `min`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", -1)],
-);
+assert_return(() => invoke($0, `min`, [value("f32", -1), value("f32", -0)]), [
+  value("f32", -1),
+]);
 
 // ./test/core/f32.wast:1780
 assert_return(() => invoke($0, `min`, [value("f32", -1), value("f32", 0)]), [
@@ -15725,11 +15320,9 @@ assert_return(() => invoke($0, `min`, [value("f32", -1), value("f32", 0)]), [
 ]);
 
 // ./test/core/f32.wast:1781
-assert_return(
-  () =>
-    invoke($0, `min`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `min`, [value("f32", 1), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:1782
 assert_return(() => invoke($0, `min`, [value("f32", 1), value("f32", 0)]), [
@@ -15948,65 +15541,61 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1812
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1813
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1814
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1815
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1816
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1817
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1818
 assert_return(
   () =>
     invoke($0, `min`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1819
 assert_return(
-  () =>
-    invoke($0, `min`, [
-      value("f32", -6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `min`, [value("f32", -6.2831855), value("f32", -0)]),
   [value("f32", -6.2831855)],
 );
 
@@ -16018,12 +15607,8 @@ assert_return(
 
 // ./test/core/f32.wast:1821
 assert_return(
-  () =>
-    invoke($0, `min`, [
-      value("f32", 6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `min`, [value("f32", 6.2831855), value("f32", -0)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1822
@@ -16255,7 +15840,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1852
@@ -16265,7 +15850,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1853
@@ -16275,7 +15860,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1854
@@ -16285,7 +15870,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1855
@@ -16295,7 +15880,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1856
@@ -16305,7 +15890,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1857
@@ -16315,7 +15900,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1858
@@ -16325,7 +15910,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1859
@@ -16333,7 +15918,7 @@ assert_return(
   () =>
     invoke($0, `min`, [
       value("f32", -340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", -340282350000000000000000000000000000000)],
 );
@@ -16353,9 +15938,9 @@ assert_return(
   () =>
     invoke($0, `min`, [
       value("f32", 340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1862
@@ -16655,7 +16240,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1892
@@ -16665,7 +16250,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1893
@@ -16675,7 +16260,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1894
@@ -16685,7 +16270,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1895
@@ -16695,7 +16280,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1896
@@ -16705,7 +16290,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1897
@@ -16715,7 +16300,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1898
@@ -16725,16 +16310,12 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1899
 assert_return(
-  () =>
-    invoke($0, `min`, [
-      value("f32", -Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `min`, [value("f32", -Infinity), value("f32", -0)]),
   [value("f32", -Infinity)],
 );
 
@@ -16746,12 +16327,8 @@ assert_return(
 
 // ./test/core/f32.wast:1901
 assert_return(
-  () =>
-    invoke($0, `min`, [
-      value("f32", Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `min`, [value("f32", Infinity), value("f32", -0)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:1902
@@ -16983,7 +16560,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1932
@@ -16993,7 +16570,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1933
@@ -17003,7 +16580,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1934
@@ -17013,7 +16590,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1935
@@ -17023,7 +16600,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1936
@@ -17033,7 +16610,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1937
@@ -17043,7 +16620,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1938
@@ -17053,75 +16630,63 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1939
 assert_return(
   () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1940
 assert_return(
   () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1941
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1942
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1943
 assert_return(
   () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1944
 assert_return(
   () =>
-    invoke($0, `min`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1945
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1946
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1947
@@ -17131,7 +16696,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1948
@@ -17141,7 +16706,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1949
@@ -17151,7 +16716,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1950
@@ -17161,7 +16726,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1951
@@ -17171,7 +16736,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1952
@@ -17181,7 +16746,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1953
@@ -17191,7 +16756,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1954
@@ -17201,7 +16766,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1955
@@ -17211,7 +16776,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1956
@@ -17221,7 +16786,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1957
@@ -17231,7 +16796,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1958
@@ -17241,7 +16806,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1959
@@ -17251,7 +16816,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1960
@@ -17261,7 +16826,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1961
@@ -17271,7 +16836,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1962
@@ -17281,7 +16846,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1963
@@ -17291,7 +16856,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1964
@@ -17301,7 +16866,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1965
@@ -17311,7 +16876,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1966
@@ -17321,7 +16886,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1967
@@ -17331,7 +16896,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1968
@@ -17341,7 +16906,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1969
@@ -17351,7 +16916,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1970
@@ -17361,63 +16926,63 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1971
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1972
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1973
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1974
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1975
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1976
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1977
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1978
 assert_return(
   () =>
     invoke($0, `min`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1979
@@ -17427,7 +16992,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1980
@@ -17437,7 +17002,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1981
@@ -17447,7 +17012,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1982
@@ -17457,7 +17022,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1983
@@ -17467,7 +17032,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1984
@@ -17477,7 +17042,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1985
@@ -17487,7 +17052,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1986
@@ -17497,7 +17062,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1987
@@ -17507,7 +17072,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1988
@@ -17517,7 +17082,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1989
@@ -17527,7 +17092,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1990
@@ -17537,7 +17102,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1991
@@ -17547,7 +17112,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1992
@@ -17557,7 +17122,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1993
@@ -17567,7 +17132,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1994
@@ -17577,7 +17142,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1995
@@ -17587,7 +17152,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1996
@@ -17597,7 +17162,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1997
@@ -17607,7 +17172,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:1998
@@ -17617,7 +17182,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:1999
@@ -17627,7 +17192,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2000
@@ -17637,7 +17202,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2001
@@ -17647,7 +17212,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2002
@@ -17657,7 +17222,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2003
@@ -17667,7 +17232,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2004
@@ -17677,7 +17242,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2005
@@ -17687,7 +17252,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2006
@@ -17697,7 +17262,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2007
@@ -17707,7 +17272,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2008
@@ -17717,7 +17282,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2009
@@ -17727,7 +17292,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2010
@@ -17737,7 +17302,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2011
@@ -17747,7 +17312,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2012
@@ -17757,7 +17322,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2013
@@ -17767,7 +17332,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2014
@@ -17777,7 +17342,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2015
@@ -17787,7 +17352,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2016
@@ -17797,7 +17362,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2017
@@ -17807,7 +17372,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2018
@@ -17817,32 +17382,23 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2019
-assert_return(
-  () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `max`, [value("f32", -0), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:2020
-assert_return(
-  () =>
-    invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0)]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `max`, [value("f32", -0), value("f32", 0)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:2021
-assert_return(
-  () =>
-    invoke($0, `max`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", 0)],
-);
+assert_return(() => invoke($0, `max`, [value("f32", 0), value("f32", -0)]), [
+  value("f32", 0),
+]);
 
 // ./test/core/f32.wast:2022
 assert_return(() => invoke($0, `max`, [value("f32", 0), value("f32", 0)]), [
@@ -17853,17 +17409,17 @@ assert_return(() => invoke($0, `max`, [value("f32", 0), value("f32", 0)]), [
 assert_return(
   () =>
     invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2024
 assert_return(
   () =>
     invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
   [value("f32", 0.000000000000000000000000000000000000000000001)],
@@ -17893,17 +17449,17 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2028
 assert_return(
   () =>
     invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
   [value("f32", 0.000000000000000000000000000000000000011754944)],
@@ -17930,21 +17486,14 @@ assert_return(
 );
 
 // ./test/core/f32.wast:2031
-assert_return(
-  () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -0.5),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `max`, [value("f32", -0), value("f32", -0.5)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:2032
-assert_return(
-  () =>
-    invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 0.5)]),
-  [value("f32", 0.5)],
-);
+assert_return(() => invoke($0, `max`, [value("f32", -0), value("f32", 0.5)]), [
+  value("f32", 0.5),
+]);
 
 // ./test/core/f32.wast:2033
 assert_return(() => invoke($0, `max`, [value("f32", 0), value("f32", -0.5)]), [
@@ -17957,18 +17506,14 @@ assert_return(() => invoke($0, `max`, [value("f32", 0), value("f32", 0.5)]), [
 ]);
 
 // ./test/core/f32.wast:2035
-assert_return(
-  () =>
-    invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", -1)]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `max`, [value("f32", -0), value("f32", -1)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:2036
-assert_return(
-  () =>
-    invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0x0, 0x80]), value("f32", 1)]),
-  [value("f32", 1)],
-);
+assert_return(() => invoke($0, `max`, [value("f32", -0), value("f32", 1)]), [
+  value("f32", 1),
+]);
 
 // ./test/core/f32.wast:2037
 assert_return(() => invoke($0, `max`, [value("f32", 0), value("f32", -1)]), [
@@ -17982,21 +17527,13 @@ assert_return(() => invoke($0, `max`, [value("f32", 0), value("f32", 1)]), [
 
 // ./test/core/f32.wast:2039
 assert_return(
-  () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -6.2831855),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `max`, [value("f32", -0), value("f32", -6.2831855)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2040
 assert_return(
-  () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", 6.2831855),
-    ]),
+  () => invoke($0, `max`, [value("f32", -0), value("f32", 6.2831855)]),
   [value("f32", 6.2831855)],
 );
 
@@ -18016,17 +17553,17 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2044
 assert_return(
   () =>
     invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
       value("f32", 340282350000000000000000000000000000000),
     ]),
   [value("f32", 340282350000000000000000000000000000000)],
@@ -18054,21 +17591,13 @@ assert_return(
 
 // ./test/core/f32.wast:2047
 assert_return(
-  () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", -Infinity),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `max`, [value("f32", -0), value("f32", -Infinity)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2048
 assert_return(
-  () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      value("f32", Infinity),
-    ]),
+  () => invoke($0, `max`, [value("f32", -0), value("f32", Infinity)]),
   [value("f32", Infinity)],
 );
 
@@ -18087,69 +17616,57 @@ assert_return(
 // ./test/core/f32.wast:2051
 assert_return(
   () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `max`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2052
 assert_return(
   () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `max`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2053
 assert_return(
   () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `max`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2054
 assert_return(
   () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `max`, [value("f32", -0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2055
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2056
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2057
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2058
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", 0), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2059
@@ -18157,9 +17674,9 @@ assert_return(
   () =>
     invoke($0, `max`, [
       value("f32", -0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2060
@@ -18177,7 +17694,7 @@ assert_return(
   () =>
     invoke($0, `max`, [
       value("f32", 0.000000000000000000000000000000000000000000001),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 0.000000000000000000000000000000000000000000001)],
 );
@@ -18479,7 +17996,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2092
@@ -18489,7 +18006,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2093
@@ -18499,7 +18016,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2094
@@ -18509,7 +18026,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2095
@@ -18519,7 +18036,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2096
@@ -18529,7 +18046,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2097
@@ -18539,7 +18056,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2098
@@ -18549,7 +18066,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000000000001),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2099
@@ -18557,9 +18074,9 @@ assert_return(
   () =>
     invoke($0, `max`, [
       value("f32", -0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2100
@@ -18577,7 +18094,7 @@ assert_return(
   () =>
     invoke($0, `max`, [
       value("f32", 0.000000000000000000000000000000000000011754944),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 0.000000000000000000000000000000000000011754944)],
 );
@@ -18879,7 +18396,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2132
@@ -18889,7 +18406,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2133
@@ -18899,7 +18416,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2134
@@ -18909,7 +18426,7 @@ assert_return(
       value("f32", -0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2135
@@ -18919,7 +18436,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2136
@@ -18929,7 +18446,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2137
@@ -18939,7 +18456,7 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2138
@@ -18949,18 +18466,13 @@ assert_return(
       value("f32", 0.000000000000000000000000000000000000011754944),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2139
-assert_return(
-  () =>
-    invoke($0, `max`, [
-      value("f32", -0.5),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `max`, [value("f32", -0.5), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:2140
 assert_return(() => invoke($0, `max`, [value("f32", -0.5), value("f32", 0)]), [
@@ -18968,11 +18480,9 @@ assert_return(() => invoke($0, `max`, [value("f32", -0.5), value("f32", 0)]), [
 ]);
 
 // ./test/core/f32.wast:2141
-assert_return(
-  () =>
-    invoke($0, `max`, [value("f32", 0.5), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", 0.5)],
-);
+assert_return(() => invoke($0, `max`, [value("f32", 0.5), value("f32", -0)]), [
+  value("f32", 0.5),
+]);
 
 // ./test/core/f32.wast:2142
 assert_return(() => invoke($0, `max`, [value("f32", 0.5), value("f32", 0)]), [
@@ -19197,7 +18707,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2172
@@ -19207,7 +18717,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2173
@@ -19217,7 +18727,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2174
@@ -19227,7 +18737,7 @@ assert_return(
       value("f32", -0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2175
@@ -19237,7 +18747,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2176
@@ -19247,7 +18757,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2177
@@ -19257,7 +18767,7 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2178
@@ -19267,15 +18777,13 @@ assert_return(
       value("f32", 0.5),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2179
-assert_return(
-  () =>
-    invoke($0, `max`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `max`, [value("f32", -1), value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:2180
 assert_return(() => invoke($0, `max`, [value("f32", -1), value("f32", 0)]), [
@@ -19283,11 +18791,9 @@ assert_return(() => invoke($0, `max`, [value("f32", -1), value("f32", 0)]), [
 ]);
 
 // ./test/core/f32.wast:2181
-assert_return(
-  () =>
-    invoke($0, `max`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [value("f32", 1)],
-);
+assert_return(() => invoke($0, `max`, [value("f32", 1), value("f32", -0)]), [
+  value("f32", 1),
+]);
 
 // ./test/core/f32.wast:2182
 assert_return(() => invoke($0, `max`, [value("f32", 1), value("f32", 0)]), [
@@ -19506,66 +19012,62 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2212
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2213
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2214
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", -1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2215
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2216
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2217
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2218
 assert_return(
   () =>
     invoke($0, `max`, [value("f32", 1), bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2219
 assert_return(
-  () =>
-    invoke($0, `max`, [
-      value("f32", -6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `max`, [value("f32", -6.2831855), value("f32", -0)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2220
@@ -19576,11 +19078,7 @@ assert_return(
 
 // ./test/core/f32.wast:2221
 assert_return(
-  () =>
-    invoke($0, `max`, [
-      value("f32", 6.2831855),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `max`, [value("f32", 6.2831855), value("f32", -0)]),
   [value("f32", 6.2831855)],
 );
 
@@ -19813,7 +19311,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2252
@@ -19823,7 +19321,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2253
@@ -19833,7 +19331,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2254
@@ -19843,7 +19341,7 @@ assert_return(
       value("f32", -6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2255
@@ -19853,7 +19351,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2256
@@ -19863,7 +19361,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2257
@@ -19873,7 +19371,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2258
@@ -19883,7 +19381,7 @@ assert_return(
       value("f32", 6.2831855),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2259
@@ -19891,9 +19389,9 @@ assert_return(
   () =>
     invoke($0, `max`, [
       value("f32", -340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2260
@@ -19911,7 +19409,7 @@ assert_return(
   () =>
     invoke($0, `max`, [
       value("f32", 340282350000000000000000000000000000000),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
     ]),
   [value("f32", 340282350000000000000000000000000000000)],
 );
@@ -20213,7 +19711,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2292
@@ -20223,7 +19721,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2293
@@ -20233,7 +19731,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2294
@@ -20243,7 +19741,7 @@ assert_return(
       value("f32", -340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2295
@@ -20253,7 +19751,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2296
@@ -20263,7 +19761,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2297
@@ -20273,7 +19771,7 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2298
@@ -20283,17 +19781,13 @@ assert_return(
       value("f32", 340282350000000000000000000000000000000),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2299
 assert_return(
-  () =>
-    invoke($0, `max`, [
-      value("f32", -Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  () => invoke($0, `max`, [value("f32", -Infinity), value("f32", -0)]),
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2300
@@ -20304,11 +19798,7 @@ assert_return(
 
 // ./test/core/f32.wast:2301
 assert_return(
-  () =>
-    invoke($0, `max`, [
-      value("f32", Infinity),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
+  () => invoke($0, `max`, [value("f32", Infinity), value("f32", -0)]),
   [value("f32", Infinity)],
 );
 
@@ -20541,7 +20031,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2332
@@ -20551,7 +20041,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2333
@@ -20561,7 +20051,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2334
@@ -20571,7 +20061,7 @@ assert_return(
       value("f32", -Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2335
@@ -20581,7 +20071,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2336
@@ -20591,7 +20081,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2337
@@ -20601,7 +20091,7 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2338
@@ -20611,75 +20101,63 @@ assert_return(
       value("f32", Infinity),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2339
 assert_return(
   () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2340
 assert_return(
   () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2341
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2342
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2343
 assert_return(
   () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_canonical_nan`],
+    invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -0)]),
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2344
 assert_return(
   () =>
-    invoke($0, `max`, [
-      bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-    ]),
-  [`f32_arithmetic_nan`],
+    invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -0)]),
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2345
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 0)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2346
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 0)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2347
@@ -20689,7 +20167,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2348
@@ -20699,7 +20177,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2349
@@ -20709,7 +20187,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2350
@@ -20719,7 +20197,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2351
@@ -20729,7 +20207,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2352
@@ -20739,7 +20217,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2353
@@ -20749,7 +20227,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2354
@@ -20759,7 +20237,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2355
@@ -20769,7 +20247,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2356
@@ -20779,7 +20257,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2357
@@ -20789,7 +20267,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2358
@@ -20799,7 +20277,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2359
@@ -20809,7 +20287,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2360
@@ -20819,7 +20297,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2361
@@ -20829,7 +20307,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2362
@@ -20839,7 +20317,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2363
@@ -20849,7 +20327,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2364
@@ -20859,7 +20337,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2365
@@ -20869,7 +20347,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2366
@@ -20879,7 +20357,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2367
@@ -20889,7 +20367,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2368
@@ -20899,7 +20377,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2369
@@ -20909,7 +20387,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2370
@@ -20919,63 +20397,63 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 0.5),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2371
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2372
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2373
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2374
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2375
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", -1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2376
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", -1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2377
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f]), value("f32", 1)]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2378
 assert_return(
   () =>
     invoke($0, `max`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f]), value("f32", 1)]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2379
@@ -20985,7 +20463,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2380
@@ -20995,7 +20473,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2381
@@ -21005,7 +20483,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2382
@@ -21015,7 +20493,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2383
@@ -21025,7 +20503,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2384
@@ -21035,7 +20513,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2385
@@ -21045,7 +20523,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2386
@@ -21055,7 +20533,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 6.2831855),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2387
@@ -21065,7 +20543,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2388
@@ -21075,7 +20553,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2389
@@ -21085,7 +20563,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2390
@@ -21095,7 +20573,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2391
@@ -21105,7 +20583,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2392
@@ -21115,7 +20593,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2393
@@ -21125,7 +20603,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2394
@@ -21135,7 +20613,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", 340282350000000000000000000000000000000),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2395
@@ -21145,7 +20623,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2396
@@ -21155,7 +20633,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2397
@@ -21165,7 +20643,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2398
@@ -21175,7 +20653,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2399
@@ -21185,7 +20663,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2400
@@ -21195,7 +20673,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", -Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2401
@@ -21205,7 +20683,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2402
@@ -21215,7 +20693,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       value("f32", Infinity),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2403
@@ -21225,7 +20703,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2404
@@ -21235,7 +20713,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2405
@@ -21245,7 +20723,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2406
@@ -21255,7 +20733,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2407
@@ -21265,7 +20743,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2408
@@ -21275,7 +20753,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2409
@@ -21285,7 +20763,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2410
@@ -21295,7 +20773,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2411
@@ -21305,7 +20783,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2412
@@ -21315,7 +20793,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2413
@@ -21325,7 +20803,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2414
@@ -21335,7 +20813,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0xff]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2415
@@ -21345,7 +20823,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2416
@@ -21355,7 +20833,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2417
@@ -21365,7 +20843,7 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xc0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2418
@@ -21375,13 +20853,11 @@ assert_return(
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
       bytes("f32", [0x0, 0x0, 0xa0, 0x7f]),
     ]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2419
-assert_return(() => invoke($0, `sqrt`, [bytes("f32", [0x0, 0x0, 0x0, 0x80])]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-]);
+assert_return(() => invoke($0, `sqrt`, [value("f32", -0)]), [value("f32", -0)]);
 
 // ./test/core/f32.wast:2420
 assert_return(() => invoke($0, `sqrt`, [value("f32", 0)]), [value("f32", 0)]);
@@ -21392,7 +20868,7 @@ assert_return(
     invoke($0, `sqrt`, [
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2422
@@ -21410,7 +20886,7 @@ assert_return(
     invoke($0, `sqrt`, [
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2424
@@ -21424,7 +20900,7 @@ assert_return(
 
 // ./test/core/f32.wast:2425
 assert_return(() => invoke($0, `sqrt`, [value("f32", -0.5)]), [
-  `f32_canonical_nan`,
+  `canonical_nan`,
 ]);
 
 // ./test/core/f32.wast:2426
@@ -21433,16 +20909,14 @@ assert_return(() => invoke($0, `sqrt`, [value("f32", 0.5)]), [
 ]);
 
 // ./test/core/f32.wast:2427
-assert_return(() => invoke($0, `sqrt`, [value("f32", -1)]), [
-  `f32_canonical_nan`,
-]);
+assert_return(() => invoke($0, `sqrt`, [value("f32", -1)]), [`canonical_nan`]);
 
 // ./test/core/f32.wast:2428
 assert_return(() => invoke($0, `sqrt`, [value("f32", 1)]), [value("f32", 1)]);
 
 // ./test/core/f32.wast:2429
 assert_return(() => invoke($0, `sqrt`, [value("f32", -6.2831855)]), [
-  `f32_canonical_nan`,
+  `canonical_nan`,
 ]);
 
 // ./test/core/f32.wast:2430
@@ -21456,7 +20930,7 @@ assert_return(
     invoke($0, `sqrt`, [
       value("f32", -340282350000000000000000000000000000000),
     ]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2432
@@ -21468,7 +20942,7 @@ assert_return(
 
 // ./test/core/f32.wast:2433
 assert_return(() => invoke($0, `sqrt`, [value("f32", -Infinity)]), [
-  `f32_canonical_nan`,
+  `canonical_nan`,
 ]);
 
 // ./test/core/f32.wast:2434
@@ -21479,32 +20953,31 @@ assert_return(() => invoke($0, `sqrt`, [value("f32", Infinity)]), [
 // ./test/core/f32.wast:2435
 assert_return(
   () => invoke($0, `sqrt`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2436
 assert_return(
   () => invoke($0, `sqrt`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2437
 assert_return(
   () => invoke($0, `sqrt`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2438
 assert_return(
   () => invoke($0, `sqrt`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2439
-assert_return(
-  () => invoke($0, `floor`, [bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `floor`, [value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:2440
 assert_return(() => invoke($0, `floor`, [value("f32", 0)]), [value("f32", 0)]);
@@ -21604,31 +21077,29 @@ assert_return(() => invoke($0, `floor`, [value("f32", Infinity)]), [
 // ./test/core/f32.wast:2455
 assert_return(
   () => invoke($0, `floor`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2456
 assert_return(
   () => invoke($0, `floor`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2457
 assert_return(
   () => invoke($0, `floor`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2458
 assert_return(
   () => invoke($0, `floor`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2459
-assert_return(() => invoke($0, `ceil`, [bytes("f32", [0x0, 0x0, 0x0, 0x80])]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-]);
+assert_return(() => invoke($0, `ceil`, [value("f32", -0)]), [value("f32", -0)]);
 
 // ./test/core/f32.wast:2460
 assert_return(() => invoke($0, `ceil`, [value("f32", 0)]), [value("f32", 0)]);
@@ -21639,7 +21110,7 @@ assert_return(
     invoke($0, `ceil`, [
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2462
@@ -21657,7 +21128,7 @@ assert_return(
     invoke($0, `ceil`, [
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2464
@@ -21671,7 +21142,7 @@ assert_return(
 
 // ./test/core/f32.wast:2465
 assert_return(() => invoke($0, `ceil`, [value("f32", -0.5)]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+  value("f32", -0),
 ]);
 
 // ./test/core/f32.wast:2466
@@ -21722,32 +21193,31 @@ assert_return(() => invoke($0, `ceil`, [value("f32", Infinity)]), [
 // ./test/core/f32.wast:2475
 assert_return(
   () => invoke($0, `ceil`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2476
 assert_return(
   () => invoke($0, `ceil`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2477
 assert_return(
   () => invoke($0, `ceil`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2478
 assert_return(
   () => invoke($0, `ceil`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2479
-assert_return(
-  () => invoke($0, `trunc`, [bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `trunc`, [value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:2480
 assert_return(() => invoke($0, `trunc`, [value("f32", 0)]), [value("f32", 0)]);
@@ -21758,7 +21228,7 @@ assert_return(
     invoke($0, `trunc`, [
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2482
@@ -21776,7 +21246,7 @@ assert_return(
     invoke($0, `trunc`, [
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2484
@@ -21790,7 +21260,7 @@ assert_return(
 
 // ./test/core/f32.wast:2485
 assert_return(() => invoke($0, `trunc`, [value("f32", -0.5)]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+  value("f32", -0),
 ]);
 
 // ./test/core/f32.wast:2486
@@ -21847,32 +21317,31 @@ assert_return(() => invoke($0, `trunc`, [value("f32", Infinity)]), [
 // ./test/core/f32.wast:2495
 assert_return(
   () => invoke($0, `trunc`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2496
 assert_return(
   () => invoke($0, `trunc`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2497
 assert_return(
   () => invoke($0, `trunc`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2498
 assert_return(
   () => invoke($0, `trunc`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2499
-assert_return(
-  () => invoke($0, `nearest`, [bytes("f32", [0x0, 0x0, 0x0, 0x80])]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
-);
+assert_return(() => invoke($0, `nearest`, [value("f32", -0)]), [
+  value("f32", -0),
+]);
 
 // ./test/core/f32.wast:2500
 assert_return(() => invoke($0, `nearest`, [value("f32", 0)]), [
@@ -21885,7 +21354,7 @@ assert_return(
     invoke($0, `nearest`, [
       value("f32", -0.000000000000000000000000000000000000000000001),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2502
@@ -21903,7 +21372,7 @@ assert_return(
     invoke($0, `nearest`, [
       value("f32", -0.000000000000000000000000000000000000011754944),
     ]),
-  [bytes("f32", [0x0, 0x0, 0x0, 0x80])],
+  [value("f32", -0)],
 );
 
 // ./test/core/f32.wast:2504
@@ -21917,7 +21386,7 @@ assert_return(
 
 // ./test/core/f32.wast:2505
 assert_return(() => invoke($0, `nearest`, [value("f32", -0.5)]), [
-  bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+  value("f32", -0),
 ]);
 
 // ./test/core/f32.wast:2506
@@ -21976,25 +21445,25 @@ assert_return(() => invoke($0, `nearest`, [value("f32", Infinity)]), [
 // ./test/core/f32.wast:2515
 assert_return(
   () => invoke($0, `nearest`, [bytes("f32", [0x0, 0x0, 0xc0, 0xff])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2516
 assert_return(
   () => invoke($0, `nearest`, [bytes("f32", [0x0, 0x0, 0xa0, 0xff])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2517
 assert_return(
   () => invoke($0, `nearest`, [bytes("f32", [0x0, 0x0, 0xc0, 0x7f])]),
-  [`f32_canonical_nan`],
+  [`canonical_nan`],
 );
 
 // ./test/core/f32.wast:2518
 assert_return(
   () => invoke($0, `nearest`, [bytes("f32", [0x0, 0x0, 0xa0, 0x7f])]),
-  [`f32_arithmetic_nan`],
+  [`arithmetic_nan`],
 );
 
 // ./test/core/f32.wast:2523

@@ -72,11 +72,6 @@ class Opcode {
   }
   bool isSimd() const { return (bits_ & 255) == uint32_t(Op::SimdPrefix); }
 #endif
-  MOZ_IMPLICIT Opcode(IntrinsicOp op)
-      : bits_((uint32_t(op) << 8) | uint32_t(Op::IntrinsicPrefix)) {
-    static_assert(size_t(IntrinsicOp::Limit) <= 0xFFFFFF, "fits");
-    MOZ_ASSERT(size_t(op) < size_t(IntrinsicOp::Limit));
-  }
 
   bool isOp() const { return bits_ < uint32_t(Op::FirstPrefix); }
   bool isMisc() const { return (bits_ & 255) == uint32_t(Op::MiscPrefix); }
@@ -182,6 +177,7 @@ class Encoder {
         patchByte |= 0x80;
       }
       MOZ_ASSERT(assertByte == bytes_[offset]);
+      (void)assertByte;
       bytes_[offset] = patchByte;
       offset++;
     } while (assertBits != 0);
@@ -872,7 +868,7 @@ inline bool Decoder::readRefType(uint32_t numTypes, const FeatureArgs& features,
   if (!readValType(numTypes, features, &valType)) {
     return false;
   }
-  if (!valType.isReference()) {
+  if (!valType.isRefType()) {
     return fail("bad type");
   }
   *type = valType.refType();
@@ -884,7 +880,7 @@ inline bool Decoder::readRefType(const TypeContext& types,
   if (!readValType(types, features, &valType)) {
     return false;
   }
-  if (!valType.isReference()) {
+  if (!valType.isRefType()) {
     return fail("bad type");
   }
   *type = valType.refType();

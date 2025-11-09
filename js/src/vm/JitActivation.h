@@ -149,9 +149,10 @@ class JitActivation : public Activation {
   // provided, as values need to be read out of snapshots.
   //
   // The inlineDepth must be within bounds of the frame pointed to by iter.
-  RematerializedFrame* getRematerializedFrame(JSContext* cx,
-                                              const JSJitFrameIter& iter,
-                                              size_t inlineDepth = 0);
+  RematerializedFrame* getRematerializedFrame(
+      JSContext* cx, const JSJitFrameIter& iter, size_t inlineDepth = 0,
+      MaybeReadFallback::FallbackConsequence consequence =
+          MaybeReadFallback::Fallback_Invalidate);
 
   // Look up a rematerialized frame by the fp. If inlineDepth is out of
   // bounds of what has been rematerialized, nullptr is returned.
@@ -213,8 +214,8 @@ class JitActivation : public Activation {
     return reinterpret_cast<wasm::Frame*>(
         wasm::Frame::toJitEntryCaller(packedExitFP_));
   }
-  wasm::TlsData* wasmExitTls() const {
-    return wasm::GetNearestEffectiveTls(wasmExitFP());
+  wasm::Instance* wasmExitInstance() const {
+    return wasm::GetNearestEffectiveInstance(wasmExitFP());
   }
   void setWasmExitFP(const wasm::Frame* fp) {
     if (fp) {

@@ -8,6 +8,7 @@
 
 #include "builtin/ModuleObject.h"
 #include "gc/Policy.h"
+#include "js/Exception.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "js/friend/StackLimits.h"    // js::AutoCheckRecursionLimit
 #include "js/friend/WindowProxy.h"    // js::IsWindow, js::IsWindowProxy
@@ -24,7 +25,7 @@
 #include "vm/Realm.h"
 #include "vm/Scope.h"
 #include "vm/Shape.h"
-#include "vm/Xdr.h"
+#include "wasm/WasmDebug.h"
 #include "wasm/WasmDebugFrame.h"
 #include "wasm/WasmInstance.h"
 
@@ -192,24 +193,24 @@ CallObject* CallObject::create(JSContext* cx, AbstractFramePtr frame) {
         continue;
       }
       callobj->setAliasedBinding(
-          cx, fi,
-          frame.unaliasedFormal(fi.argumentSlot(), DONT_CHECK_ALIASING));
+          fi, frame.unaliasedFormal(fi.argumentSlot(), DONT_CHECK_ALIASING));
     }
   }
 
   return callobj;
 }
 
-CallObject* CallObject::find(JSObject* env) {
+template <class EnvT>
+EnvT* FindEnclosingEnv(JSObject* env) {
   for (;;) {
-    if (env->is<CallObject>()) {
+    if (env->is<EnvT>()) {
       break;
     } else if (env->is<EnvironmentObject>()) {
       env = &env->as<EnvironmentObject>().enclosingEnvironment();
     } else if (env->is<DebugEnvironmentProxy>()) {
       EnvironmentObject& unwrapped =
           env->as<DebugEnvironmentProxy>().environment();
-      if (unwrapped.is<CallObject>()) {
+      if (unwrapped.is<EnvT>()) {
         env = &unwrapped;
         break;
       }
@@ -219,7 +220,16 @@ CallObject* CallObject::find(JSObject* env) {
       return nullptr;
     }
   }
-  return &env->as<CallObject>();
+  return &env->as<EnvT>();
+}
+
+
+CallObject* CallObject::find(JSObject* env) {
+  return FindEnclosingEnv<CallObject>(env);
+}
+
+ModuleEnvironmentObject* ModuleEnvironmentObject::find(JSObject* env) {
+  return FindEnclosingEnv<ModuleEnvironmentObject>(env);
 }
 
 CallObject* CallObject::createHollowForDebug(JSContext* cx,
@@ -262,10 +272,8 @@ const JSClass CallObject::class_ = {
 /*****************************************************************************/
 
 /* static */
-VarEnvironmentObject* VarEnvironmentObject::create(JSContext* cx,
-                                                   HandleShape shape,
-                                                   HandleObject enclosing,
-                                                   gc::InitialHeap heap) {
+VarEnvironmentObject* VarEnvironmentObject::createInternal(
+    JSContext* cx, HandleShape shape, HandleObject enclosing) {
   MOZ_ASSERT(shape->getObjectClass() == &class_);
 
   auto* env = CreateEnvironmentObject<VarEnvironmentObject>(cx, shape);
@@ -283,7 +291,21 @@ VarEnvironmentObject* VarEnvironmentObject::create(JSContext* cx,
 /* static */
 VarEnvironmentObject* VarEnvironmentObject::create(JSContext* cx,
                                                    HandleScope scope,
-                                                   AbstractFramePtr frame) {
+                                                   HandleObject enclosing) {
+  MOZ_ASSERT(scope->is<EvalScope>() || scope->is<VarScope>());
+
+  RootedShape shape(cx, scope->environmentShape());
+  auto* env = createInternal(cx, shape, enclosing);
+  if (!env) {
+    return nullptr;
+  }
+  env->initScope(scope);
+  return env;
+}
+
+/* static */
+VarEnvironmentObject* VarEnvironmentObject::createForFrame(
+    JSContext* cx, HandleScope scope, AbstractFramePtr frame) {
 #ifdef DEBUG
   if (frame.isEvalFrame()) {
     MOZ_ASSERT(scope->is<EvalScope>() && scope == frame.script()->bodyScope());
@@ -299,15 +321,8 @@ VarEnvironmentObject* VarEnvironmentObject::create(JSContext* cx,
   }
 #endif
 
-  RootedScript script(cx, frame.script());
   RootedObject envChain(cx, frame.environmentChain());
-  RootedShape shape(cx, scope->environmentShape());
-  VarEnvironmentObject* env = create(cx, shape, envChain, gc::DefaultHeap);
-  if (!env) {
-    return nullptr;
-  }
-  env->initScope(scope);
-  return env;
+  return create(cx, scope, envChain);
 }
 
 /* static */
@@ -326,8 +341,8 @@ VarEnvironmentObject* VarEnvironmentObject::createHollowForDebug(
   // enclosing link, which is what Debugger uses to construct the tree of
   // Debugger.Environment objects.
   RootedObject enclosingEnv(cx, &cx->global()->lexicalEnvironment());
-  Rooted<VarEnvironmentObject*> env(
-      cx, create(cx, shape, enclosingEnv, gc::TenuredHeap));
+  Rooted<VarEnvironmentObject*> env(cx,
+                                    createInternal(cx, shape, enclosingEnv));
   if (!env) {
     return nullptr;
   }
@@ -372,7 +387,6 @@ const JSClassOps ModuleEnvironmentObject::classOps_ = {
     nullptr,                                // mayResolve
     nullptr,                                // finalize
     nullptr,                                // call
-    nullptr,                                // hasInstance
     nullptr,                                // construct
     nullptr,                                // trace
 };
@@ -459,11 +473,6 @@ bool ModuleEnvironmentObject::lookupImport(
     jsid name, ModuleEnvironmentObject** envOut,
     mozilla::Maybe<PropertyInfo>* propOut) {
   return importBindings().lookup(name, envOut, propOut);
-}
-
-void ModuleEnvironmentObject::fixEnclosingEnvironmentAfterRealmMerge(
-    GlobalObject& global) {
-  setEnclosingEnvironment(&global.lexicalEnvironment());
 }
 
 /* static */
@@ -670,7 +679,7 @@ WithEnvironmentObject* WithEnvironmentObject::createNonSyntactic(
 }
 
 static inline bool IsUnscopableDotName(JSContext* cx, HandleId id) {
-  return id.isAtom(cx->names().dotThis);
+  return id.isAtom(cx->names().dotThis) || id.isAtom(cx->names().dotNewTarget);
 }
 
 #ifdef DEBUG
@@ -682,6 +691,7 @@ static bool IsInternalDotName(JSContext* cx, HandleId id) {
          id.isAtom(cx->names().dotStaticInitializers) ||
          id.isAtom(cx->names().dotStaticFieldKeys) ||
          id.isAtom(cx->names().dotArgs) ||
+         id.isAtom(cx->names().dotNewTarget) ||
          id.isAtom(cx->names().starNamespaceStar);
 }
 #endif
@@ -690,8 +700,7 @@ static bool IsInternalDotName(JSContext* cx, HandleId id) {
 static bool CheckUnscopables(JSContext* cx, HandleObject obj, HandleId id,
                              bool* scopable) {
   RootedId unscopablesId(
-      cx,
-      SYMBOL_TO_JSID(cx->wellKnownSymbols().get(JS::SymbolCode::unscopables)));
+      cx, PropertyKey::Symbol(cx->wellKnownSymbols().unscopables));
   RootedValue v(cx);
   if (!GetProperty(cx, obj, obj, unscopablesId, &v)) {
     return false;
@@ -711,7 +720,8 @@ static bool CheckUnscopables(JSContext* cx, HandleObject obj, HandleId id,
 static bool with_LookupProperty(JSContext* cx, HandleObject obj, HandleId id,
                                 MutableHandleObject objp,
                                 PropertyResult* propp) {
-  // SpiderMonkey-specific: consider the internal '.this' name to be unscopable.
+  // SpiderMonkey-specific: consider the internal '.this' and '.newTarget' names
+  // to be unscopable.
   if (IsUnscopableDotName(cx, id)) {
     objp.set(nullptr);
     propp->setNotFound();
@@ -1012,9 +1022,8 @@ BlockLexicalEnvironmentObject* BlockLexicalEnvironmentObject::clone(
     return nullptr;
   }
 
-  // We can't assert that the clone has the same shape, because it could
-  // have been reshaped by ReshapeForShadowedProp.
-  MOZ_ASSERT(env->slotSpan() == copy->slotSpan());
+  MOZ_ASSERT(env->shape() == copy->shape());
+
   for (uint32_t i = JSSLOT_FREE(&class_); i < copy->slotSpan(); i++) {
     copy->setSlot(i, env->getSlot(i));
   }
@@ -1297,7 +1306,7 @@ EnvironmentIter::EnvironmentIter(JSContext* cx, JSObject* env, Scope* scope)
 }
 
 EnvironmentIter::EnvironmentIter(JSContext* cx, AbstractFramePtr frame,
-                                 jsbytecode* pc)
+                                 const jsbytecode* pc)
     : si_(cx, frame.script()->innermostScope(pc)),
       env_(cx, frame.environmentChain()),
       frame_(frame) {
@@ -1427,11 +1436,8 @@ bool MissingEnvironmentKey::match(MissingEnvironmentKey ek1,
   return ek1.frame_ == ek2.frame_ && ek1.scope_ == ek2.scope_;
 }
 
-bool LiveEnvironmentVal::needsSweep() {
-  if (scope_) {
-    MOZ_ALWAYS_FALSE(IsAboutToBeFinalized(&scope_));
-  }
-  return false;
+bool LiveEnvironmentVal::traceWeak(JSTracer* trc) {
+  return TraceWeakEdge(trc, &scope_, "LiveEnvironmentVal::scope_");
 }
 
 // Live EnvironmentIter values may be added to DebugEnvironments::liveEnvs, as
@@ -2405,9 +2411,19 @@ ArrayObject* DebugEnvironmentProxy::maybeSnapshot() const {
 }
 
 void DebugEnvironmentProxy::initSnapshot(ArrayObject& o) {
-  MOZ_ASSERT_IF(
-      maybeSnapshot() != nullptr,
-      CallObject::find(&environment())->callee().isGeneratorOrAsync());
+#ifdef DEBUG
+  if (maybeSnapshot()) {
+    auto* callObj = CallObject::find(&environment());
+    if (callObj) {
+      MOZ_ASSERT(callObj->callee().isGeneratorOrAsync());
+    } else {
+      auto* moduleEnv = ModuleEnvironmentObject::find(&environment());
+      MOZ_ASSERT(moduleEnv);
+      MOZ_ASSERT(moduleEnv->module().isAsync());
+    }
+  }
+#endif
+
   setReservedSlot(SNAPSHOT_SLOT, ObjectValue(o));
 }
 
@@ -2463,37 +2479,41 @@ DebugEnvironments::~DebugEnvironments() { MOZ_ASSERT(missingEnvs.empty()); }
 
 void DebugEnvironments::trace(JSTracer* trc) { proxiedEnvs.trace(trc); }
 
-void DebugEnvironments::sweep() {
+void DebugEnvironments::traceWeak(JSTracer* trc) {
   /*
    * missingEnvs points to debug envs weakly so that debug envs can be
    * released more eagerly.
    */
   for (MissingEnvironmentMap::Enum e(missingEnvs); !e.empty(); e.popFront()) {
-    if (IsAboutToBeFinalized(&e.front().value())) {
+    auto result =
+        TraceWeakEdge(trc, &e.front().value(), "MissingEnvironmentMap value");
+    if (result.isDead()) {
       /*
-       * Note that onPopCall, onPopVar, and onPopLexical rely on
-       * missingEnvs to find environment objects that we synthesized for
-       * the debugger's sake, and clean up the synthetic environment
-       * objects' entries in liveEnvs. So if we remove an entry from
-       * missingEnvs here, we must also remove the corresponding
-       * liveEnvs entry.
+       * Note that onPopCall, onPopVar, and onPopLexical rely on missingEnvs to
+       * find environment objects that we synthesized for the debugger's sake,
+       * and clean up the synthetic environment objects' entries in liveEnvs.
+       * So if we remove an entry from missingEnvs here, we must also remove the
+       * corresponding liveEnvs entry.
        *
        * Since the DebugEnvironmentProxy is the only thing using its environment
-       * object, and the DSO is about to be finalized, you might assume
-       * that the synthetic SO is also about to be finalized too, and thus
-       * the loop below will take care of things. But complex GC behavior
-       * means that marks are only conservative approximations of
-       * liveness; we should assume that anything could be marked.
+       * object, and the DSO is about to be finalized, you might assume that the
+       * synthetic SO is also about to be finalized too, and thus the loop below
+       * will take care of things. But complex GC behavior means that marks are
+       * only conservative approximations of liveness; we should assume that
+       * anything could be marked.
        *
-       * Thus, we must explicitly remove the entries from both liveEnvs
-       * and missingEnvs here.
+       * Thus, we must explicitly remove the entries from both liveEnvs and
+       * missingEnvs here.
        */
-      liveEnvs.remove(&e.front().value().unbarrieredGet()->environment());
+      liveEnvs.remove(&result.initialTarget()->environment());
       e.removeFront();
     } else {
       MissingEnvironmentKey key = e.front().key();
-      if (IsForwarded(key.scope())) {
-        key.updateScope(Forwarded(key.scope()));
+      Scope* scope = key.scope();
+      MOZ_ALWAYS_TRUE(TraceManuallyBarrieredWeakEdge(
+          trc, &scope, "MissingEnvironmentKey scope"));
+      if (scope != key.scope()) {
+        key.updateScope(scope);
         e.rekeyFront(key);
       }
     }
@@ -2503,7 +2523,7 @@ void DebugEnvironments::sweep() {
    * Scopes can be finalized when a debugger-synthesized EnvironmentObject is
    * no longer reachable via its DebugEnvironmentProxy.
    */
-  liveEnvs.sweep();
+  liveEnvs.traceWeak(trc);
 }
 
 void DebugEnvironments::finish() { proxiedEnvs.clear(); }
@@ -2662,6 +2682,10 @@ void DebugEnvironments::takeFrameSnapshot(
    * nullptr.
    */
 
+  // Because this can be called during exception unwinding, save the exception
+  // state and restore it when we're done.
+  JS::AutoSaveExceptionState ases(cx);
+
   JSScript* script = frame.script();
 
   // Act like no snapshot was taken if we run OOM while taking the snapshot.
@@ -2806,7 +2830,7 @@ void DebugEnvironments::onPopCall(JSContext* cx, AbstractFramePtr frame) {
 }
 
 void DebugEnvironments::onPopLexical(JSContext* cx, AbstractFramePtr frame,
-                                     jsbytecode* pc) {
+                                     const jsbytecode* pc) {
   cx->check(frame);
 
   DebugEnvironments* envs = cx->realm()->debugEnvs();
@@ -3411,7 +3435,7 @@ static bool GetThisValueForDebuggerEnvironmentIterMaybeOptimizedOut(
 
 bool js::GetThisValueForDebuggerFrameMaybeOptimizedOut(JSContext* cx,
                                                        AbstractFramePtr frame,
-                                                       jsbytecode* pc,
+                                                       const jsbytecode* pc,
                                                        MutableHandleValue res) {
   RootedObject scopeChain(cx);
   RootedScope scope(cx);
@@ -3618,7 +3642,7 @@ static bool InitHoistedFunctionDeclarations(JSContext* cx, HandleScript script,
   // The inner-functions up to `lastFun` are the hoisted function declarations
   // of the script. We must clone and bind them now.
   for (size_t i = 0; i <= lastFun; ++i) {
-    const JS::GCCellPtr& thing = script->gcthings()[i];
+    JS::GCCellPtr thing = script->gcthings()[i];
 
     // Skip the initial scopes. In practice, there is at most one variables and
     // one lexical scope.
@@ -3935,7 +3959,7 @@ bool js::InitFunctionEnvironmentObjects(JSContext* cx, AbstractFramePtr frame) {
 
 bool js::PushVarEnvironmentObject(JSContext* cx, HandleScope scope,
                                   AbstractFramePtr frame) {
-  VarEnvironmentObject* env = VarEnvironmentObject::create(cx, scope, frame);
+  auto* env = VarEnvironmentObject::createForFrame(cx, scope, frame);
   if (!env) {
     return false;
   }
@@ -3944,7 +3968,8 @@ bool js::PushVarEnvironmentObject(JSContext* cx, HandleScope scope,
 }
 
 bool js::GetFrameEnvironmentAndScope(JSContext* cx, AbstractFramePtr frame,
-                                     jsbytecode* pc, MutableHandleObject env,
+                                     const jsbytecode* pc,
+                                     MutableHandleObject env,
                                      MutableHandleScope scope) {
   env.set(frame.environmentChain());
 
@@ -4000,16 +4025,6 @@ static bool RemoveReferencedNames(JSContext* cx, HandleScript script,
       case JSOp::SetName:
       case JSOp::StrictSetName:
         name = script->getName(loc.toRawBytecode());
-        break;
-
-      case JSOp::GetGName:
-      case JSOp::SetGName:
-      case JSOp::StrictSetGName:
-        if (script->hasNonSyntacticScope()) {
-          name = script->getName(loc.toRawBytecode());
-        } else {
-          name = nullptr;
-        }
         break;
 
       case JSOp::GetAliasedVar:

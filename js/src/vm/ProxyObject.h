@@ -58,8 +58,10 @@ class ProxyObject : public JSObject {
              ->reservedSlots;
   }
 
-  [[nodiscard]] bool initExternalValueArrayAfterSwap(JSContext* cx,
-                                                     HandleValueVector values);
+  // For use from JSObject::swap.
+  [[nodiscard]] bool prepareForSwap(JSContext* cx,
+                                    MutableHandleValueVector valuesOut);
+  [[nodiscard]] bool fixupAfterSwap(JSContext* cx, HandleValueVector values);
 
   const Value& private_() const { return GetProxyPrivate(this); }
   const Value& expando() const { return GetProxyExpando(this); }
@@ -132,6 +134,8 @@ class ProxyObject : public JSObject {
   static void trace(JSTracer* trc, JSObject* obj);
 
   static void traceEdgeToTarget(JSTracer* trc, ProxyObject* obj);
+
+  void nurseryProxyTenured(ProxyObject* old);
 
   void nuke();
 };

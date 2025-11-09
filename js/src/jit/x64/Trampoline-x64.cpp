@@ -217,8 +217,8 @@ void JitRuntime::generateEnterJIT(JSContext* cx, MacroAssembler& masm) {
   {
     // Handle Interpreter -> Baseline OSR.
     AllocatableGeneralRegisterSet regs(GeneralRegisterSet::All());
+    MOZ_ASSERT(!regs.has(rbp));
     regs.takeUnchecked(OsrFrameReg);
-    regs.take(rbp);
     regs.take(reg_code);
 
     // Ensure that |scratch| does not end up being JSReturnOperand.
@@ -494,8 +494,7 @@ void JitRuntime::generateArgumentsRectifier(MacroAssembler& masm,
   masm.loadPtr(Address(rsp, RectifierFrameLayout::offsetOfCalleeToken()), rax);
   masm.mov(rax, rcx);
   masm.andq(Imm32(uint32_t(CalleeTokenMask)), rcx);
-  masm.load32(Operand(rcx, JSFunction::offsetOfFlagsAndArgCount()), rcx);
-  masm.rshift32(Imm32(JSFunction::ArgCountShift), rcx);
+  masm.loadFunctionArgCount(rcx, rcx);
 
   // Stash another copy in r11, since we are going to do destructive operations
   // on rcx
@@ -821,7 +820,7 @@ bool JitRuntime::generateVMWrapper(JSContext* cx, MacroAssembler& masm,
 
   // Test for failure.
   switch (f.failType()) {
-    case Type_Object:
+    case Type_Cell:
       masm.branchTestPtr(Assembler::Zero, rax, rax, masm.failureLabel());
       break;
     case Type_Bool:
@@ -856,7 +855,6 @@ bool JitRuntime::generateVMWrapper(JSContext* cx, MacroAssembler& masm,
       break;
 
     case Type_Double:
-      MOZ_ASSERT(JitOptions.supportsFloatingPoint);
       masm.loadDouble(Address(esp, 0), ReturnDoubleReg);
       masm.freeStack(sizeof(double));
       break;
@@ -1053,7 +1051,6 @@ void JitRuntime::generateProfilerExitFrameTailStub(MacroAssembler& masm,
   Label handle_Rectifier;
   Label handle_IonICCall;
   Label handle_Entry;
-  Label end;
 
   masm.branch32(Assembler::Equal, scratch2, Imm32(FrameType::IonJS),
                 &handle_IonJS);

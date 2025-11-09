@@ -5,24 +5,23 @@
 #ifndef vm_Interpreter_inl_h
 #define vm_Interpreter_inl_h
 
-#include "vm/Interpreter.h"
-
 #include "jsnum.h"
 
-#include "js/friend/DumpFunctions.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "vm/ArgumentsObject.h"
 #include "vm/BytecodeUtil.h"  // JSDVG_SEARCH_STACK
 #include "vm/Realm.h"
 #include "vm/SharedStencil.h"  // GCThingIndex
+#include "vm/StaticStrings.h"
 #include "vm/ThrowMsgKind.h"
+#ifdef ENABLE_RECORD_TUPLE
+#  include "vm/RecordTupleShared.h"
+#endif
 
-#include "vm/EnvironmentObject-inl.h"
 #include "vm/GlobalObject-inl.h"
 #include "vm/JSAtom-inl.h"
 #include "vm/JSObject-inl.h"
 #include "vm/ObjectOperations-inl.h"
-#include "vm/Stack-inl.h"
 #include "vm/StringType-inl.h"
 
 namespace js {
@@ -229,21 +228,15 @@ inline bool SetIntrinsicOperation(JSContext* cx, JSScript* script,
   return GlobalObject::setIntrinsicValue(cx, cx->global(), name, val);
 }
 
-inline void SetAliasedVarOperation(JSContext* cx, JSScript* script,
-                                   jsbytecode* pc, EnvironmentObject& obj,
-                                   EnvironmentCoordinate ec, const Value& val,
-                                   MaybeCheckTDZ checkTDZ) {
-  MOZ_ASSERT_IF(checkTDZ, !IsUninitializedLexical(obj.aliasedBinding(ec)));
-  obj.setAliasedBinding(cx, ec, val);
-}
-
 inline bool SetNameOperation(JSContext* cx, JSScript* script, jsbytecode* pc,
                              HandleObject env, HandleValue val) {
   MOZ_ASSERT(JSOp(*pc) == JSOp::SetName || JSOp(*pc) == JSOp::StrictSetName ||
              JSOp(*pc) == JSOp::SetGName || JSOp(*pc) == JSOp::StrictSetGName);
   MOZ_ASSERT_IF(
-      (JSOp(*pc) == JSOp::SetGName || JSOp(*pc) == JSOp::StrictSetGName) &&
-          !script->hasNonSyntacticScope(),
+      JSOp(*pc) == JSOp::SetGName || JSOp(*pc) == JSOp::StrictSetGName,
+      !script->hasNonSyntacticScope());
+  MOZ_ASSERT_IF(
+      JSOp(*pc) == JSOp::SetGName || JSOp(*pc) == JSOp::StrictSetGName,
       env == cx->global() || env == &cx->global()->lexicalEnvironment() ||
           env->is<RuntimeLexicalErrorObject>());
 
@@ -289,9 +282,10 @@ inline void InitGlobalLexicalOperation(
   lexicalEnv->setSlot(prop->slot(), value);
 }
 
-inline bool InitPropertyOperation(JSContext* cx, JSOp op, HandleObject obj,
-                                  HandlePropertyName name, HandleValue rhs) {
-  unsigned propAttrs = GetInitDataPropAttrs(op);
+inline bool InitPropertyOperation(JSContext* cx, jsbytecode* pc,
+                                  HandleObject obj, HandlePropertyName name,
+                                  HandleValue rhs) {
+  unsigned propAttrs = GetInitDataPropAttrs(JSOp(*pc));
   return DefineDataProperty(cx, obj, name, rhs, propAttrs);
 }
 
@@ -425,6 +419,19 @@ static MOZ_ALWAYS_INLINE bool GetObjectElementOperation(
 static MOZ_ALWAYS_INLINE bool GetPrimitiveElementOperation(
     JSContext* cx, JS::HandleValue receiver, int receiverIndex, HandleValue key,
     MutableHandleValue res) {
+#ifdef ENABLE_RECORD_TUPLE
+  if (receiver.isExtendedPrimitive()) {
+    RootedId id(cx);
+    if (!ToPropertyKey(cx, key, &id)) {
+      return false;
+    }
+    RootedObject obj(cx, &receiver.toExtendedPrimitive());
+    if (!ExtendedPrimitiveGetProperty(cx, obj, receiver, id, res)) {
+      return false;
+    }
+  }
+#endif
+
   // FIXME: Bug 1234324 We shouldn't be boxing here.
   RootedObject boxed(
       cx, ToObjectFromStackForPropertyAccess(cx, receiver, receiverIndex, key));
@@ -600,7 +607,7 @@ inline bool InitElemIncOperation(JSContext* cx, HandleArrayObject arr,
 
 static inline ArrayObject* ProcessCallSiteObjOperation(JSContext* cx,
                                                        HandleScript script,
-                                                       jsbytecode* pc) {
+                                                       const jsbytecode* pc) {
   MOZ_ASSERT(JSOp(*pc) == JSOp::CallSiteObj);
 
   RootedArrayObject cso(cx, &script->getObject(pc)->as<ArrayObject>());

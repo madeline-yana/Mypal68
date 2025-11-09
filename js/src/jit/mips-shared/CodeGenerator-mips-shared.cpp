@@ -271,11 +271,11 @@ void CodeGenerator::visitAddI(LAddI* ins) {
 
   Label overflow;
   if (rhs->isConstant()) {
-    masm.ma_addTestOverflow(ToRegister(dest), ToRegister(lhs),
-                            Imm32(ToInt32(rhs)), &overflow);
+    masm.ma_add32TestOverflow(ToRegister(dest), ToRegister(lhs),
+                              Imm32(ToInt32(rhs)), &overflow);
   } else {
-    masm.ma_addTestOverflow(ToRegister(dest), ToRegister(lhs), ToRegister(rhs),
-                            &overflow);
+    masm.ma_add32TestOverflow(ToRegister(dest), ToRegister(lhs),
+                              ToRegister(rhs), &overflow);
   }
 
   bailoutFrom(&overflow, ins->snapshot());
@@ -314,11 +314,11 @@ void CodeGenerator::visitSubI(LSubI* ins) {
 
   Label overflow;
   if (rhs->isConstant()) {
-    masm.ma_subTestOverflow(ToRegister(dest), ToRegister(lhs),
-                            Imm32(ToInt32(rhs)), &overflow);
+    masm.ma_sub32TestOverflow(ToRegister(dest), ToRegister(lhs),
+                              Imm32(ToInt32(rhs)), &overflow);
   } else {
-    masm.ma_subTestOverflow(ToRegister(dest), ToRegister(lhs), ToRegister(rhs),
-                            &overflow);
+    masm.ma_sub32TestOverflow(ToRegister(dest), ToRegister(lhs),
+                              ToRegister(rhs), &overflow);
   }
 
   bailoutFrom(&overflow, ins->snapshot());
@@ -376,7 +376,7 @@ void CodeGenerator::visitMulI(LMulI* ins) {
       case 2:
         if (mul->canOverflow()) {
           Label mulTwoOverflow;
-          masm.ma_addTestOverflow(dest, src, src, &mulTwoOverflow);
+          masm.ma_add32TestOverflow(dest, src, src, &mulTwoOverflow);
 
           bailoutFrom(&mulTwoOverflow, ins->snapshot());
         } else {
@@ -430,8 +430,8 @@ void CodeGenerator::visitMulI(LMulI* ins) {
 
         if (mul->canOverflow()) {
           Label mulConstOverflow;
-          masm.ma_mul_branch_overflow(dest, ToRegister(lhs),
-                                      Imm32(ToInt32(rhs)), &mulConstOverflow);
+          masm.ma_mul32TestOverflow(dest, ToRegister(lhs), Imm32(ToInt32(rhs)),
+                                    &mulConstOverflow);
 
           bailoutFrom(&mulConstOverflow, ins->snapshot());
         } else {
@@ -443,8 +443,8 @@ void CodeGenerator::visitMulI(LMulI* ins) {
     Label multRegOverflow;
 
     if (mul->canOverflow()) {
-      masm.ma_mul_branch_overflow(dest, ToRegister(lhs), ToRegister(rhs),
-                                  &multRegOverflow);
+      masm.ma_mul32TestOverflow(dest, ToRegister(lhs), ToRegister(rhs),
+                                &multRegOverflow);
       bailoutFrom(&multRegOverflow, ins->snapshot());
     } else {
       masm.as_mul(dest, ToRegister(lhs), ToRegister(rhs));
@@ -1370,9 +1370,6 @@ void CodeGenerator::visitBitAndAndBranch(LBitAndAndBranch* lir) {
              lir->ifFalse());
 }
 
-// See ../CodeGenerator.cpp for more information.
-void CodeGenerator::visitWasmRegisterResult(LWasmRegisterResult* lir) {}
-
 void CodeGenerator::visitWasmUint32ToDouble(LWasmUint32ToDouble* lir) {
   masm.convertUInt32ToDouble(ToRegister(lir->input()),
                              ToFloatRegister(lir->output()));
@@ -1512,24 +1509,32 @@ void CodeGenerator::visitWasmHeapBase(LWasmHeapBase* ins) {
 template <typename T>
 void CodeGeneratorMIPSShared::emitWasmLoad(T* lir) {
   const MWasmLoad* mir = lir->mir();
+  SecondScratchRegisterScope scratch2(masm);
 
+  Register ptr = ToRegister(lir->ptr());
   Register ptrScratch = InvalidReg;
   if (!lir->ptrCopy()->isBogusTemp()) {
     ptrScratch = ToRegister(lir->ptrCopy());
   }
 
+  if (mir->base()->type() == MIRType::Int32) {
+    masm.move32To64ZeroExtend(ptr, Register64(scratch2));
+    ptr = scratch2;
+    ptrScratch = ptrScratch != InvalidReg ? scratch2 : InvalidReg;
+  }
+
   if (IsUnaligned(mir->access())) {
     if (IsFloatingPointType(mir->type())) {
-      masm.wasmUnalignedLoadFP(mir->access(), HeapReg, ToRegister(lir->ptr()),
-                               ptrScratch, ToFloatRegister(lir->output()),
+      masm.wasmUnalignedLoadFP(mir->access(), HeapReg, ptr, ptrScratch,
+                               ToFloatRegister(lir->output()),
                                ToRegister(lir->getTemp(1)));
     } else {
-      masm.wasmUnalignedLoad(mir->access(), HeapReg, ToRegister(lir->ptr()),
-                             ptrScratch, ToRegister(lir->output()),
+      masm.wasmUnalignedLoad(mir->access(), HeapReg, ptr, ptrScratch,
+                             ToRegister(lir->output()),
                              ToRegister(lir->getTemp(1)));
     }
   } else {
-    masm.wasmLoad(mir->access(), HeapReg, ToRegister(lir->ptr()), ptrScratch,
+    masm.wasmLoad(mir->access(), HeapReg, ptr, ptrScratch,
                   ToAnyRegister(lir->output()));
   }
 }
@@ -1543,26 +1548,33 @@ void CodeGenerator::visitWasmUnalignedLoad(LWasmUnalignedLoad* lir) {
 template <typename T>
 void CodeGeneratorMIPSShared::emitWasmStore(T* lir) {
   const MWasmStore* mir = lir->mir();
+  SecondScratchRegisterScope scratch2(masm);
 
+  Register ptr = ToRegister(lir->ptr());
   Register ptrScratch = InvalidReg;
   if (!lir->ptrCopy()->isBogusTemp()) {
     ptrScratch = ToRegister(lir->ptrCopy());
+  }
+
+  if (mir->base()->type() == MIRType::Int32) {
+    masm.move32To64ZeroExtend(ptr, Register64(scratch2));
+    ptr = scratch2;
+    ptrScratch = ptrScratch != InvalidReg ? scratch2 : InvalidReg;
   }
 
   if (IsUnaligned(mir->access())) {
     if (mir->access().type() == Scalar::Float32 ||
         mir->access().type() == Scalar::Float64) {
       masm.wasmUnalignedStoreFP(mir->access(), ToFloatRegister(lir->value()),
-                                HeapReg, ToRegister(lir->ptr()), ptrScratch,
+                                HeapReg, ptr, ptrScratch,
                                 ToRegister(lir->getTemp(1)));
     } else {
       masm.wasmUnalignedStore(mir->access(), ToRegister(lir->value()), HeapReg,
-                              ToRegister(lir->ptr()), ptrScratch,
-                              ToRegister(lir->getTemp(1)));
+                              ptr, ptrScratch, ToRegister(lir->getTemp(1)));
     }
   } else {
-    masm.wasmStore(mir->access(), ToAnyRegister(lir->value()), HeapReg,
-                   ToRegister(lir->ptr()), ptrScratch);
+    masm.wasmStore(mir->access(), ToAnyRegister(lir->value()), HeapReg, ptr,
+                   ptrScratch);
   }
 }
 
@@ -1938,8 +1950,29 @@ void CodeGenerator::visitWasmSelect(LWasmSelect* ins) {
   }
 }
 
+// We expect to handle only the case where compare is {U,}Int32 and select is
+// {U,}Int32, and the "true" input is reused for the output.
 void CodeGenerator::visitWasmCompareAndSelect(LWasmCompareAndSelect* ins) {
-  emitWasmCompareAndSelect(ins);
+  bool cmpIs32bit = ins->compareType() == MCompare::Compare_Int32 ||
+                    ins->compareType() == MCompare::Compare_UInt32;
+  bool selIs32bit = ins->mir()->type() == MIRType::Int32;
+
+  MOZ_RELEASE_ASSERT(
+      cmpIs32bit && selIs32bit,
+      "CodeGenerator::visitWasmCompareAndSelect: unexpected types");
+
+  Register trueExprAndDest = ToRegister(ins->output());
+  MOZ_ASSERT(ToRegister(ins->ifTrueExpr()) == trueExprAndDest,
+             "true expr input is reused for output");
+
+  Assembler::Condition cond = Assembler::InvertCondition(
+      JSOpToCondition(ins->compareType(), ins->jsop()));
+  const LAllocation* rhs = ins->rightExpr();
+  const LAllocation* falseExpr = ins->ifFalseExpr();
+  Register lhs = ToRegister(ins->leftExpr());
+
+  masm.cmp32Move32(cond, lhs, ToRegister(rhs), ToRegister(falseExpr),
+                   trueExprAndDest);
 }
 
 void CodeGenerator::visitWasmReinterpret(LWasmReinterpret* lir) {
@@ -2063,8 +2096,20 @@ void CodeGenerator::visitWasmAddOffset(LWasmAddOffset* lir) {
   Register out = ToRegister(lir->output());
 
   Label ok;
-  masm.ma_addTestCarry(Assembler::CarryClear, out, base, Imm32(mir->offset()),
-                       &ok);
+  masm.ma_add32TestCarry(Assembler::CarryClear, out, base, Imm32(mir->offset()),
+                         &ok);
+  masm.wasmTrap(wasm::Trap::OutOfBounds, mir->bytecodeOffset());
+  masm.bind(&ok);
+}
+
+void CodeGenerator::visitWasmAddOffset64(LWasmAddOffset64* lir) {
+  MWasmAddOffset* mir = lir->mir();
+  Register64 base = ToRegister64(lir->base());
+  Register64 out = ToOutRegister64(lir);
+
+  Label ok;
+  masm.ma_addPtrTestCarry(Assembler::CarryClear, out.reg, base.reg,
+                          ImmWord(mir->offset()), &ok);
   masm.wasmTrap(wasm::Trap::OutOfBounds, mir->bytecodeOffset());
   masm.bind(&ok);
 }

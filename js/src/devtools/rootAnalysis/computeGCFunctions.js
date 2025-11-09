@@ -19,19 +19,22 @@ var gcFunctionsList_filename = scriptArgs[2] || "gcFunctions.lst";
 var gcEdges_filename = scriptArgs[3] || "gcEdges.txt";
 var limitedFunctionsList_filename = scriptArgs[4] || "limitedFunctions.lst";
 
-loadCallgraph(callgraph_filename);
+var gcFunctions = loadCallgraph(callgraph_filename);
 
 printErr("Writing " + gcFunctions_filename);
 redirect(gcFunctions_filename);
 
 for (var name in gcFunctions) {
-    for (let readable of (readableNames[name] || [])) {
+    for (const readable of (readableNames[name] || [name])) {
         print("");
-        print("GC Function: " + name + "$" + readable);
+        const fullname = (name == readable) ? name : name + "$" + readable;
+        print("GC Function: " + fullname);
         let current = name;
         do {
             current = gcFunctions[current];
-            if (current in readableNames)
+            if (current === 'internal')
+                ; // Hit the end
+            else if (current in readableNames)
                 print("    " + readableNames[current][0]);
             else
                 print("    " + current);
@@ -70,5 +73,4 @@ for (var block in gcEdges) {
 
 printErr("Writing " + limitedFunctionsList_filename);
 redirect(limitedFunctionsList_filename);
-for (const [name, limits] of Object.entries(limitedFunctions))
-    print(`${limits} ${name}`);
+print(JSON.stringify(limitedFunctions, null, 4));

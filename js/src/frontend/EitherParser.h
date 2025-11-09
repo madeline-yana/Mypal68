@@ -19,7 +19,6 @@
 
 #include "frontend/BCEParserHandle.h"
 #include "frontend/Parser.h"
-#include "frontend/TokenStream.h"
 
 namespace js {
 

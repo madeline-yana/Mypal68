@@ -62,7 +62,7 @@ class FuncType {
   // V128 types are excluded per spec but are guarded against separately.
   bool temporarilyUnsupportedReftypeForEntry() const {
     for (ValType arg : args()) {
-      if (arg.isReference() && (!arg.isExternRef() || !arg.isNullable())) {
+      if (arg.isRefType() && (!arg.isExternRef() || !arg.isNullable())) {
         return true;
       }
     }
@@ -79,7 +79,7 @@ class FuncType {
   // Unexposable types must be guarded against separately.
   bool temporarilyUnsupportedReftypeForExit() const {
     for (ValType result : results()) {
-      if (result.isReference() &&
+      if (result.isRefType() &&
           (!result.isExternRef() || !result.isNullable())) {
         return true;
       }
@@ -131,6 +131,15 @@ class FuncType {
   bool canHaveJitEntry() const;
   bool canHaveJitExit() const;
 
+  bool hasInt64Arg() const {
+    for (ValType arg : args()) {
+      if (arg.kind() == ValType::Kind::I64) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool hasUnexposableArgOrRet() const {
     for (ValType arg : args()) {
       if (!arg.isExposable()) {
@@ -161,7 +170,8 @@ class FuncType {
   }
 #endif
 
-  WASM_DECLARE_SERIALIZABLE(FuncType)
+  size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
+  WASM_DECLARE_FRIEND_SERIALIZE(FuncType);
 };
 
 struct FuncTypeHashPolicy {
@@ -180,7 +190,11 @@ struct StructField {
   FieldType type;
   uint32_t offset;
   bool isMutable;
+
+  WASM_CHECK_CACHEABLE_POD(type, offset, isMutable);
 };
+
+WASM_DECLARE_CACHEABLE_POD(StructField);
 
 using StructFieldVector = Vector<StructField, 0, SystemAllocPolicy>;
 
@@ -222,7 +236,8 @@ class StructType {
   }
   [[nodiscard]] bool computeLayout();
 
-  WASM_DECLARE_SERIALIZABLE(StructType)
+  size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
+  WASM_DECLARE_FRIEND_SERIALIZE(StructType);
 };
 
 using StructTypeVector = Vector<StructType, 0, SystemAllocPolicy>;
@@ -250,6 +265,8 @@ class ArrayType {
   FieldType elementType_;  // field type
   bool isMutable_;         // mutability
 
+  WASM_CHECK_CACHEABLE_POD(elementType_, isMutable_);
+
  public:
   ArrayType(FieldType elementType, bool isMutable)
       : elementType_(elementType), isMutable_(isMutable) {}
@@ -272,8 +289,10 @@ class ArrayType {
 
   bool isDefaultable() const { return elementType_.isDefaultable(); }
 
-  WASM_DECLARE_SERIALIZABLE(ArrayType)
+  size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
 };
+
+WASM_DECLARE_CACHEABLE_POD(ArrayType);
 
 using ArrayTypeVector = Vector<ArrayType, 0, SystemAllocPolicy>;
 using ArrayTypePtrVector = Vector<const ArrayType*, 0, SystemAllocPolicy>;
@@ -435,7 +454,8 @@ class TypeDef {
     }
   }
 
-  WASM_DECLARE_SERIALIZABLE(TypeDef)
+  size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
+  WASM_DECLARE_FRIEND_SERIALIZE(TypeDef);
 };
 
 using TypeDefVector = Vector<TypeDef, 0, SystemAllocPolicy>;
@@ -626,7 +646,7 @@ class TypeContext : public AtomicRefCounted<TypeContext> {
     }
 
     // A reference may be equal to another reference
-    if (first.isReference() && second.isReference()) {
+    if (first.isRefType() && second.isRefType()) {
       return isRefEquivalent(first.refType(), second.refType(), cache);
     }
 
@@ -678,7 +698,7 @@ class TypeContext : public AtomicRefCounted<TypeContext> {
     }
 
     // A reference may be a subtype of another reference
-    if (subType.isReference() && superType.isReference()) {
+    if (subType.isRefType() && superType.isRefType()) {
       return isRefSubtypeOf(subType.refType(), superType.refType(), cache);
     }
 
@@ -814,6 +834,8 @@ class TypeIdDesc {
   TypeIdDescKind kind_;
   size_t bits_;
 
+  WASM_CHECK_CACHEABLE_POD(kind_, bits_);
+
   TypeIdDesc(TypeIdDescKind kind, size_t bits) : kind_(kind), bits_(bits) {}
 
  public:
@@ -826,7 +848,7 @@ class TypeIdDesc {
 
   bool isGlobal() const { return kind_ == TypeIdDescKind::Global; }
 
-  size_t immediate() const {
+  uint32_t immediate() const {
     MOZ_ASSERT(kind_ == TypeIdDescKind::Immediate);
     return bits_;
   }
@@ -835,6 +857,8 @@ class TypeIdDesc {
     return bits_;
   }
 };
+
+WASM_DECLARE_CACHEABLE_POD(TypeIdDesc);
 
 using TypeIdDescVector = Vector<TypeIdDesc, 0, SystemAllocPolicy>;
 
@@ -851,7 +875,7 @@ struct TypeDefWithId : public TypeDef {
   TypeDefWithId(TypeDef&& typeDef, TypeIdDesc id)
       : TypeDef(std::move(typeDef)), id(id) {}
 
-  WASM_DECLARE_SERIALIZABLE(TypeDefWithId)
+  size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
 };
 
 using TypeDefWithIdVector = Vector<TypeDefWithId, 0, SystemAllocPolicy>;

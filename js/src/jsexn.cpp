@@ -56,6 +56,7 @@
 #include "vm/StringType.h"
 #include "vm/SymbolType.h"
 #include "vm/WellKnownAtom.h"  // js_*_str
+#include "wasm/WasmJS.h"       // WasmExceptionObject
 
 #include "vm/Compartment-inl.h"
 #include "vm/ErrorObject-inl.h"
@@ -264,12 +265,18 @@ JSErrorReport* js::ErrorFromException(JSContext* cx, HandleObject objArg) {
 }
 
 JS_PUBLIC_API JSObject* JS::ExceptionStackOrNull(HandleObject objArg) {
-  ErrorObject* obj = objArg->maybeUnwrapIf<ErrorObject>();
-  if (!obj) {
-    return nullptr;
+  ErrorObject* errorObject = objArg->maybeUnwrapIf<ErrorObject>();
+  if (errorObject) {
+    return errorObject->stack();
   }
 
-  return obj->stack();
+  WasmExceptionObject* wasmObject =
+      objArg->maybeUnwrapIf<WasmExceptionObject>();
+  if (wasmObject) {
+    return wasmObject->stack();
+  }
+
+  return nullptr;
 }
 
 JS_PUBLIC_API JSLinearString* js::GetErrorTypeName(JSContext* cx,
@@ -731,6 +738,7 @@ JS_PUBLIC_API bool JS::CreateError(JSContext* cx, JSExnType type,
                                    HandleObject stack, HandleString fileName,
                                    uint32_t lineNumber, uint32_t columnNumber,
                                    JSErrorReport* report, HandleString message,
+                                   Handle<mozilla::Maybe<Value>> cause,
                                    MutableHandleValue rval) {
   cx->check(stack, fileName, message);
   AssertObjectIsSavedFrameOrWrapper(cx, stack);
@@ -742,10 +750,6 @@ JS_PUBLIC_API bool JS::CreateError(JSContext* cx, JSExnType type,
       return false;
     }
   }
-
-  // The public API doesn't (yet) support a |cause| argument, so we default to
-  // |Nothing()| here.
-  auto cause = JS::NothingHandleValue;
 
   JSObject* obj =
       js::ErrorObject::create(cx, type, stack, fileName, 0, lineNumber,
@@ -776,8 +780,8 @@ const char* js::ValueToSourceForError(JSContext* cx, HandleValue val,
   }
 
   JSStringBuilder sb(cx);
-  if (val.isObject()) {
-    RootedObject valObj(cx, val.toObjectOrNull());
+  if (val.hasObjectPayload()) {
+    RootedObject valObj(cx, &val.getObjectPayload());
     ESClass cls;
     if (!JS::GetBuiltinClass(cx, valObj, &cls)) {
       return "<<error determining class of value>>";
@@ -789,6 +793,12 @@ const char* js::ValueToSourceForError(JSContext* cx, HandleValue val,
       s = "the array buffer ";
     } else if (JS_IsArrayBufferViewObject(valObj)) {
       s = "the typed array ";
+#ifdef ENABLE_RECORD_TUPLE
+    } else if (cls == ESClass::Record) {
+      s = "the record ";
+    } else if (cls == ESClass::Tuple) {
+      s = "the tuple ";
+#endif
     } else {
       s = "the object ";
     }
@@ -845,4 +855,12 @@ bool js::GetAggregateError(JSContext* cx, unsigned errorNumber,
   args[0].set(Int32Value(errorNumber));
   return CallSelfHostedFunction(cx, cx->names().GetAggregateError,
                                 NullHandleValue, args, error);
+}
+
+JS_PUBLIC_API mozilla::Maybe<Value> JS::GetExceptionCause(JSObject* exc) {
+  if (!exc->is<ErrorObject>()) {
+    return mozilla::Nothing();
+  }
+  auto& error = exc->as<ErrorObject>();
+  return error.getCause();
 }

@@ -4,7 +4,7 @@
 
 #include "js/friend/XrayJitInfo.h"
 
-#include "jit/CacheIR.h"  // js::jit::GetXrayJitInfo
+#include "jit/CacheIRGenerator.h"  // js::jit::GetXrayJitInfo
 
 using JS::XrayJitInfo;
 

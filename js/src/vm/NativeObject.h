@@ -32,6 +32,12 @@ namespace js {
 class Shape;
 class TenuringTracer;
 
+#ifdef ENABLE_RECORD_TUPLE
+// Defined in vm/RecordTupleShared.{h,cpp}. We cannot include that file
+// because it causes circular dependencies.
+extern bool IsExtendedPrimitiveWrapper(const JSObject& obj);
+#endif
+
 /*
  * To really poison a set of values, using 'magic' or 'undefined' isn't good
  * enough since often these will just be ignored by buggy code (see bug 629974)
@@ -180,13 +186,19 @@ extern bool ArraySetLength(JSContext* cx, Handle<ArrayObject*> obj, HandleId id,
 class ObjectElements {
  public:
   enum Flags : uint16_t {
-    // (0x1 is unused)
+    // Elements are stored inline in the object allocation.
+    FIXED = 0x1,
 
     // Present only if these elements correspond to an array with
     // non-writable length; never present for non-arrays.
     NONWRITABLE_ARRAY_LENGTH = 0x2,
 
-    // (0x4 is unused)
+#ifdef ENABLE_RECORD_TUPLE
+    // Records, Tuples and Boxes must be atomized before being hashed. We store
+    // the "is atomized" flag here for tuples, and in fixed slots for records
+    // and boxes.
+    TUPLE_IS_ATOMIZED = 0x4,
+#endif
 
     // For TypedArrays only: this TypedArray's storage is mapping shared
     // memory.  This is a static property of the TypedArray, set when it
@@ -236,6 +248,9 @@ class ObjectElements {
   friend class ArrayObject;
   friend class NativeObject;
   friend class TenuringTracer;
+#ifdef ENABLE_RECORD_TUPLE
+  friend class TupleType;
+#endif
 
   friend bool js::SetIntegrityLevel(JSContext* cx, HandleObject obj,
                                     IntegrityLevel level);
@@ -272,6 +287,12 @@ class ObjectElements {
     MOZ_ASSERT(numShiftedElements() == 0);
     flags |= NONWRITABLE_ARRAY_LENGTH;
   }
+
+#ifdef ENABLE_RECORD_TUPLE
+  void setTupleIsAtomized() { flags |= TUPLE_IS_ATOMIZED; }
+
+  bool tupleIsAtomized() const { return flags & TUPLE_IS_ATOMIZED; }
+#endif
 
   void addShiftedElements(uint32_t count) {
     MOZ_ASSERT(count < capacity);
@@ -573,7 +594,7 @@ class NativeObject : public JSObject {
     MOZ_ASSERT(idx < getDenseInitializedLength());
     return elements_[idx];
   }
-  bool containsDenseElement(uint32_t idx) {
+  bool containsDenseElement(uint32_t idx) const {
     return idx < getDenseInitializedLength() &&
            !elements_[idx].isMagic(JS_ELEMENTS_HOLE);
   }
@@ -595,19 +616,31 @@ class NativeObject : public JSObject {
                                                           uint32_t slot);
 
   MOZ_ALWAYS_INLINE bool canReuseShapeForNewProperties(Shape* newShape) const {
-    if (shape()->numFixedSlots() != newShape->numFixedSlots()) {
+    Shape* oldShape = shape();
+    MOZ_ASSERT(oldShape->propMapLength() == 0,
+               "object must have no properties");
+    MOZ_ASSERT(newShape->propMapLength() > 0,
+               "new shape must have at least one property");
+    if (oldShape->numFixedSlots() != newShape->numFixedSlots()) {
       return false;
     }
-    if (shape()->isDictionary() || newShape->isDictionary()) {
+    if (oldShape->isDictionary() || newShape->isDictionary()) {
       return false;
     }
-    if (shape()->base() != newShape->base()) {
+    if (oldShape->base() != newShape->base()) {
       return false;
     }
-    MOZ_ASSERT(shape()->getObjectClass() == newShape->getObjectClass());
-    MOZ_ASSERT(shape()->proto() == newShape->proto());
-    MOZ_ASSERT(shape()->realm() == newShape->realm());
-    return shape()->objectFlags() == newShape->objectFlags();
+    MOZ_ASSERT(oldShape->getObjectClass() == newShape->getObjectClass());
+    MOZ_ASSERT(oldShape->proto() == newShape->proto());
+    MOZ_ASSERT(oldShape->realm() == newShape->realm());
+    // We only handle the common case where the old shape has no object flags
+    // (expected because it's an empty object) and the new shape has just the
+    // HasEnumerable flag that we can copy safely.
+    if (!oldShape->objectFlags().isEmpty()) {
+      return false;
+    }
+    MOZ_ASSERT(newShape->hasObjectFlag(ObjectFlag::HasEnumerable));
+    return newShape->objectFlags() == ObjectFlags({ObjectFlag::HasEnumerable});
   }
 
   // Newly-created TypedArrays that map a SharedArrayBuffer are
@@ -755,9 +788,6 @@ class NativeObject : public JSObject {
   [[nodiscard]] static bool generateNewDictionaryShape(JSContext* cx,
                                                        HandleNativeObject obj);
 
-  [[nodiscard]] static bool reshapeForShadowedProp(JSContext* cx,
-                                                   HandleNativeObject obj);
-
   // The maximum number of slots in an object.
   // |MAX_SLOTS_COUNT * sizeof(JS::Value)| shouldn't overflow
   // int32_t (see slotsSizeMustNotOverflow).
@@ -812,7 +842,14 @@ class NativeObject : public JSObject {
   // Native objects are never proxies. Call isExtensible instead.
   bool nonProxyIsExtensible() const = delete;
 
-  bool isExtensible() const { return !hasFlag(ObjectFlag::NotExtensible); }
+  bool isExtensible() const {
+#ifdef ENABLE_RECORD_TUPLE
+    if (IsExtendedPrimitiveWrapper(*this)) {
+      return false;
+    }
+#endif
+    return !hasFlag(ObjectFlag::NotExtensible);
+  }
 
   /*
    * Whether there may be indexed properties on this object, excluding any in
@@ -822,6 +859,10 @@ class NativeObject : public JSObject {
 
   bool hasInterestingSymbol() const {
     return hasFlag(ObjectFlag::HasInterestingSymbol);
+  }
+
+  bool hasEnumerableProperty() const {
+    return hasFlag(ObjectFlag::HasEnumerable);
   }
 
   static bool setHadGetterSetterChange(JSContext* cx, HandleNativeObject obj) {
@@ -955,10 +996,13 @@ class NativeObject : public JSObject {
                                            HandleNativeObject obj,
                                            uint32_t nfixed);
 
-  [[nodiscard]] static bool fillInAfterSwap(JSContext* cx,
-                                            HandleNativeObject obj,
-                                            NativeObject* old,
-                                            HandleValueVector values);
+  // For use from JSObject::swap.
+  [[nodiscard]] bool prepareForSwap(JSContext* cx,
+                                    MutableHandleValueVector slotValuesOut);
+  [[nodiscard]] static bool fixupAfterSwap(JSContext* cx,
+                                           HandleNativeObject obj,
+                                           gc::AllocKind kind,
+                                           HandleValueVector slotValues);
 
  public:
   // Return true if this object has been converted from shared-immutable
@@ -1443,6 +1487,11 @@ class NativeObject : public JSObject {
 
   void setEmptyElements() { elements_ = emptyObjectElements; }
 
+  void initFixedElements(gc::AllocKind kind, uint32_t length);
+
+  // Update the elements pointer to use the fixed elements storage. The caller
+  // is responsible for initializing the elements themselves and setting the
+  // FIXED flag.
   void setFixedElements(uint32_t numShifted = 0) {
     MOZ_ASSERT(canHaveNonEmptyElements());
     elements_ = fixedElements() + numShifted;
@@ -1460,7 +1509,9 @@ class NativeObject : public JSObject {
   }
 
   inline bool hasFixedElements() const {
-    return unshiftedElements() == fixedElements();
+    bool fixed = getElementsHeader()->flags & ObjectElements::FIXED;
+    MOZ_ASSERT_IF(fixed, unshiftedElements() == fixedElements());
+    return fixed;
   }
 
   inline bool hasEmptyElements() const {
@@ -1687,8 +1738,8 @@ bool IsPackedArray(JSObject* obj);
 // Initialize an object's reserved slot with a private value pointing to
 // malloc-allocated memory and associate the memory with the object.
 //
-// This call should be matched with a call to JSFreeOp::free_/delete_ in the
-// object's finalizer to free the memory and update the memory accounting.
+// This call should be matched with a call to JS::GCContext::free_/delete_ in
+// the object's finalizer to free the memory and update the memory accounting.
 
 inline void InitReservedSlot(NativeObject* obj, uint32_t slot, void* ptr,
                              size_t nbytes, MemoryUse use) {
@@ -1700,6 +1751,9 @@ inline void InitReservedSlot(NativeObject* obj, uint32_t slot, T* ptr,
                              MemoryUse use) {
   InitReservedSlot(obj, slot, ptr, sizeof(T), use);
 }
+
+bool AddSlotAndCallAddPropHook(JSContext* cx, HandleNativeObject obj,
+                               HandleValue v, HandleShape newShape);
 
 }  // namespace js
 

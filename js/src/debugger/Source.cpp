@@ -36,6 +36,7 @@
 #include "debugger/Debugger-inl.h"  // for Debugger::fromJSObject
 #include "vm/JSObject-inl.h"        // for InitClass
 #include "vm/NativeObject-inl.h"    // for NewTenuredObjectWithGivenProto
+#include "wasm/WasmInstance-inl.h"
 
 namespace js {
 class GlobalObject;
@@ -57,7 +58,6 @@ const JSClassOps DebuggerSource::classOps_ = {
     nullptr,                          // mayResolve
     nullptr,                          // finalize
     nullptr,                          // call
-    nullptr,                          // hasInstance
     nullptr,                          // construct
     CallTraceMethod<DebuggerSource>,  // trace
 };
@@ -169,7 +169,6 @@ struct MOZ_STACK_CLASS DebuggerSource::CallData {
   bool getStartLine();
   bool getId();
   bool getDisplayURL();
-  bool getElement();
   bool getElementProperty();
   bool getIntroductionScript();
   bool getIntroductionOffset();
@@ -379,29 +378,6 @@ bool DebuggerSource::CallData::getDisplayURL() {
   } else {
     args.rval().setNull();
   }
-  return true;
-}
-
-struct DebuggerSourceGetElementMatcher {
-  JSContext* mCx = nullptr;
-  explicit DebuggerSourceGetElementMatcher(JSContext* cx_) : mCx(cx_) {}
-  using ReturnType = JSObject*;
-  ReturnType match(HandleScriptSourceObject sourceObject) {
-    return sourceObject->unwrappedElement(mCx);
-  }
-  ReturnType match(Handle<WasmInstanceObject*> wasmInstance) { return nullptr; }
-};
-
-bool DebuggerSource::CallData::getElement() {
-  DebuggerSourceGetElementMatcher matcher(cx);
-  RootedValue elementValue(cx);
-  if (JSObject* element = referent.match(matcher)) {
-    elementValue.setObject(*element);
-    if (!obj->owner()->wrapDebuggeeValue(cx, &elementValue)) {
-      return false;
-    }
-  }
-  args.rval().set(elementValue);
   return true;
 }
 
@@ -615,7 +591,7 @@ static JSScript* ReparseSource(JSContext* cx, HandleScriptSourceObject sso) {
   ScriptSource* ss = sso->source();
 
   JS::CompileOptions options(cx);
-  options.hideScriptFromDebugger = true;
+  options.setHideScriptFromDebugger(true);
   options.setFileAndLine(ss->filename(), ss->startLine());
 
   UncompressedSourceCache::AutoHoldEntry holder;
@@ -672,7 +648,6 @@ const JSPropertySpec DebuggerSource::properties_[] = {
     JS_DEBUG_PSG("url", getURL),
     JS_DEBUG_PSG("startLine", getStartLine),
     JS_DEBUG_PSG("id", getId),
-    JS_DEBUG_PSG("element", getElement),
     JS_DEBUG_PSG("displayURL", getDisplayURL),
     JS_DEBUG_PSG("introductionScript", getIntroductionScript),
     JS_DEBUG_PSG("introductionOffset", getIntroductionOffset),

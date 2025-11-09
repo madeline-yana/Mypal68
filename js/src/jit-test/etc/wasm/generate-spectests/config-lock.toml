@@ -9,3 +9,11 @@ commit = 'c9ed6580'
 [[repos]]
 name = 'simd'
 commit = '1618b39a'
+
+[[repos]]
+name = 'exception-handling'
+commit = '7fcfe173'
+
+[[repos]]
+name = 'memory64'
+commit = '8d8f532d'

@@ -79,7 +79,6 @@ static const JSClassOps document_classOps = {
     nullptr,           // mayResolve
     nullptr,           // finalize
     nullptr,           // call
-    nullptr,           // hasInstance
     nullptr,           // construct
     nullptr,           // trace
 };

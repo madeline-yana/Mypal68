@@ -32,6 +32,8 @@
 #include "wasm/WasmJS.h"
 #include "wasm/WasmModule.h"
 
+#include "wasm/WasmInstance-inl.h"
+
 using mozilla::MallocSizeOf;
 using mozilla::PodCopy;
 
@@ -629,11 +631,6 @@ static bool FindNotableScriptSources(JS::RuntimeSizes& runtime) {
 static bool CollectRuntimeStatsHelper(JSContext* cx, RuntimeStats* rtStats,
                                       ObjectPrivateVisitor* opv, bool anonymize,
                                       IterateCellCallback statsCellCallback) {
-  // Wait for any off-thread parsing to finish, as that currently allocates GC
-  // things.
-  JSRuntime* rt = cx->runtime();
-  WaitForOffThreadParses(rt);
-
   // Finish any ongoing incremental GC that may change the data we're gathering
   // and ensure that we don't do anything that could start another one.
   gc::FinishGC(cx);
@@ -642,6 +639,7 @@ static bool CollectRuntimeStatsHelper(JSContext* cx, RuntimeStats* rtStats,
   // Wait for any background tasks to finish.
   WaitForAllHelperThreads();
 
+  JSRuntime* rt = cx->runtime();
   if (!rtStats->realmStatsVector.reserve(rt->numRealms)) {
     return false;
   }
@@ -745,7 +743,9 @@ JS_PUBLIC_API bool JS::CollectGlobalStats(GlobalStats* gStats) {
 
   // HelperThreadState holds data that is not part of a Runtime. This does
   // not include data is is currently being processed by a HelperThread.
-  HelperThreadState().addSizeOfIncludingThis(gStats, lock);
+  if (IsHelperThreadStateInitialized()) {
+    HelperThreadState().addSizeOfIncludingThis(gStats, lock);
+  }
 
 #ifdef JS_TRACE_LOGGING
   // Global data used by TraceLogger

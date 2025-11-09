@@ -35,6 +35,8 @@
 #  include "jit/mips32/MacroAssembler-mips32-inl.h"
 #elif defined(JS_CODEGEN_MIPS64)
 #  include "jit/mips64/MacroAssembler-mips64-inl.h"
+#elif defined(JS_CODEGEN_LOONG64)
+#  include "jit/loong64/MacroAssembler-loong64-inl.h"
 #elif !defined(JS_CODEGEN_NONE)
 #  error "Unknown architecture!"
 #endif
@@ -190,6 +192,7 @@ ABIFunctionType MacroAssembler::signature() const {
     case Args_Double_None:
     case Args_Int_Double:
     case Args_Float32_Float32:
+    case Args_Int_Float32:
     case Args_Double_Double:
     case Args_Double_Int:
     case Args_Double_DoubleInt:
@@ -422,11 +425,11 @@ void MacroAssembler::branchIfNotFunctionIsNonBuiltinCtor(Register fun,
   // Guard the function has the BASESCRIPT and CONSTRUCTOR flags and does NOT
   // have the SELF_HOSTED flag.
   // This is equivalent to JSFunction::isNonBuiltinConstructor.
-  constexpr int32_t mask =
-      Imm32_16Adj(FunctionFlags::BASESCRIPT | FunctionFlags::SELF_HOSTED |
-                  FunctionFlags::CONSTRUCTOR);
+  constexpr int32_t mask = FunctionFlags::BASESCRIPT |
+                           FunctionFlags::SELF_HOSTED |
+                           FunctionFlags::CONSTRUCTOR;
   constexpr int32_t expected =
-      Imm32_16Adj(FunctionFlags::BASESCRIPT | FunctionFlags::CONSTRUCTOR);
+      FunctionFlags::BASESCRIPT | FunctionFlags::CONSTRUCTOR;
 
   load32(Address(fun, JSFunction::offsetOfFlagsAndArgCount()), scratch);
   and32(Imm32(mask), scratch);
@@ -479,6 +482,11 @@ void MacroAssembler::loadJitScript(Register script, Register dest) {
   static_assert(ScriptWarmUpData::JitScriptTag == 0,
                 "Code below depends on tag value");
   loadPtr(Address(script, JSScript::offsetOfWarmUpData()), dest);
+}
+
+void MacroAssembler::loadFunctionArgCount(Register func, Register output) {
+  load32(Address(func, JSFunction::offsetOfFlagsAndArgCount()), output);
+  rshift32(Imm32(JSFunction::ArgCountShift), output);
 }
 
 void MacroAssembler::branchIfObjectEmulatesUndefined(Register objReg,
@@ -1026,21 +1034,6 @@ void MacroAssembler::storeCallResultValue(TypedOrValueRegister dest) {
     storeCallResultValue(dest.typedReg(), ValueTypeFromMIRType(dest.type()));
   }
 }
-
-#ifdef JS_64BIT
-void MacroAssembler::assertCanonicalInt32(Register r) {
-#  ifdef DEBUG
-#    if defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_ARM64)
-  Label ok;
-  branchPtr(Assembler::BelowOrEqual, r, ImmWord(UINT32_MAX), &ok);
-  breakpoint();
-  bind(&ok);
-#    else
-  MOZ_CRASH("IMPLEMENT ME");
-#    endif
-#  endif
-}
-#endif
 
 }  // namespace jit
 }  // namespace js

@@ -115,6 +115,7 @@ var ignoreCallees = {
     "struct js::gc::Callback<void (*)(JSContext*, void*)>.op" : true,
     "mozilla::ThreadSharedFloatArrayBufferList::Storage.mFree" : true,
     "mozilla::SizeOfState.mMallocSizeOf": true,
+    "mozilla::gfx::SourceSurfaceRawData.mDeallocator": true,
 };
 
 function fieldCallCannotGC(csu, fullfield)
@@ -178,12 +179,6 @@ function ignoreEdgeAddressTaken(edge)
     }
 
     return false;
-}
-
-// Return whether csu.method is one that we claim can never GC.
-function isSuppressedVirtualMethod(csu, method)
-{
-    return csu == "nsISupports" && (method == "AddRef" || method == "Release");
 }
 
 // Ignore calls of these functions (so ignore any stack containing these)
@@ -412,7 +407,7 @@ function isUnsafeStorage(typeName)
     return typeName.startsWith('UniquePtr<');
 }
 
-// If edgeType is a constructor type, return whatever limits it implies for its
+// If edgeType is a constructor type, return whatever bits it implies for its
 // scope (or zero if not matching).
 function isLimitConstructor(typeInfo, edgeType, varName)
 {
@@ -426,9 +421,9 @@ function isLimitConstructor(typeInfo, edgeType, varName)
 
     // Check whether the type is a known suppression type.
     var type = edgeType.TypeFunctionCSU.Type.Name;
-    let limit = 0;
+    let attrs = 0;
     if (type in typeInfo.GCSuppressors)
-        limit = limit | LIMIT_CANNOT_GC;
+        attrs = attrs | ATTR_GC_SUPPRESSED;
 
     // And now make sure this is the constructor, not some other method on a
     // suppression type. varName[0] contains the qualified name.
@@ -442,7 +437,7 @@ function isLimitConstructor(typeInfo, edgeType, varName)
     if (m[1] != type_stem)
         return 0;
 
-    return limit;
+    return attrs;
 }
 
 // nsISupports subclasses' methods may be scriptable (or overridden
@@ -450,8 +445,15 @@ function isLimitConstructor(typeInfo, edgeType, varName)
 // to get overridden with something that can GC.
 function isOverridableField(staticCSU, csu, field)
 {
+    // Special-case AddRef/Release for now. This isn't really true.
+    if (field == "AddRef" || field == "Release")
+        return false;
+
     if (csu != 'nsISupports')
         return false;
+
+    if (field.endsWith(" "))
+        return false; // gcc-synthesized virtual dtor
 
     // Now that binary XPCOM is dead, all these annotations should be replaced
     // with something based on bug 1347999.
@@ -472,6 +474,10 @@ function isOverridableField(staticCSU, csu, field)
     if (field == "DocAddSizeOfIncludingThis")
         return false;
     if (field == "ConstructUbiNode")
+        return false;
+    if (field == "isSystemOrAddonPrincipal")
+        return false;
+    if (field == "GetIsAddonOrExpandedAddonPrincipal")
         return false;
 
     // Fields on the [builtinclass] nsIPrincipal

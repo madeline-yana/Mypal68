@@ -26,8 +26,13 @@ static inline bool OnHelperThread() {
 
   if (Helper == AllowedHelperThread::GCTask ||
       Helper == AllowedHelperThread::GCTaskOrIonCompile) {
-    JSContext* cx = TlsContext.get();
-    if (cx->defaultFreeOp()->isCollecting()) {
+    if (CurrentThreadIsPerformingGC()) {
+      return true;
+    }
+  }
+
+  if (Helper == AllowedHelperThread::ParseTask) {
+    if (CurrentThreadIsParseThread()) {
       return true;
     }
   }
@@ -67,6 +72,7 @@ void CheckMainThread<Helper>::check() const {
 
 template class CheckMainThread<AllowedHelperThread::None>;
 template class CheckMainThread<AllowedHelperThread::GCTask>;
+template class CheckMainThread<AllowedHelperThread::ParseTask>;
 template class CheckMainThread<AllowedHelperThread::IonCompile>;
 
 template <AllowedHelperThread Helper>
@@ -75,14 +81,9 @@ void CheckZone<Helper>::check() const {
     return;
   }
 
-  if (zone->usedByHelperThread()) {
-    // This may only be accessed by the helper thread using this zone.
-    MOZ_ASSERT(zone->ownedByCurrentHelperThread());
-  } else {
-    // The main thread is permitted access to all zones. These accesses
-    // are threadsafe if the zone is not in use by a helper thread.
-    MOZ_ASSERT(CurrentThreadCanAccessRuntime(TlsContext.get()->runtime()));
-  }
+  // The main thread is permitted access to all zones. These accesses
+  // are threadsafe if the zone is not in use by a helper thread.
+  MOZ_ASSERT(CurrentThreadCanAccessRuntime(TlsContext.get()->runtime()));
 }
 
 template class CheckZone<AllowedHelperThread::None>;
@@ -98,7 +99,9 @@ void CheckGlobalLock<Lock, Helper>::check() const {
 
   switch (Lock) {
     case GlobalLock::GCLock:
-      TlsContext.get()->runtime()->gc.assertCurrentThreadHasLockedGC();
+      TlsGCContext.get()
+          ->runtimeFromAnyThread()
+          ->gc.assertCurrentThreadHasLockedGC();
       break;
     case GlobalLock::ScriptDataLock:
       TlsContext.get()->runtime()->assertCurrentThreadHasScriptDataAccess();
@@ -123,18 +126,7 @@ void CheckArenaListAccess<Helper>::check() const {
     return;
   }
 
-  JSRuntime* rt = TlsContext.get()->runtime();
   if (zone->isAtomsZone()) {
-    // The main thread can access the atoms arenas if it holds all the atoms
-    // table locks.
-    if (rt->currentThreadHasAtomsTableAccess()) {
-      return;
-    }
-
-    // Otherwise we must hold the GC lock if parallel parsing is running.
-    if (rt->isOffThreadParseRunning()) {
-      rt->gc.assertCurrentThreadHasLockedGC();
-    }
     return;
   }
 

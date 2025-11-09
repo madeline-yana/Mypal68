@@ -5,10 +5,8 @@
 #include "frontend/ForOfLoopControl.h"
 
 #include "frontend/BytecodeEmitter.h"  // BytecodeEmitter
-#include "frontend/EmitterScope.h"     // EmitterScope
 #include "frontend/IfEmitter.h"        // InternalIfEmitter
 #include "vm/CompletionKind.h"         // CompletionKind
-#include "vm/JSScript.h"               // TryNoteKind::ForOfIterClose
 #include "vm/Opcodes.h"                // JSOp
 
 using namespace js;
@@ -89,14 +87,21 @@ bool ForOfLoopControl::emitEndCodeNeedingIteratorClose(BytecodeEmitter* bce) {
 
   // If any yields were emitted, then this for-of loop is inside a star
   // generator and must handle the case of Generator.return. Like in
-  // yield*, it is handled with a finally block.
+  // yield*, it is handled with a finally block. If the generator is
+  // closing, then the exception/resumeindex value (second value on
+  // the stack) will be a magic JS_GENERATOR_CLOSING value.
+  // TODO: Refactor this to eliminate the swaps.
   uint32_t numYieldsEmitted = bce->bytecodeSection().numYields();
   if (numYieldsEmitted > numYieldsAtBeginCodeNeedingIterClose_) {
     if (!tryCatch_->emitFinally()) {
       return false;
     }
-
+    //              [stack] ITER ... FVALUE FTYPE
     InternalIfEmitter ifGeneratorClosing(bce);
+    if (!bce->emit1(JSOp::Swap)) {
+      //            [stack] ITER ... FTYPE FVALUE
+      return false;
+    }
     if (!bce->emit1(JSOp::IsGenClosing)) {
       //            [stack] ITER ... FTYPE FVALUE CLOSING
       return false;
@@ -116,6 +121,10 @@ bool ForOfLoopControl::emitEndCodeNeedingIteratorClose(BytecodeEmitter* bce) {
     }
     if (!ifGeneratorClosing.emitEnd()) {
       //            [stack] ITER ... FTYPE FVALUE
+      return false;
+    }
+    if (!bce->emit1(JSOp::Swap)) {
+      //            [stack] ITER ... FVALUE FTYPE
       return false;
     }
   }

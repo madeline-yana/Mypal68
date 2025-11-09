@@ -25,6 +25,7 @@
 #include "nsIThread.h"
 #include "nsITimer.h"
 
+#include "js/CompileOptions.h"  // JS::DecodeOptions
 #include "js/experimental/JSStencil.h"
 #include "js/GCAnnotations.h"  // for JS_HAZ_NON_GC_POINTER
 #include "js/RootingAPI.h"     // for Handle, Heap
@@ -80,20 +81,30 @@ class ScriptPreloader : public nsIObserver,
   NS_DECL_NSIRUNNABLE
   NS_DECL_NSIASYNCSHUTDOWNBLOCKER
 
+ private:
+  static StaticRefPtr<ScriptPreloader> gScriptPreloader;
+  static StaticRefPtr<ScriptPreloader> gChildScriptPreloader;
+  static UniquePtr<AutoMemMap> gCacheData;
+  static UniquePtr<AutoMemMap> gChildCacheData;
+
+ public:
   static ScriptPreloader& GetSingleton();
   static ScriptPreloader& GetChildSingleton();
 
-  static ProcessType GetChildProcessType(const nsAString& remoteType);
+  static void DeleteSingleton();
+  static void DeleteCacheDataSingleton();
+
+  static ProcessType GetChildProcessType(const nsACString& remoteType);
 
   // Fill some options that should be consistent across all scripts stored
   // into preloader cache.
   static void FillCompileOptionsForCachedStencil(JS::CompileOptions& options);
+  static void FillDecodeOptionsForCachedStencil(JS::DecodeOptions& options);
 
   // Retrieves the stencil with the given cache key from the cache.
   // Returns null if the stencil is not cached.
   already_AddRefed<JS::Stencil> GetCachedStencil(
-      JSContext* cx, const JS::ReadOnlyCompileOptions& options,
-      const nsCString& path);
+      JSContext* cx, const JS::DecodeOptions& options, const nsCString& path);
 
   // Notes the execution of a script with the given URL and cache key.
   // Depending on the stage of startup, the script may be serialized and
@@ -122,8 +133,7 @@ class ScriptPreloader : public nsIObserver,
  private:
   Result<Ok, nsresult> InitCacheInternal(JS::HandleObject scope = nullptr);
   already_AddRefed<JS::Stencil> GetCachedStencilInternal(
-      JSContext* cx, const JS::ReadOnlyCompileOptions& options,
-      const nsCString& path);
+      JSContext* cx, const JS::DecodeOptions& options, const nsCString& path);
 
  public:
   static ProcessType CurrentProcessType() {
@@ -134,7 +144,7 @@ class ScriptPreloader : public nsIObserver,
   static void InitContentChild(dom::ContentParent& parent);
 
  protected:
-  virtual ~ScriptPreloader() = default;
+  virtual ~ScriptPreloader();
 
  private:
   enum class ScriptStatus {
@@ -213,7 +223,7 @@ class ScriptPreloader : public nsIObserver,
     void FreeData() {
       // If the script data isn't mmapped, we need to release both it
       // and the Range that points to it at the same time.
-      if (!mXDRData.empty()) {
+      if (!IsMemMapped()) {
         mXDRRange.reset();
         mXDRData.destroy();
       }
@@ -273,6 +283,8 @@ class ScriptPreloader : public nsIObserver,
 
     bool HasRange() { return mXDRRange.isSome(); }
 
+    bool IsMemMapped() const { return mXDRData.empty(); }
+
     nsTArray<uint8_t>& Array() {
       MOZ_ASSERT(HasArray());
       return mXDRData.ref<nsTArray<uint8_t>>();
@@ -280,8 +292,8 @@ class ScriptPreloader : public nsIObserver,
 
     bool HasArray() { return mXDRData.constructed<nsTArray<uint8_t>>(); }
 
-    already_AddRefed<JS::Stencil> GetStencil(
-        JSContext* cx, const JS::ReadOnlyCompileOptions& options);
+    already_AddRefed<JS::Stencil> GetStencil(JSContext* cx,
+                                             const JS::DecodeOptions& options);
 
     size_t HeapSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) {
       auto size = mallocSizeOf(this);
@@ -394,7 +406,7 @@ class ScriptPreloader : public nsIObserver,
   // thread for quite as long.
   static constexpr int MAX_MAINTHREAD_DECODE_SIZE = 50 * 1024;
 
-  ScriptPreloader();
+  explicit ScriptPreloader(AutoMemMap* cacheData);
 
   void Cleanup();
 
@@ -432,8 +444,7 @@ class ScriptPreloader : public nsIObserver,
   // Waits for the given cached script to finish compiling off-thread, or
   // decodes it synchronously on the main thread, as appropriate.
   already_AddRefed<JS::Stencil> WaitForCachedStencil(
-      JSContext* cx, const JS::ReadOnlyCompileOptions& options,
-      CachedStencil* script);
+      JSContext* cx, const JS::DecodeOptions& options, CachedStencil* script);
 
   void DecodeNextBatch(size_t chunkSize, JS::HandleObject scope = nullptr);
 
@@ -511,7 +522,10 @@ class ScriptPreloader : public nsIObserver,
   nsCOMPtr<nsITimer> mSaveTimer;
 
   // The mmapped cache data from this session's cache file.
-  AutoMemMap mCacheData;
+  // The instance is held by either `gCacheData` or `gChildCacheData` static
+  // fields, and its lifetime is guaranteed to be longer than ScriptPreloader
+  // instance.
+  AutoMemMap* mCacheData;
 
   Monitor2 mMonitor;
   Monitor2 mSaveMonitor;

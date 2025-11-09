@@ -10,6 +10,9 @@
 #  include "mozilla/Maybe.h"
 
 #  include "jit/CacheIR.h"
+#  include "jit/CacheIRGenerator.h"
+#  include "jit/CacheIRReader.h"
+#  include "jit/CacheIRWriter.h"
 #  include "js/TypeDecls.h"
 #  include "threading/LockGuard.h"
 #  include "vm/JSONPrinter.h"

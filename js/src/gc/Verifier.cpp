@@ -97,7 +97,7 @@ typedef HashMap<Cell*, VerifyNode*, DefaultHasher<Cell*>, SystemAllocPolicy>
 class js::VerifyPreTracer final : public JS::CallbackTracer {
   JS::AutoDisableGenerationalGC noggc;
 
-  void onChild(const JS::GCCellPtr& thing) override;
+  void onChild(JS::GCCellPtr thing) override;
 
  public:
   /* The gcNumber when the verification began. */
@@ -134,7 +134,7 @@ class js::VerifyPreTracer final : public JS::CallbackTracer {
  * This function builds up the heap snapshot by adding edges to the current
  * node.
  */
-void VerifyPreTracer::onChild(const JS::GCCellPtr& thing) {
+void VerifyPreTracer::onChild(JS::GCCellPtr thing) {
   MOZ_ASSERT(!IsInsideNursery(thing.asCell()));
 
   // Skip things in other runtimes.
@@ -207,8 +207,7 @@ void gc::GCRuntime::startVerifyPreBarriers() {
 
   JSContext* cx = rt->mainContextFromOwnThread();
 
-  if (IsIncrementalGCUnsafe(rt) != GCAbortReason::None ||
-      rt->hasHelperThreadZones()) {
+  if (IsIncrementalGCUnsafe(rt) != GCAbortReason::None) {
     return;
   }
 
@@ -270,7 +269,6 @@ void gc::GCRuntime::startVerifyPreBarriers() {
   marker.start();
 
   for (ZonesIter zone(this, WithAtoms); !zone.done(); zone.next()) {
-    MOZ_ASSERT(!zone->usedByHelperThread());
     zone->setNeedsIncrementalBarrier(true);
     zone->arenas.clearFreeLists();
   }
@@ -291,7 +289,7 @@ struct CheckEdgeTracer final : public JS::CallbackTracer {
   VerifyNode* node;
   explicit CheckEdgeTracer(JSRuntime* rt)
       : JS::CallbackTracer(rt), node(nullptr) {}
-  void onChild(const JS::GCCellPtr& thing) override;
+  void onChild(JS::GCCellPtr thing) override;
 };
 
 static const uint32_t MAX_VERIFIER_EDGES = 1000;
@@ -303,7 +301,7 @@ static const uint32_t MAX_VERIFIER_EDGES = 1000;
  * non-nullptr edges (i.e., the ones from the original snapshot that must have
  * been modified) must point to marked objects.
  */
-void CheckEdgeTracer::onChild(const JS::GCCellPtr& thing) {
+void CheckEdgeTracer::onChild(JS::GCCellPtr thing) {
   // Skip things in other runtimes.
   if (thing.asCell()->asTenured().runtimeFromAnyThread() != runtime()) {
     return;
@@ -373,8 +371,7 @@ void gc::GCRuntime::endVerifyPreBarriers() {
   MOZ_ASSERT(incrementalState == State::Mark);
   incrementalState = State::NotActive;
 
-  if (!compartmentCreated && IsIncrementalGCUnsafe(rt) == GCAbortReason::None &&
-      !rt->hasHelperThreadZones()) {
+  if (!compartmentCreated && IsIncrementalGCUnsafe(rt) == GCAbortReason::None) {
     CheckEdgeTracer cetrc(rt);
 
     /* Start after the roots. */
@@ -619,11 +616,9 @@ void js::gc::MarkingValidator::nonIncrementalMark(AutoGCSession& session) {
     }
 
     AutoSetMarkColor setColorGray(*gcmarker, MarkColor::Gray);
-    gcmarker->setMainStackColor(MarkColor::Gray);
 
     gc->markAllGrayReferences(gcstats::PhaseKind::SWEEP_MARK_GRAY);
     gc->markAllWeakReferences();
-    gc->marker.setMainStackColor(MarkColor::Black);
 
     /* Restore zone state. */
     for (GCZonesIter zone(gc); !zone.done(); zone.next()) {
@@ -780,7 +775,7 @@ class HeapCheckTracerBase : public JS::CallbackTracer {
   size_t failures;
 
  private:
-  void onChild(const JS::GCCellPtr& thing) override;
+  void onChild(JS::GCCellPtr thing) override;
 
   struct WorkItem {
     WorkItem(JS::GCCellPtr thing, const char* name, int parentIndex)
@@ -810,7 +805,7 @@ HeapCheckTracerBase::HeapCheckTracerBase(JSRuntime* rt,
       oom(false),
       parentIndex(-1) {}
 
-void HeapCheckTracerBase::onChild(const JS::GCCellPtr& thing) {
+void HeapCheckTracerBase::onChild(JS::GCCellPtr thing) {
   Cell* cell = thing.asCell();
   checkCell(cell);
 
@@ -825,12 +820,6 @@ void HeapCheckTracerBase::onChild(const JS::GCCellPtr& thing) {
 
   // Don't trace into GC things owned by another runtime.
   if (cell->runtimeFromAnyThread() != rt) {
-    return;
-  }
-
-  // Don't trace into GC in zones being used by helper threads.
-  Zone* zone = thing.asCell()->zone();
-  if (zone->usedByHelperThread()) {
     return;
   }
 

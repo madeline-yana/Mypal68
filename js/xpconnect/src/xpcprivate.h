@@ -76,12 +76,15 @@
 #include "mozilla/CycleCollectedJSRuntime.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/DefineEnum.h"
+#include "mozilla/HashFunctions.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/mozalloc.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/UniquePtr.h"
+#include "mozilla/Vector.h"
 
 #include "mozilla/dom/ScriptSettings.h"
 
@@ -97,7 +100,6 @@
 #include "js/PropertyAndElement.h"  // JS_DefineProperty
 #include "js/TracingAPI.h"
 #include "js/WeakMapPtr.h"
-#include "PLDHashTable.h"
 #include "nscore.h"
 #include "nsXPCOM.h"
 #include "nsCycleCollectionParticipant.h"
@@ -136,7 +138,6 @@
 #include "nsHashKeys.h"
 #include "nsWrapperCache.h"
 #include "nsStringBuffer.h"
-#include "nsDataHashtable.h"
 #include "nsDeque.h"
 
 #include "nsIScriptSecurityManager.h"
@@ -248,7 +249,6 @@ class nsXPConnect final : public nsIXPConnect {
 
   XPCJSContext* mContext = nullptr;
   XPCJSRuntime* mRuntime = nullptr;
-  bool mShuttingDown;
 
   friend class nsIXPConnect;
 
@@ -480,8 +480,11 @@ class XPCJSRuntime final : public mozilla::CycleCollectedJSRuntime {
 
   NativeSetMap* GetNativeSetMap() const { return mNativeSetMap.get(); }
 
-  XPCWrappedNativeProtoMap* GetDyingWrappedNativeProtoMap() const {
-    return mDyingWrappedNativeProtoMap.get();
+  using WrappedNativeProtoVector =
+      mozilla::Vector<mozilla::UniquePtr<XPCWrappedNativeProto>, 0,
+                      InfallibleAllocPolicy>;
+  WrappedNativeProtoVector& GetDyingWrappedNativeProtos() {
+    return mDyingWrappedNativeProtos;
   }
 
   XPCWrappedNativeScopeList& GetWrappedNativeScopes() {
@@ -510,11 +513,6 @@ class XPCJSRuntime final : public mozilla::CycleCollectedJSRuntime {
     // fromMarkedLocation() is safe because the string is interned.
     return JS::HandleId::fromMarkedLocation(&mStrIDs[index]);
   }
-  JS::HandleValue GetStringJSVal(unsigned index) const {
-    MOZ_ASSERT(index < XPCJSContext::IDX_TOTAL_COUNT, "index out of range");
-    // fromMarkedLocation() is safe because the string is interned.
-    return JS::HandleValue::fromMarkedLocation(&mStrJSVals[index]);
-  }
   const char* GetStringName(unsigned index) const {
     MOZ_ASSERT(index < XPCJSContext::IDX_TOTAL_COUNT, "index out of range");
     return mStrings[index];
@@ -539,10 +537,10 @@ class XPCJSRuntime final : public mozilla::CycleCollectedJSRuntime {
   static void GCSliceCallback(JSContext* cx, JS::GCProgress progress,
                               const JS::GCDescription& desc);
   static void DoCycleCollectionCallback(JSContext* cx);
-  static void FinalizeCallback(JSFreeOp* fop, JSFinalizeStatus status,
+  static void FinalizeCallback(JS::GCContext* gcx, JSFinalizeStatus status,
                                void* data);
-  static void WeakPointerZonesCallback(JSContext* cx, void* data);
-  static void WeakPointerCompartmentCallback(JSContext* cx,
+  static void WeakPointerZonesCallback(JSTracer* trc, void* data);
+  static void WeakPointerCompartmentCallback(JSTracer* trc,
                                              JS::Compartment* comp, void* data);
 
   inline void AddVariantRoot(XPCTraceableVariant* variant);
@@ -595,7 +593,6 @@ class XPCJSRuntime final : public mozilla::CycleCollectedJSRuntime {
 
   static const char* const mStrings[XPCJSContext::IDX_TOTAL_COUNT];
   jsid mStrIDs[XPCJSContext::IDX_TOTAL_COUNT];
-  JS::Value mStrJSVals[XPCJSContext::IDX_TOTAL_COUNT];
 
   struct Hasher {
     using Key = RefPtr<mozilla::BasePrincipal>;
@@ -606,15 +603,16 @@ class XPCJSRuntime final : public mozilla::CycleCollectedJSRuntime {
     }
   };
 
-  struct SweepPolicy {
-    static bool needsSweep(RefPtr<mozilla::BasePrincipal>* /* unused */,
-                           JS::Heap<JSObject*>* value) {
-      return JS::GCPolicy<JS::Heap<JSObject*>>::needsSweep(value);
+  struct MapEntryGCPolicy {
+    static bool traceWeak(JSTracer* trc,
+                          RefPtr<mozilla::BasePrincipal>* /* unused */,
+                          JS::Heap<JSObject*>* value) {
+      return JS::GCPolicy<JS::Heap<JSObject*>>::traceWeak(trc, value);
     }
   };
 
   typedef JS::GCHashMap<RefPtr<mozilla::BasePrincipal>, JS::Heap<JSObject*>,
-                        Hasher, js::SystemAllocPolicy, SweepPolicy>
+                        Hasher, js::SystemAllocPolicy, MapEntryGCPolicy>
       Principal2JSObjectMap;
 
   mozilla::UniquePtr<JSObject2WrappedJSMap> mWrappedJSMap;
@@ -623,7 +621,7 @@ class XPCJSRuntime final : public mozilla::CycleCollectedJSRuntime {
   mozilla::UniquePtr<NativeSetMap> mNativeSetMap;
   Principal2JSObjectMap mUAWidgetScopeMap;
   XPCWrappedNativeScopeList mWrappedNativeScopes;
-  mozilla::UniquePtr<XPCWrappedNativeProtoMap> mDyingWrappedNativeProtoMap;
+  WrappedNativeProtoVector mDyingWrappedNativeProtos;
   bool mGCIsRunning;
   nsTArray<nsISupports*> mNativesToReleaseArray;
   bool mDoingFinalization;
@@ -671,7 +669,7 @@ class MOZ_STACK_CLASS XPCCallContext final {
 
   explicit XPCCallContext(JSContext* cx, JS::HandleObject obj = nullptr,
                           JS::HandleObject funobj = nullptr,
-                          JS::HandleId id = JSID_VOIDHANDLE,
+                          JS::HandleId id = JS::VoidHandlePropertyKey,
                           unsigned argc = NO_ARGS, JS::Value* argv = nullptr,
                           JS::Value* rval = nullptr);
 
@@ -844,7 +842,7 @@ class XPCWrappedNativeScope final
 
   static void SweepAllWrappedNativeTearOffs();
 
-  void UpdateWeakPointersAfterGC();
+  void UpdateWeakPointersAfterGC(JSTracer* trc);
 
   static void DebugDumpAllScopes(int16_t depth);
 
@@ -985,6 +983,14 @@ class XPCNativeMember final {
   MOZ_COUNTED_DEFAULT_CTOR(XPCNativeMember)
   MOZ_COUNTED_DTOR(XPCNativeMember)
 
+  XPCNativeMember(const XPCNativeMember& other)
+      : mName(other.mName),
+        mIndex(other.mIndex),
+        mFlags(other.mFlags),
+        mIndexInInterface(other.mIndexInInterface) {
+    MOZ_COUNT_CTOR(XPCNativeMember);
+  }
+
  private:
   bool Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
                JS::HandleObject parent, JS::Value* vp);
@@ -1012,7 +1018,7 @@ class XPCNativeMember final {
   // creation of XPCNativeInterfaces which have more than 2^12 members.
   // If the width of this field changes, update GetMaxIndexInInterface.
   uint16_t mIndexInInterface : 12;
-} JS_HAZ_NON_GC_POINTER;  // Only stores a pinned string
+};
 
 /***************************************************************************/
 // XPCNativeInterface represents a single idl declared interface. This is
@@ -1052,9 +1058,12 @@ class XPCNativeInterface final {
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
 
+  void Trace(JSTracer* trc);
+
  protected:
   static already_AddRefed<XPCNativeInterface> NewInstance(
-      JSContext* cx, const nsXPTInterfaceInfo* aInfo);
+      JSContext* cx, IID2NativeInterfaceMap* aMap,
+      const nsXPTInterfaceInfo* aInfo);
 
   XPCNativeInterface() = delete;
   XPCNativeInterface(const nsXPTInterfaceInfo* aInfo, jsid aName)
@@ -1106,7 +1115,7 @@ class MOZ_STACK_CLASS XPCNativeSetKey final {
   XPCNativeSet* GetBaseSet() const { return mBaseSet; }
   XPCNativeInterface* GetAddition() const { return mAddition; }
 
-  PLDHashNumber Hash() const;
+  mozilla::HashNumber Hash() const;
 
   // Allow shallow copy
 
@@ -1191,11 +1200,11 @@ class XPCNativeSet final {
 /***********************************************/
 // XPCWrappedNativeProtos hold the additional shared wrapper data for
 // XPCWrappedNative whose native objects expose nsIClassInfo.
+//
 // The XPCWrappedNativeProto is owned by its mJSProtoObject, until that object
 // is finalized. After that, it is owned by XPCJSRuntime's
-// mDyingWrappedNativeProtoMap. See
-// XPCWrappedNativeProto::JSProtoObjectFinalized and
-// XPCJSRuntime::FinalizeCallback.
+// mDyingWrappedNativeProtos. See XPCWrappedNativeProto::JSProtoObjectFinalized
+// and XPCJSRuntime::FinalizeCallback.
 
 class XPCWrappedNativeProto final {
  public:
@@ -1222,7 +1231,7 @@ class XPCWrappedNativeProto final {
 
   nsIXPCScriptable* GetScriptable() const { return mScriptable; }
 
-  void JSProtoObjectFinalized(JSFreeOp* fop, JSObject* obj);
+  void JSProtoObjectFinalized(JS::GCContext* gcx, JSObject* obj);
   void JSProtoObjectMoved(JSObject* obj, const JSObject* old);
 
   static XPCWrappedNativeProto* Get(JSObject* obj);
@@ -1238,14 +1247,6 @@ class XPCWrappedNativeProto final {
   }
 
   void TraceJS(JSTracer* trc) { TraceSelf(trc); }
-
-  /*
-  void WriteBarrierPre(JSContext* cx) {
-    if (JS::IsIncrementalBarrierNeeded(cx) && mJSProtoObject) {
-      mJSProtoObject.writeBarrierPre(cx);
-    }
-  }
-  */
 
   // NOP. This is just here to make the AutoMarkingPtr code compile.
   void Mark() const {}
@@ -1507,7 +1508,7 @@ class XPCWrappedNative final : public nsIXPConnectWrappedNative {
 
   // Returns a string that should be freed with js_free, or nullptr on
   // failure.
-  char* ToString(JSContext* cx, XPCWrappedNativeTearOff* to = nullptr) const;
+  char* ToString(XPCWrappedNativeTearOff* to = nullptr) const;
 
   static nsIXPCScriptable* GatherProtoScriptable(nsIClassInfo* classInfo);
 
@@ -1647,9 +1648,9 @@ class nsXPCWrappedJS final : protected nsAutoXPTCStub,
   // XPCWrappedJS.cpp for more details.
   bool IsSubjectToFinalization() const { return IsValid() && mRefCnt == 1; }
 
-  void UpdateObjectPointerAfterGC() {
+  void UpdateObjectPointerAfterGC(JSTracer* trc) {
     MOZ_ASSERT(IsRootWrapper());
-    JS_UpdateWeakPointerAfterGC(&mJSObj);
+    JS_UpdateWeakPointerAfterGC(trc, &mJSObj);
   }
 
   bool IsAggregatedToNative() const { return mRoot->mOuter != nullptr; }
@@ -2217,6 +2218,7 @@ struct GlobalProperties {
   bool DefineInSandbox(JSContext* cx, JS::HandleObject obj);
 
   // Interface objects we can expose.
+  bool AbortController : 1;
   bool Blob : 1;
   bool ChromeUtils : 1;
   bool CSS : 1;
@@ -2245,7 +2247,10 @@ struct GlobalProperties {
   bool URL : 1;
   bool URLSearchParams : 1;
   bool XMLHttpRequest : 1;
+  bool WebSocket : 1;
+  bool Window : 1;
   bool XMLSerializer : 1;
+  bool ReadableStream : 1;
 
   // Ad-hoc property names we implement.
   bool atob : 1;
@@ -2339,7 +2344,7 @@ class MOZ_STACK_CLASS CreateObjectInOptions : public OptionsBase {
  public:
   explicit CreateObjectInOptions(JSContext* cx = xpc_GetSafeJSContext(),
                                  JSObject* options = nullptr)
-      : OptionsBase(cx, options), defineAs(cx, JSID_VOID) {}
+      : OptionsBase(cx, options), defineAs(cx, JS::PropertyKey::Void()) {}
 
   virtual bool Parse() override { return ParseId("defineAs", &defineAs); }
 
@@ -2351,7 +2356,7 @@ class MOZ_STACK_CLASS ExportFunctionOptions : public OptionsBase {
   explicit ExportFunctionOptions(JSContext* cx = xpc_GetSafeJSContext(),
                                  JSObject* options = nullptr)
       : OptionsBase(cx, options),
-        defineAs(cx, JSID_VOID),
+        defineAs(cx, JS::PropertyKey::Void()),
         allowCrossOriginArguments(false) {}
 
   virtual bool Parse() override {
@@ -2630,22 +2635,22 @@ class CompartmentPrivate {
   bool wasShutdown;
 
   JSObject2WrappedJSMap* GetWrappedJSMap() const { return mWrappedJSMap.get(); }
-  void UpdateWeakPointersAfterGC();
+  void UpdateWeakPointersAfterGC(JSTracer* trc);
 
   void SystemIsBeingShutDown();
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
 
-  struct SweepPolicy {
-    static bool needsSweep(const void* /* unused */,
-                           JS::Heap<JSObject*>* value) {
-      return JS::GCPolicy<JS::Heap<JSObject*>>::needsSweep(value);
+  struct MapEntryGCPolicy {
+    static bool traceWeak(JSTracer* trc, const void* /* unused */,
+                          JS::Heap<JSObject*>* value) {
+      return JS::GCPolicy<JS::Heap<JSObject*>>::traceWeak(trc, value);
     }
   };
 
   typedef JS::GCHashMap<const void*, JS::Heap<JSObject*>,
                         mozilla::PointerHasher<const void*>,
-                        js::SystemAllocPolicy, SweepPolicy>
+                        js::SystemAllocPolicy, MapEntryGCPolicy>
       RemoteProxyMap;
   RemoteProxyMap& GetRemoteProxyMap() { return mRemoteProxies; }
 
@@ -2846,11 +2851,6 @@ void xpc_DelocalizeRuntime(JSRuntime* rt);
 // Inlines use the above - include last.
 
 #include "XPCInlines.h"
-
-/***************************************************************************/
-// Maps have inlines that use the above - include last.
-
-#include "XPCMaps.h"
 
 /***************************************************************************/
 

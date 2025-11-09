@@ -8,8 +8,11 @@
 #  include "mozilla/Maybe.h"
 
 #  include "gc/Zone.h"
+#  include "jit/BaselineIC.h"
 #  include "jit/CacheIRCompiler.h"
 #  include "jit/JitScript.h"
+#  include "vm/JSScript.h"
+
 #  include "vm/JSObject-inl.h"
 
 using namespace js;
@@ -347,7 +350,7 @@ void CacheIRHealth::healthReportForIC(JSContext* cx, ICEntry* entry,
   }
   spew->property("spewContext", uint8_t(context));
 
-  jsbytecode* op = fallback->pc(script);
+  jsbytecode* op = script->offsetToPC(fallback->pcOffset());
   JSOp jsOp = JSOp(*op);
 
   Happiness entryHappiness = Happy;
@@ -385,7 +388,7 @@ void CacheIRHealth::healthReportForScript(JSContext* cx, HandleScript script,
   for (size_t i = 0; i < jitScript->numICEntries(); i++) {
     ICEntry& entry = jitScript->icEntry(i);
     ICFallbackStub* fallback = jitScript->fallbackStub(i);
-    jsbytecode* pc = fallback->pc(script);
+    jsbytecode* pc = script->offsetToPC(fallback->pcOffset());
     JSOp op = JSOp(*pc);
 
     spew->beginObject();

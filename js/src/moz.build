@@ -310,28 +310,6 @@ UNIFIED_SOURCES += [
     "builtin/Promise.cpp",
     "builtin/Reflect.cpp",
     "builtin/ReflectParse.cpp",
-    "builtin/Stream.cpp",
-    "builtin/streams/MiscellaneousOperations.cpp",
-    "builtin/streams/PipeToState.cpp",
-    "builtin/streams/PullIntoDescriptor.cpp",
-    "builtin/streams/QueueingStrategies.cpp",
-    "builtin/streams/QueueWithSizes.cpp",
-    "builtin/streams/ReadableStream.cpp",
-    "builtin/streams/ReadableStreamBYOBReader.cpp",
-    "builtin/streams/ReadableStreamDefaultController.cpp",
-    "builtin/streams/ReadableStreamDefaultControllerOperations.cpp",
-    "builtin/streams/ReadableStreamDefaultReader.cpp",
-    "builtin/streams/ReadableStreamInternals.cpp",
-    "builtin/streams/ReadableStreamOperations.cpp",
-    "builtin/streams/ReadableStreamReader.cpp",
-    "builtin/streams/StreamAPI.cpp",
-    "builtin/streams/TeeState.cpp",
-    "builtin/streams/WritableStream.cpp",
-    "builtin/streams/WritableStreamDefaultController.cpp",
-    "builtin/streams/WritableStreamDefaultControllerOperations.cpp",
-    "builtin/streams/WritableStreamDefaultWriter.cpp",
-    "builtin/streams/WritableStreamOperations.cpp",
-    "builtin/streams/WritableStreamWriterOperations.cpp",
     "builtin/String.cpp",
     "builtin/Symbol.cpp",
     "builtin/TestingFunctions.cpp",
@@ -432,6 +410,8 @@ UNIFIED_SOURCES += [
     "vm/SharedImmutableStringsCache.cpp",
     "vm/SourceHook.cpp",
     "vm/Stack.cpp",
+    "vm/StaticStrings.cpp",
+    "vm/StencilCache.cpp",
     "vm/StencilObject.cpp",
     "vm/StringType.cpp",
     "vm/SymbolType.cpp",
@@ -445,10 +425,30 @@ UNIFIED_SOURCES += [
     "vm/UbiNodeShortestPaths.cpp",
     "vm/Value.cpp",
     "vm/Warnings.cpp",
+    "vm/Watchtower.cpp",
     "vm/WellKnownAtom.cpp",
     "vm/WindowProxy.cpp",
     "vm/Xdr.cpp",
 ]
+
+if not CONFIG["MOZ_DOM_STREAMS"]:
+    UNIFIED_SOURCES += [
+        "builtin/Stream.cpp",
+        "builtin/streams/MiscellaneousOperations.cpp",
+        "builtin/streams/PullIntoDescriptor.cpp",
+        "builtin/streams/QueueingStrategies.cpp",
+        "builtin/streams/QueueWithSizes.cpp",
+        "builtin/streams/ReadableStream.cpp",
+        "builtin/streams/ReadableStreamBYOBReader.cpp",
+        "builtin/streams/ReadableStreamDefaultController.cpp",
+        "builtin/streams/ReadableStreamDefaultControllerOperations.cpp",
+        "builtin/streams/ReadableStreamDefaultReader.cpp",
+        "builtin/streams/ReadableStreamInternals.cpp",
+        "builtin/streams/ReadableStreamOperations.cpp",
+        "builtin/streams/ReadableStreamReader.cpp",
+        "builtin/streams/StreamAPI.cpp",
+        "builtin/streams/TeeState.cpp",
+    ]
 
 # builtin/RegExp.cpp cannot be built in unified mode because it causes huge
 #   win32 test slowdowns
@@ -463,6 +463,15 @@ SOURCES += [
     "vm/ProfilingStack.cpp",
 ]
 
+if CONFIG["ENABLE_RECORD_TUPLE"]:
+    UNIFIED_SOURCES += [
+        "builtin/RecordObject.cpp",
+        "builtin/TupleObject.cpp",
+        "vm/RecordTupleShared.cpp",
+        "vm/RecordType.cpp",
+        "vm/TupleType.cpp",
+    ]
+
 if CONFIG["JS_HAS_INTL_API"]:
     UNIFIED_SOURCES += [
         "builtin/intl/Collator.cpp",
@@ -472,7 +481,6 @@ if CONFIG["JS_HAS_INTL_API"]:
         "builtin/intl/DisplayNames.cpp",
         "builtin/intl/IntlObject.cpp",
         "builtin/intl/LanguageTag.cpp",
-        "builtin/intl/LanguageTagGenerated.cpp",
         "builtin/intl/ListFormat.cpp",
         "builtin/intl/Locale.cpp",
         "builtin/intl/NumberFormat.cpp",
@@ -538,6 +546,12 @@ if CONFIG["MOZ_VTUNE"]:
 
 DIRS += ["build", "debugger", "frontend", "gc", "irregexp", "jit", "util", "wasm"]
 
+# Bug 1722102 - This should never be enabled in Release without explicit
+# security and SpiderMonkey review.
+# See https://bugzilla.mozilla.org/show_bug.cgi?id=1722102#c16
+if CONFIG["NIGHTLY_BUILD"] and CONFIG["INTEL_ARCHITECTURE"]:
+    DIRS += ["intgemm"]
+
 if CONFIG["JS_JITSPEW"]:
     DIRS += ["zydis"]
 
@@ -590,6 +604,9 @@ selfhosted_inputs = [
     if CONFIG["JS_HAS_INTL_API"]
     else []
 )
+
+if CONFIG["ENABLE_RECORD_TUPLE"]:
+    selfhosted_inputs += ["builtin/Tuple.js"]
 
 # Prepare self-hosted JS code for embedding
 GeneratedFile(

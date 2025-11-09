@@ -120,7 +120,7 @@ BEGIN_TEST(testGCRootedStaticStructInternalStackStorageAugmented) {
 
   JS::Rooted<Value> rv(cx);
 
-  CHECK_EQUAL(r1.constructor(), 101);  // copy of SafelyInitialized<T>
+  CHECK_EQUAL(r1.constructor(), 1);    // direct SafelyInitialized<T>
   CHECK_EQUAL(r2.constructor(), 2);    // direct MyContainer(3.4)
   CHECK_EQUAL(r3.constructor(), 103);  // copy of MyContainer(cx)
   CHECK_EQUAL(r4.constructor(), 3);    // direct MyContainer(cx)
@@ -166,7 +166,7 @@ BEGIN_TEST(testGCRootedStaticStructInternalStackStorageAugmented) {
     JS::PersistentRooted<MyContainer> cp3(cx, cx);
     JS::PersistentRooted<MyContainer> cp4(cx, cx, cx, cx);
 
-    CHECK_EQUAL(cp1.constructor(), 101);  // copy of SafelyInitialized<T>
+    CHECK_EQUAL(cp1.constructor(), 1);    // direct SafelyInitialized<T>
     CHECK_EQUAL(cp2.constructor(), 2);    // direct MyContainer(double)
     CHECK_EQUAL(cp3.constructor(), 3);    // direct MyContainer(cx)
     CHECK_EQUAL(cp4.constructor(), 4);    // direct MyContainer(cx, cx, cx)
@@ -375,8 +375,7 @@ BEGIN_TEST(testGCRootedVector) {
     char letter = 'a' + i;
     bool match;
     ShapePropertyIter<NoGC> iter(shapes[i]);
-    CHECK(JS_StringEqualsAscii(cx, JSID_TO_STRING(iter->key()), &letter, 1,
-                               &match));
+    CHECK(JS_StringEqualsAscii(cx, iter->key().toString(), &letter, 1, &match));
     CHECK(match);
   }
 
@@ -447,8 +446,7 @@ BEGIN_TEST(testTraceableFifo) {
     char letter = 'a' + i;
     bool match;
     ShapePropertyIter<NoGC> iter(shapes.front());
-    CHECK(JS_StringEqualsAscii(cx, JSID_TO_STRING(iter->key()), &letter, 1,
-                               &match));
+    CHECK(JS_StringEqualsAscii(cx, iter->key().toString(), &letter, 1, &match));
     CHECK(match);
     shapes.popFront();
   }
@@ -493,8 +491,7 @@ static bool CheckVector(JSContext* cx, Handle<ShapeVec> shapes) {
     char letter = 'a' + i;
     bool match;
     ShapePropertyIter<NoGC> iter(shapes[i]);
-    if (!JS_StringEqualsAscii(cx, JSID_TO_STRING(iter->key()), &letter, 1,
-                              &match)) {
+    if (!JS_StringEqualsAscii(cx, iter->key().toString(), &letter, 1, &match)) {
       return false;
     }
     if (!match) {

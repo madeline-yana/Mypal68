@@ -29,6 +29,10 @@ GetObjectFlagsForNewProperty(const JSClass* clasp, ObjectFlags flags, jsid id,
     flags.setFlag(ObjectFlag::HasNonWritableOrAccessorPropExclProto);
   }
 
+  if (propFlags.enumerable()) {
+    flags.setFlag(ObjectFlag::HasEnumerable);
+  }
+
   return flags;
 }
 

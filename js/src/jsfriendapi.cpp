@@ -40,6 +40,10 @@
 #include "vm/Realm.h"
 #include "vm/StringObject.h"
 #include "vm/WrapperObject.h"
+#ifdef ENABLE_RECORD_TUPLE
+#  include "vm/RecordType.h"
+#  include "vm/TupleType.h"
+#endif
 
 #include "vm/Compartment-inl.h"  // JS::Compartment::wrap
 #include "vm/JSObject-inl.h"
@@ -65,7 +69,8 @@ JS::RootingContext::RootingContext() : realm_(nullptr), zone_(nullptr) {
 #endif
 }
 
-JS_PUBLIC_API void JS_SetGrayGCRootsTracer(JSContext* cx, JSTraceDataOp traceOp,
+JS_PUBLIC_API void JS_SetGrayGCRootsTracer(JSContext* cx,
+                                           JSGrayRootsTracer traceOp,
                                            void* data) {
   cx->runtime()->gc.setGrayRootsTracer(traceOp, data);
 }
@@ -256,6 +261,12 @@ JS_PUBLIC_API bool JS::GetBuiltinClass(JSContext* cx, HandleObject obj,
     *cls = ESClass::Error;
   } else if (obj->is<BigIntObject>()) {
     *cls = ESClass::BigInt;
+#ifdef ENABLE_RECORD_TUPLE
+  } else if (obj->is<RecordType>()) {
+    *cls = ESClass::Record;
+  } else if (obj->is<TupleType>()) {
+    *cls = ESClass::Tuple;
+#endif
   } else if (obj->is<JSFunction>()) {
     *cls = ESClass::Function;
   } else {
@@ -540,30 +551,18 @@ JS_PUBLIC_API JSObject* JS_CloneObject(JSContext* cx, HandleObject obj,
 
   RootedObject clone(cx);
   if (obj->is<NativeObject>()) {
-    // JS_CloneObject is used to create the target object for JSObject::swap().
-    // swap() requires its arguments are tenured, so ensure tenure allocation.
-    clone = NewTenuredObjectWithGivenProto(cx, obj->getClass(), proto);
+    clone = NewObjectWithGivenProto(cx, obj->getClass(), proto);
     if (!clone) {
       return nullptr;
     }
 
-    if (clone->is<JSFunction>() &&
-        (obj->compartment() != clone->compartment())) {
+    if (clone->is<JSFunction>() && obj->compartment() != clone->compartment()) {
       JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
                                 JSMSG_CANT_CLONE_OBJECT);
       return nullptr;
     }
   } else {
     auto* handler = GetProxyHandler(obj);
-
-    // Same as above, require tenure allocation of the clone. This means for
-    // proxy objects we need to reject nursery allocatable proxies.
-    if (handler->canNurseryAllocate()) {
-      JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
-                                JSMSG_CANT_CLONE_OBJECT);
-      return nullptr;
-    }
-
     clone = ProxyObject::New(cx, handler, JS::NullHandleValue,
                              AsTaggedProto(proto), obj->getClass());
     if (!clone) {
@@ -751,7 +750,7 @@ JS_PUBLIC_API JS::Value js::MaybeGetScriptPrivate(JSObject* object) {
     return UndefinedValue();
   }
 
-  return object->as<ScriptSourceObject>().canonicalPrivate();
+  return object->as<ScriptSourceObject>().getPrivate();
 }
 
 JS_PUBLIC_API uint64_t js::GetGCHeapUsageForObjectZone(JSObject* obj) {

@@ -7,11 +7,12 @@
 
 #include "mozilla/Utf8.h"  // mozilla::Utf8Unit
 
-#include "js/CompileOptions.h"  // JS::ReadOnlyCompileOptions
-#include "js/SourceText.h"      // JS::SourceText
-#include "js/TypeDecls.h"       // JS::Handle (fwd)
-#include "js/UniquePtr.h"       // js::UniquePtr
-#include "vm/ScopeKind.h"       // js::ScopeKind
+#include "frontend/ScriptIndex.h"  // ScriptIndex
+#include "js/CompileOptions.h"  // JS::ReadOnlyCompileOptions, JS::InstantiateOptions
+#include "js/SourceText.h"  // JS::SourceText
+#include "js/TypeDecls.h"   // JS::Handle (fwd)
+#include "js/UniquePtr.h"   // js::UniquePtr
+#include "vm/ScopeKind.h"   // js::ScopeKind
 
 namespace js {
 
@@ -24,11 +25,11 @@ struct CompilationGCOutput;
 struct CompilationStencil;
 struct ExtensibleCompilationStencil;
 
-extern UniquePtr<CompilationStencil> CompileGlobalScriptToStencil(
+extern already_AddRefed<CompilationStencil> CompileGlobalScriptToStencil(
     JSContext* cx, CompilationInput& input, JS::SourceText<char16_t>& srcBuf,
     ScopeKind scopeKind);
 
-extern UniquePtr<CompilationStencil> CompileGlobalScriptToStencil(
+extern already_AddRefed<CompilationStencil> CompileGlobalScriptToStencil(
     JSContext* cx, CompilationInput& input,
     JS::SourceText<mozilla::Utf8Unit>& srcBuf, ScopeKind scopeKind);
 
@@ -75,11 +76,17 @@ extern JSScript* CompileEvalScript(JSContext* cx,
 extern bool DelazifyCanonicalScriptedFunction(JSContext* cx,
                                               JS::Handle<JSFunction*> fun);
 
+extern already_AddRefed<CompilationStencil> DelazifyCanonicalScriptedFunction(
+    JSContext* cx, CompilationStencil& context, ScriptIndex scriptIndex);
+
 // Certain compile options will disable the syntax parser entirely.
 inline bool CanLazilyParse(const JS::ReadOnlyCompileOptions& options) {
   return !options.discardSource && !options.sourceIsLazy &&
          !options.forceFullParse();
 }
+
+void FireOnNewScript(JSContext* cx, const JS::InstantiateOptions& options,
+                     JS::Handle<JSScript*> script);
 
 }  // namespace frontend
 

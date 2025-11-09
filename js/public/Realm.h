@@ -21,23 +21,19 @@ namespace js {
 namespace gc {
 JS_PUBLIC_API void TraceRealm(JSTracer* trc, JS::Realm* realm,
                               const char* name);
-JS_PUBLIC_API bool RealmNeedsSweep(JS::Realm* realm);
 }  // namespace gc
 }  // namespace js
 
 namespace JS {
 class JS_PUBLIC_API AutoRequireNoGC;
 
-// Each Realm holds a strong reference to its GlobalObject, and vice versa.
+// Each Realm holds a weak reference to its GlobalObject.
 template <>
 struct GCPolicy<Realm*> : public NonGCPointerPolicy<Realm*> {
   static void trace(JSTracer* trc, Realm** vp, const char* name) {
     if (*vp) {
       ::js::gc::TraceRealm(trc, *vp, name);
     }
-  }
-  static bool needsSweep(Realm** vp) {
-    return *vp && ::js::gc::RealmNeedsSweep(*vp);
   }
 };
 
@@ -63,7 +59,7 @@ extern JS_PUBLIC_API void* GetRealmPrivate(Realm* realm);
 // Set the "private data" internal field of the given Realm.
 extern JS_PUBLIC_API void SetRealmPrivate(Realm* realm, void* data);
 
-typedef void (*DestroyRealmCallback)(JSFreeOp* fop, Realm* realm);
+typedef void (*DestroyRealmCallback)(JS::GCContext* gcx, Realm* realm);
 
 // Set the callback SpiderMonkey calls just before garbage-collecting a realm.
 // Embeddings can use this callback to free private data associated with the
@@ -137,13 +133,8 @@ extern JS_PUBLIC_API void LeaveRealm(JSContext* cx, JS::Realm* oldRealm);
 }  // namespace JS
 
 /*
- * At any time, a JSContext has a current (possibly-nullptr) realm.
- * Realms are described in:
- *
- *   developer.mozilla.org/en-US/docs/SpiderMonkey/SpiderMonkey_compartments
- *
- * The current realm of a context may be changed. The preferred way to do
- * this is with JSAutoRealm:
+ * At any time, a JSContext has a current (possibly-nullptr) realm. The
+ * preferred way to change the current realm is with JSAutoRealm:
  *
  *   void foo(JSContext* cx, JSObject* obj) {
  *     // in some realm 'r'

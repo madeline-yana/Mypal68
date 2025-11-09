@@ -74,9 +74,6 @@ struct ZoneGCStats {
   /* Number of zones collected in this GC. */
   int collectedZoneCount = 0;
 
-  /* Number of zones that could have been collected in this GC. */
-  int collectableZoneCount = 0;
-
   /* Total number of zones in the Runtime at the start of this GC. */
   int zoneCount = 0;
 
@@ -92,9 +89,7 @@ struct ZoneGCStats {
   /* Total number of compartments swept by this GC. */
   int sweptCompartmentCount = 0;
 
-  bool isFullCollection() const {
-    return collectedZoneCount == collectableZoneCount;
-  }
+  bool isFullCollection() const { return collectedZoneCount == zoneCount; }
 
   ZoneGCStats() = default;
 };

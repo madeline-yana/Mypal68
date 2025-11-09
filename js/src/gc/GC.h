@@ -39,13 +39,13 @@ extern void TraceRuntime(JSTracer* trc);
 // Trace roots but don't evict the nursery first; used from DumpHeap.
 extern void TraceRuntimeWithoutEviction(JSTracer* trc);
 
-extern void ReleaseAllJITCode(JSFreeOp* op);
+extern void ReleaseAllJITCode(JS::GCContext* gcx);
 
 extern void PrepareForDebugGC(JSRuntime* rt);
 
 /* Functions for managing cross compartment gray pointers. */
 
-extern void NotifyGCNukeWrapper(JSObject* o);
+extern void NotifyGCNukeWrapper(JSContext* cx, JSObject* wrapper);
 
 extern unsigned NotifyGCPreSwap(JSObject* a, JSObject* b);
 
@@ -107,12 +107,6 @@ namespace gc {
 void FinishGC(JSContext* cx, JS::GCReason = JS::GCReason::FINISH_GC);
 
 void WaitForBackgroundTasks(JSContext* cx);
-
-/*
- * Merge all contents of source into target. This can only be used if source is
- * the only realm in its zone.
- */
-void MergeRealms(JS::Realm* source, JS::Realm* target);
 
 enum VerifierType { PreBarrierVerifier };
 

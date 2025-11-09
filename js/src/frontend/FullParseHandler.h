@@ -6,10 +6,11 @@
 #define frontend_FullParseHandler_h
 
 #include "mozilla/Maybe.h"  // mozilla::Maybe
-#include "mozilla/PodOperations.h"
 
 #include <cstddef>  // std::nullptr_t
 #include <string.h>
+
+#include "jstypes.h"
 
 #include "frontend/CompilationStencil.h"  // CompilationState
 #include "frontend/FunctionSyntaxKind.h"  // FunctionSyntaxKind
@@ -18,12 +19,10 @@
 #include "frontend/ParserAtom.h"  // TaggedParserAtomIndex
 #include "frontend/SharedContext.h"
 #include "frontend/Stencil.h"
-#include "vm/JSContext.h"
+
+struct JS_PUBLIC_API JSContext;
 
 namespace js {
-
-class RegExpObject;
-
 namespace frontend {
 
 class TokenStreamAnyChars;
@@ -306,7 +305,9 @@ class FullParseHandler {
 
   [[nodiscard]] bool addSpreadElement(ListNodeType literal, uint32_t begin,
                                       Node inner) {
-    MOZ_ASSERT(literal->isKind(ParseNodeKind::ArrayExpr));
+    MOZ_ASSERT(
+        literal->isKind(ParseNodeKind::ArrayExpr) ||
+        IF_RECORD_TUPLE(literal->isKind(ParseNodeKind::TupleExpr), false));
 
     UnaryNodeType spread = newSpread(begin, inner);
     if (!spread) {
@@ -318,6 +319,10 @@ class FullParseHandler {
   }
 
   void addArrayElement(ListNodeType literal, Node element) {
+    MOZ_ASSERT(
+        literal->isKind(ParseNodeKind::ArrayExpr) ||
+        literal->isKind(ParseNodeKind::CallSiteObj) ||
+        IF_RECORD_TUPLE(literal->isKind(ParseNodeKind::TupleExpr), false));
     if (!element->isConstant()) {
       literal->setHasNonConstInitializer();
     }
@@ -352,6 +357,17 @@ class FullParseHandler {
                           TokenPos(begin, begin + 1));
   }
 
+#ifdef ENABLE_RECORD_TUPLE
+  ListNodeType newRecordLiteral(uint32_t begin) {
+    return new_<ListNode>(ParseNodeKind::RecordExpr,
+                          TokenPos(begin, begin + 1));
+  }
+
+  ListNodeType newTupleLiteral(uint32_t begin) {
+    return new_<ListNode>(ParseNodeKind::TupleExpr, TokenPos(begin, begin + 1));
+  }
+#endif
+
   ClassNodeType newClass(Node name, Node heritage,
                          LexicalScopeNodeType memberBlock,
                          const TokenPos& pos) {
@@ -364,10 +380,10 @@ class FullParseHandler {
   ClassNamesType newClassNames(Node outer, Node inner, const TokenPos& pos) {
     return new_<ClassNames>(outer, inner, pos);
   }
-  BinaryNodeType newNewTarget(NullaryNodeType newHolder,
-                              NullaryNodeType targetHolder) {
-    return new_<BinaryNode>(ParseNodeKind::NewTargetExpr, newHolder,
-                            targetHolder);
+  NewTargetNodeType newNewTarget(NullaryNodeType newHolder,
+                                 NullaryNodeType targetHolder,
+                                 NameNodeType newTargetName) {
+    return new_<NewTargetNode>(newHolder, targetHolder, newTargetName);
   }
   NullaryNodeType newPosHolder(const TokenPos& pos) {
     return new_<NullaryNode>(ParseNodeKind::PosHolder, pos);
@@ -398,7 +414,9 @@ class FullParseHandler {
   }
 
   void addPropertyDefinition(ListNodeType literal, BinaryNodeType propdef) {
-    MOZ_ASSERT(literal->isKind(ParseNodeKind::ObjectExpr));
+    MOZ_ASSERT(
+        literal->isKind(ParseNodeKind::ObjectExpr) ||
+        IF_RECORD_TUPLE(literal->isKind(ParseNodeKind::RecordExpr), false));
     MOZ_ASSERT(propdef->isKind(ParseNodeKind::PropertyDefinition));
 
     if (!propdef->right()->isConstant()) {
@@ -420,7 +438,9 @@ class FullParseHandler {
 
   [[nodiscard]] bool addShorthand(ListNodeType literal, NameNodeType name,
                                   NameNodeType expr) {
-    MOZ_ASSERT(literal->isKind(ParseNodeKind::ObjectExpr));
+    MOZ_ASSERT(
+        literal->isKind(ParseNodeKind::ObjectExpr) ||
+        IF_RECORD_TUPLE(literal->isKind(ParseNodeKind::RecordExpr), false));
     MOZ_ASSERT(name->isKind(ParseNodeKind::ObjectPropertyName));
     MOZ_ASSERT(expr->isKind(ParseNodeKind::Name));
     MOZ_ASSERT(name->atom() == expr->atom());
@@ -436,7 +456,9 @@ class FullParseHandler {
 
   [[nodiscard]] bool addSpreadProperty(ListNodeType literal, uint32_t begin,
                                        Node inner) {
-    MOZ_ASSERT(literal->isKind(ParseNodeKind::ObjectExpr));
+    MOZ_ASSERT(
+        literal->isKind(ParseNodeKind::ObjectExpr) ||
+        IF_RECORD_TUPLE(literal->isKind(ParseNodeKind::RecordExpr), false));
 
     literal->setHasNonConstInitializer();
     ParseNode* spread = newSpread(begin, inner);
@@ -616,10 +638,20 @@ class FullParseHandler {
     return new_<NullaryNode>(ParseNodeKind::EmptyStmt, pos);
   }
 
-  BinaryNodeType newImportDeclaration(Node importSpecSet, Node moduleSpec,
+  BinaryNodeType newImportAssertion(Node keyNode, Node valueNode) {
+    return newBinary(ParseNodeKind::ImportAssertion, keyNode, valueNode);
+  }
+
+  BinaryNodeType newModuleRequest(Node moduleSpec, Node importAssertionList,
+                                  const TokenPos& pos) {
+    return new_<BinaryNode>(ParseNodeKind::ImportModuleRequest, pos, moduleSpec,
+                            importAssertionList);
+  }
+
+  BinaryNodeType newImportDeclaration(Node importSpecSet, Node moduleRequest,
                                       const TokenPos& pos) {
     return new_<BinaryNode>(ParseNodeKind::ImportDecl, pos, importSpecSet,
-                            moduleSpec);
+                            moduleRequest);
   }
 
   BinaryNodeType newImportSpec(Node importNameNode, Node bindingName) {
@@ -635,9 +667,9 @@ class FullParseHandler {
   }
 
   BinaryNodeType newExportFromDeclaration(uint32_t begin, Node exportSpecSet,
-                                          Node moduleSpec) {
+                                          Node moduleRequest) {
     BinaryNode* decl = new_<BinaryNode>(ParseNodeKind::ExportFromStmt,
-                                        exportSpecSet, moduleSpec);
+                                        exportSpecSet, moduleRequest);
     if (!decl) {
       return nullptr;
     }
@@ -679,6 +711,11 @@ class FullParseHandler {
   BinaryNodeType newCallImport(NullaryNodeType importHolder, Node singleArg) {
     return new_<BinaryNode>(ParseNodeKind::CallImportExpr, importHolder,
                             singleArg);
+  }
+
+  BinaryNodeType newCallImportSpec(Node specifierArg, Node optionalArg) {
+    return new_<BinaryNode>(ParseNodeKind::CallImportSpec, specifierArg,
+                            optionalArg);
   }
 
   UnaryNodeType newExprStatement(Node expr, uint32_t end) {

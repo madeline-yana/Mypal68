@@ -21,8 +21,8 @@
 #include "wasm/WasmConstants.h"       // js::wasm::Trap
 #include "wasm/WasmFrameIter.h"  // js::wasm::{RegisterState,StartUnwinding,UnwindState}
 #include "wasm/WasmInstance.h"  // js::wasm::Instance
-#include "wasm/WasmProcess.h"   // js::wasm::LookupCode
-#include "wasm/WasmTlsData.h"   // js::wasm::TlsData
+#include "wasm/WasmInstanceData.h"
+#include "wasm/WasmProcess.h"  // js::wasm::LookupCode
 
 #include "vm/Realm-inl.h"  // js::~AutoRealm
 
@@ -94,7 +94,8 @@ void js::jit::JitActivation::clearRematerializedFrames() {
 }
 
 js::jit::RematerializedFrame* js::jit::JitActivation::getRematerializedFrame(
-    JSContext* cx, const JSJitFrameIter& iter, size_t inlineDepth) {
+    JSContext* cx, const JSJitFrameIter& iter, size_t inlineDepth,
+    MaybeReadFallback::FallbackConsequence consequence) {
   MOZ_ASSERT(iter.activation() == this);
   MOZ_ASSERT(iter.isIonScripted());
 
@@ -116,7 +117,7 @@ js::jit::RematerializedFrame* js::jit::JitActivation::getRematerializedFrame(
     // preserve identity. Therefore, we always rematerialize an uninlined
     // frame and all its inlined frames at once.
     InlineFrameIterator inlineIter(cx, &iter);
-    MaybeReadFallback recover(cx, this, &iter);
+    MaybeReadFallback recover(cx, this, &iter, consequence);
 
     // Frames are often rematerialized with the cx inside a Debugger's
     // realm. To recover slots and to create CallObjects, we need to
@@ -231,7 +232,7 @@ void js::jit::JitActivation::startWasmTrap(wasm::Trap trap,
   void* pc = unwindState.pc;
   const wasm::Frame* fp = wasm::Frame::fromUntaggedWasmExitFP(unwindState.fp);
 
-  const wasm::Code& code = wasm::GetNearestEffectiveTls(fp)->instance->code();
+  const wasm::Code& code = wasm::GetNearestEffectiveInstance(fp)->code();
   MOZ_RELEASE_ASSERT(&code == wasm::LookupCode(pc));
 
   // If the frame was unwound, the bytecodeOffset must be recovered from the

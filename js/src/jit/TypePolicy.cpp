@@ -1035,6 +1035,8 @@ bool ClampPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins) const {
   _(MixPolicy<StringPolicy<0>, ObjectPolicy<1>, StringPolicy<2>>)             \
   _(MixPolicy<StringPolicy<0>, StringPolicy<1>, StringPolicy<2>>)             \
   _(MixPolicy<ObjectPolicy<0>, StringPolicy<1>, UnboxedInt32Policy<2>>)       \
+  _(MixPolicy<ObjectPolicy<0>, UnboxedInt32Policy<1>, BoxPolicy<2>,           \
+              ObjectPolicy<3>>)                                               \
   _(MixPolicy<ObjectPolicy<0>, UnboxedInt32Policy<1>, UnboxedInt32Policy<2>,  \
               UnboxedInt32Policy<3>>)                                         \
   _(MixPolicy<TruncateToInt32OrToBigIntPolicy<2>,                             \
@@ -1068,6 +1070,8 @@ bool ClampPolicy::adjustInputs(TempAllocator& alloc, MInstruction* ins) const {
   _(MixPolicy<BoxExceptPolicy<0, MIRType::Object>, ObjectPolicy<1>>)          \
   _(MixPolicy<UnboxedInt32Policy<0>, BigIntPolicy<1>>)                        \
   _(MixPolicy<UnboxedInt32Policy<0>, NoFloatPolicyAfter<1>>)                  \
+  _(MixPolicy<UnboxedInt32Policy<0>, UnboxedInt32Policy<1>,                   \
+              NoFloatPolicyAfter<2>>)                                         \
   _(NoFloatPolicy<0>)                                                         \
   _(NoFloatPolicy<1>)                                                         \
   _(NoFloatPolicy<2>)                                                         \

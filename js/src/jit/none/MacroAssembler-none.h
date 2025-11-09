@@ -167,10 +167,13 @@ class MacroAssemblerNone : public Assembler {
   void cmpPtrSet(Condition, T, S, Register) {
     MOZ_CRASH();
   }
+  void cmp8Set(Condition, Address, Imm32, Register) { MOZ_CRASH(); }
+  void cmp16Set(Condition, Address, Imm32, Register) { MOZ_CRASH(); }
   template <typename T, typename S>
   void cmp32Set(Condition, T, S, Register) {
     MOZ_CRASH();
   }
+  void cmp64Set(Condition, Address, Imm64, Register) { MOZ_CRASH(); }
 
   template <typename T>
   void mov(T, Register) {
@@ -426,8 +429,6 @@ class MacroAssemblerNone : public Assembler {
 
   void buildFakeExitFrame(Register, uint32_t*) { MOZ_CRASH(); }
   bool buildOOLFakeExitFrame(void*) { MOZ_CRASH(); }
-  void loadWasmGlobalPtr(uint32_t, Register) { MOZ_CRASH(); }
-  void loadWasmPinnedRegsFromTls() { MOZ_CRASH(); }
 
   void setPrinter(Sprinter*) { MOZ_CRASH(); }
   Operand ToPayload(Operand base) { MOZ_CRASH(); }

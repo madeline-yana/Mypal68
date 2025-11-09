@@ -5,6 +5,7 @@
 #include "jit/BaselineCacheIRCompiler.h"
 
 #include "jit/CacheIR.h"
+#include "jit/CacheIRWriter.h"
 #include "jit/JitFrames.h"
 #include "jit/JitRuntime.h"
 #include "jit/JitZone.h"
@@ -17,6 +18,7 @@
 #include "proxy/Proxy.h"
 #include "util/Unicode.h"
 #include "vm/JSAtom.h"
+#include "vm/StaticStrings.h"
 
 #include "jit/MacroAssembler-inl.h"
 #include "jit/SharedICHelpers-inl.h"
@@ -498,8 +500,7 @@ bool BaselineCacheIRCompiler::emitCallScriptedGetterShared(
 
   // Handle arguments underflow.
   Label noUnderflow;
-  masm.load32(Address(callee, JSFunction::offsetOfFlagsAndArgCount()), callee);
-  masm.rshift32(Imm32(JSFunction::ArgCountShift), callee);
+  masm.loadFunctionArgCount(callee, callee);
   masm.branch32(Assembler::Equal, callee, Imm32(0), &noUnderflow);
 
   // Call the arguments rectifier.
@@ -1056,6 +1057,41 @@ bool BaselineCacheIRCompiler::emitPackedArraySliceResult(
   return true;
 }
 
+bool BaselineCacheIRCompiler::emitArgumentsSliceResult(
+    uint32_t templateObjectOffset, ObjOperandId argsId, Int32OperandId beginId,
+    Int32OperandId endId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoOutputRegister output(*this);
+  AutoScratchRegisterMaybeOutput scratch(allocator, masm, output);
+
+  Register args = allocator.useRegister(masm, argsId);
+  Register begin = allocator.useRegister(masm, beginId);
+  Register end = allocator.useRegister(masm, endId);
+
+  allocator.discardStack(masm);
+
+  AutoStubFrame stubFrame(*this);
+  stubFrame.enter(masm, scratch);
+
+  // Don't attempt to pre-allocate the object, instead always use the slow path.
+  ImmPtr result(nullptr);
+
+  masm.Push(result);
+  masm.Push(end);
+  masm.Push(begin);
+  masm.Push(args);
+
+  using Fn =
+      JSObject* (*)(JSContext*, HandleObject, int32_t, int32_t, HandleObject);
+  callVM<Fn, ArgumentsSliceDense>(masm);
+
+  stubFrame.leave(masm);
+
+  masm.tagValue(JSVAL_TYPE_OBJECT, ReturnReg, output.valueReg());
+  return true;
+}
+
 bool BaselineCacheIRCompiler::emitIsArrayResult(ValOperandId inputId) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
 
@@ -1573,9 +1609,7 @@ bool BaselineCacheIRCompiler::emitCallScriptedSetterShared(
   // can be used as scratch.
   Label noUnderflow;
   Register scratch2 = val.scratchReg();
-  masm.load32(Address(callee, JSFunction::offsetOfFlagsAndArgCount()),
-              scratch2);
-  masm.rshift32(Imm32(JSFunction::ArgCountShift), scratch2);
+  masm.loadFunctionArgCount(callee, scratch2);
   masm.branch32(Assembler::BelowOrEqual, scratch2, Imm32(1), &noUnderflow);
 
   // Call the arguments rectifier.
@@ -1968,6 +2002,7 @@ bool BaselineCacheIRCompiler::init(CacheKind kind) {
     case CacheKind::NewObject:
     case CacheKind::GetIntrinsic:
       MOZ_ASSERT(numInputs == 0);
+      outputUnchecked_.emplace(R0);
       break;
     case CacheKind::GetProp:
     case CacheKind::TypeOf:
@@ -1978,16 +2013,22 @@ bool BaselineCacheIRCompiler::init(CacheKind kind) {
     case CacheKind::UnaryArith:
       MOZ_ASSERT(numInputs == 1);
       allocator.initInputLocation(0, R0);
+      outputUnchecked_.emplace(R0);
       break;
     case CacheKind::Compare:
     case CacheKind::GetElem:
     case CacheKind::GetPropSuper:
-    case CacheKind::SetProp:
     case CacheKind::In:
     case CacheKind::HasOwn:
     case CacheKind::CheckPrivateField:
     case CacheKind::InstanceOf:
     case CacheKind::BinaryArith:
+      MOZ_ASSERT(numInputs == 2);
+      allocator.initInputLocation(0, R0);
+      allocator.initInputLocation(1, R1);
+      outputUnchecked_.emplace(R0);
+      break;
+    case CacheKind::SetProp:
       MOZ_ASSERT(numInputs == 2);
       allocator.initInputLocation(0, R0);
       allocator.initInputLocation(1, R1);
@@ -1997,6 +2038,7 @@ bool BaselineCacheIRCompiler::init(CacheKind kind) {
       allocator.initInputLocation(0, BaselineFrameSlot(0));
       allocator.initInputLocation(1, R1);
       allocator.initInputLocation(2, R0);
+      outputUnchecked_.emplace(R0);
       break;
     case CacheKind::SetElem:
       MOZ_ASSERT(numInputs == 3);
@@ -2013,6 +2055,7 @@ bool BaselineCacheIRCompiler::init(CacheKind kind) {
       // the payloadReg and not typeReg on x86.
       available.add(R0.typeReg());
 #endif
+      outputUnchecked_.emplace(R0);
       break;
     case CacheKind::Call:
       MOZ_ASSERT(numInputs == 1);
@@ -2022,6 +2065,7 @@ bool BaselineCacheIRCompiler::init(CacheKind kind) {
       // the payloadReg and not typeReg on x86.
       available.add(R0.typeReg());
 #endif
+      outputUnchecked_.emplace(R0);
       break;
   }
 
@@ -2029,7 +2073,6 @@ bool BaselineCacheIRCompiler::init(CacheKind kind) {
   liveFloatRegs_ = LiveFloatRegisterSet(FloatRegisterSet());
 
   allocator.initAvailableRegs(available);
-  outputUnchecked_.emplace(R0);
   return true;
 }
 
@@ -2052,19 +2095,20 @@ static ICStubSpace* StubSpaceForStub(bool makesGCCalls, JSScript* script,
   return script->zone()->jitZone()->optimizedStubSpace();
 }
 
-ICCacheIRStub* js::jit::AttachBaselineCacheIRStub(
+ICAttachResult js::jit::AttachBaselineCacheIRStub(
     JSContext* cx, const CacheIRWriter& writer, CacheKind kind,
-    JSScript* outerScript, ICScript* icScript, ICFallbackStub* stub,
-    bool* attached) {
+    JSScript* outerScript, ICScript* icScript, ICFallbackStub* stub) {
   // We shouldn't GC or report OOM (or any other exception) here.
   AutoAssertNoPendingException aanpe(cx);
   JS::AutoCheckCannotGC nogc;
 
-  MOZ_ASSERT(!*attached);
-
-  if (writer.failed()) {
-    return nullptr;
+  if (writer.tooLarge()) {
+    return ICAttachResult::TooLarge;
   }
+  if (writer.oom()) {
+    return ICAttachResult::OOM;
+  }
+  MOZ_ASSERT(!writer.failed());
 
   // Just a sanity check: the caller should ensure we don't attach an
   // unlimited number of stubs.
@@ -2089,12 +2133,12 @@ ICCacheIRStub* js::jit::AttachBaselineCacheIRStub(
     JitContext jctx(cx, nullptr);
     BaselineCacheIRCompiler comp(cx, writer, stubDataOffset);
     if (!comp.init(kind)) {
-      return nullptr;
+      return ICAttachResult::OOM;
     }
 
     code = comp.compile();
     if (!code) {
-      return nullptr;
+      return ICAttachResult::OOM;
     }
 
     // Allocate the shared CacheIRStubInfo. Note that the
@@ -2106,12 +2150,12 @@ ICCacheIRStub* js::jit::AttachBaselineCacheIRStub(
         CacheIRStubInfo::New(kind, ICStubEngine::Baseline, comp.makesGCCalls(),
                              stubDataOffset, writer);
     if (!stubInfo) {
-      return nullptr;
+      return ICAttachResult::OOM;
     }
 
     CacheIRStubKey key(stubInfo);
     if (!jitZone->putBaselineCacheIRStubCode(lookup, key, code)) {
-      return nullptr;
+      return ICAttachResult::OOM;
     }
   }
 
@@ -2141,7 +2185,7 @@ ICCacheIRStub* js::jit::AttachBaselineCacheIRStub(
             "Tried attaching identical stub for (%s:%u:%u)",
             outerScript->filename(), outerScript->lineno(),
             outerScript->column());
-    return nullptr;
+    return ICAttachResult::DuplicateStub;
   }
 
   // Time to allocate and attach a new stub.
@@ -2152,7 +2196,7 @@ ICCacheIRStub* js::jit::AttachBaselineCacheIRStub(
       StubSpaceForStub(stubInfo->makesGCCalls(), outerScript, icScript);
   void* newStubMem = stubSpace->alloc(bytesNeeded);
   if (!newStubMem) {
-    return nullptr;
+    return ICAttachResult::OOM;
   }
 
   // Resetting the entered counts on the IC chain makes subsequent reasoning
@@ -2175,8 +2219,7 @@ ICCacheIRStub* js::jit::AttachBaselineCacheIRStub(
   writer.copyStubData(newStub->stubDataStart());
   newStub->setTypeData(writer.typeData());
   stub->addNewStub(icEntry, newStub);
-  *attached = true;
-  return newStub;
+  return ICAttachResult::Attached;
 }
 
 uint8_t* ICCacheIRStub::stubDataStart() {
@@ -2858,9 +2901,7 @@ bool BaselineCacheIRCompiler::emitCallScriptedFunction(ObjOperandId calleeId,
 
   // Handle arguments underflow.
   Label noUnderflow;
-  masm.load32(Address(calleeReg, JSFunction::offsetOfFlagsAndArgCount()),
-              calleeReg);
-  masm.rshift32(Imm32(JSFunction::ArgCountShift), calleeReg);
+  masm.loadFunctionArgCount(calleeReg, calleeReg);
   masm.branch32(Assembler::AboveOrEqual, argcReg, calleeReg, &noUnderflow);
   {
     // Call the arguments rectifier.
@@ -2970,9 +3011,7 @@ bool BaselineCacheIRCompiler::emitCallInlinedFunction(ObjOperandId calleeId,
 
   // Handle arguments underflow.
   Label noUnderflow;
-  masm.load32(Address(calleeReg, JSFunction::offsetOfFlagsAndArgCount()),
-              calleeReg);
-  masm.rshift32(Imm32(JSFunction::ArgCountShift), calleeReg);
+  masm.loadFunctionArgCount(calleeReg, calleeReg);
   masm.branch32(Assembler::AboveOrEqual, argcReg, calleeReg, &noUnderflow);
 
   // Call the trial-inlining arguments rectifier.

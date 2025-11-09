@@ -166,9 +166,9 @@ void JitRuntime::generateEnterJIT(JSContext* cx, MacroAssembler& masm) {
   {
     // Handle Interpreter -> Baseline OSR.
     AllocatableGeneralRegisterSet regs(GeneralRegisterSet::All());
+    MOZ_ASSERT(!regs.has(ebp));
     regs.take(JSReturnOperand);
     regs.takeUnchecked(OsrFrameReg);
-    regs.take(ebp);
     regs.take(ReturnReg);
 
     Register scratch = regs.takeAny();
@@ -420,8 +420,7 @@ void JitRuntime::generateArgumentsRectifier(MacroAssembler& masm,
   masm.loadPtr(Address(esp, RectifierFrameLayout::offsetOfCalleeToken()), eax);
   masm.mov(eax, ecx);
   masm.andl(Imm32(CalleeTokenMask), ecx);
-  masm.mov(Operand(ecx, JSFunction::offsetOfFlagsAndArgCount()), ecx);
-  masm.rshift32(Imm32(JSFunction::ArgCountShift), ecx);
+  masm.loadFunctionArgCount(ecx, ecx);
 
   // The frame pointer and its padding are pushed on the stack.
   // Including |this|, there are (|nformals| + 1) arguments to push to the
@@ -519,8 +518,7 @@ void JitRuntime::generateArgumentsRectifier(MacroAssembler& masm,
         sizeof(RectifierFrameLayout) + sizeof(Value) + sizeof(void*));
 
     masm.andl(Imm32(CalleeTokenMask), ebx);
-    masm.movl(Operand(ebx, JSFunction::offsetOfFlagsAndArgCount()), ebx);
-    masm.rshift32(Imm32(JSFunction::ArgCountShift), ebx);
+    masm.loadFunctionArgCount(ebx, ebx);
 
     BaseValueIndex dst(esp, ebx, sizeof(Value));
 
@@ -784,7 +782,7 @@ bool JitRuntime::generateVMWrapper(JSContext* cx, MacroAssembler& masm,
 
   // Test for failure.
   switch (f.failType()) {
-    case Type_Object:
+    case Type_Cell:
       masm.branchTestPtr(Assembler::Zero, eax, eax, masm.failureLabel());
       break;
     case Type_Bool:
@@ -818,12 +816,7 @@ bool JitRuntime::generateVMWrapper(JSContext* cx, MacroAssembler& masm,
       break;
 
     case Type_Double:
-      if (JitOptions.supportsFloatingPoint) {
-        masm.Pop(ReturnDoubleReg);
-      } else {
-        masm.assumeUnreachable(
-            "Unable to pop to float reg, with no FP support.");
-      }
+      masm.Pop(ReturnDoubleReg);
       break;
 
     default:
@@ -869,13 +862,8 @@ uint32_t JitRuntime::generatePreBarrier(JSContext* cx, MacroAssembler& masm,
   masm.pop(temp1);
 
   LiveRegisterSet save;
-  if (JitOptions.supportsFloatingPoint) {
-    save.set() = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
-                             FloatRegisterSet(FloatRegisters::VolatileMask));
-  } else {
-    save.set() = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
-                             FloatRegisterSet());
-  }
+  save.set() = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
+                           FloatRegisterSet(FloatRegisters::VolatileMask));
   masm.PushRegsInMask(save);
 
   masm.movl(ImmPtr(cx->runtime()), ecx);

@@ -201,7 +201,11 @@ AssemblerX86Shared::DoubleCondition AssemblerX86Shared::InvertCondition(
 CPUInfo::SSEVersion CPUInfo::maxSSEVersion = UnknownSSE;
 CPUInfo::SSEVersion CPUInfo::maxEnabledSSEVersion = UnknownSSE;
 bool CPUInfo::avxPresent = false;
+#ifdef ENABLE_WASM_AVX
+bool CPUInfo::avxEnabled = true;
+#else
 bool CPUInfo::avxEnabled = false;
+#endif
 bool CPUInfo::popcntPresent = false;
 bool CPUInfo::bmi1Present = false;
 bool CPUInfo::bmi2Present = false;
@@ -265,7 +269,9 @@ static void ReadCPUInfo(int* flagsEax, int* flagsEbx, int* flagsEcx,
 #endif
 }
 
-void CPUInfo::SetSSEVersion() {
+void CPUInfo::ComputeFlags() {
+  MOZ_ASSERT(!FlagsHaveBeenComputed());
+
   int flagsEax = 1;
   int flagsEbx = 0;
   int flagsEcx = 0;
@@ -334,4 +340,6 @@ void CPUInfo::SetSSEVersion() {
   static constexpr int BMI2Bit = 1 << 8;
   bmi1Present = (flagsEbx & BMI1Bit);
   bmi2Present = bmi1Present && (flagsEbx & BMI2Bit);
+
+  MOZ_ASSERT(FlagsHaveBeenComputed());
 }

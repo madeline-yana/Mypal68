@@ -30,7 +30,6 @@
 #  include "util/Unicode.h"
 #endif
 #include "vm/WellKnownAtom.h"  // js_*_str
-#include "vm/Xdr.h"
 
 #include "vm/JSObject-inl.h"
 #include "vm/NativeObject-inl.h"
@@ -150,18 +149,6 @@ bool RegExpObject::isOriginalFlagGetter(JSNative native, RegExpFlags* mask) {
   }
 
   return false;
-}
-
-static inline bool IsMarkingTrace(JSTracer* trc) {
-  // Determine whether tracing is happening during normal marking.  We need to
-  // test all the following conditions, since:
-  //
-  //   1. During TraceRuntime, RuntimeHeapIsBusy() is true, but the
-  //      tracer might not be a marking tracer.
-  //   2. When a write barrier executes, isMarkingTracer is true, but
-  //      RuntimeHeapIsBusy() will be false.
-
-  return JS::RuntimeHeapIsCollecting() && trc->isMarkingTracer();
 }
 
 static const ClassSpec RegExpObjectClassSpec = {
@@ -555,7 +542,11 @@ RegExpShared::RegExpShared(JSAtom* source, RegExpFlags flags)
 
 void RegExpShared::traceChildren(JSTracer* trc) {
   // Discard code to avoid holding onto ExecutablePools.
-  if (IsMarkingTrace(trc) && trc->runtime()->gc.isShrinkingGC()) {
+  gc::GCRuntime* gc = &trc->runtime()->gc;
+  // Bug 1758095: isIncrementalGCInProgress() also returns true when called from
+  // the collector during a non-incremental GC.
+  if (trc->isMarkingTracer() && gc->isIncrementalGCInProgress() &&
+      gc->isShrinkingGC()) {
     discardJitCode();
   }
 
@@ -579,16 +570,16 @@ void RegExpShared::discardJitCode() {
   tables.clearAndFree();
 }
 
-void RegExpShared::finalize(JSFreeOp* fop) {
+void RegExpShared::finalize(JS::GCContext* gcx) {
   for (auto& comp : compilationArray) {
     if (comp.byteCode) {
       size_t length = comp.byteCodeLength();
-      fop->free_(this, comp.byteCode, length, MemoryUse::RegExpSharedBytecode);
+      gcx->free_(this, comp.byteCode, length, MemoryUse::RegExpSharedBytecode);
     }
   }
   if (namedCaptureIndices_) {
     size_t length = numNamedCaptures() * sizeof(uint32_t);
-    fop->free_(this, namedCaptureIndices_, length,
+    gcx->free_(this, namedCaptureIndices_, length,
                MemoryUse::RegExpSharedNamedCaptureData);
   }
   tables.~JitCodeTables();
@@ -1088,49 +1079,6 @@ bool js::ParseRegExpFlags(JSContext* cx, JSString* flagStr,
   }
 
   return true;
-}
-
-template <XDRMode mode>
-XDRResult js::XDRScriptRegExpObject(XDRState<mode>* xdr,
-                                    MutableHandle<RegExpObject*> objp) {
-  /* NB: Keep this in sync with CloneScriptRegExpObject. */
-
-  RootedAtom source(xdr->cx());
-  uint8_t flags = 0;
-
-  if (mode == XDR_ENCODE) {
-    MOZ_ASSERT(objp);
-    RegExpObject& reobj = *objp;
-    source = reobj.getSource();
-    flags = reobj.getFlags().value();
-  }
-  MOZ_TRY(XDRAtom(xdr, &source));
-  MOZ_TRY(xdr->codeUint8(&flags));
-  if (mode == XDR_DECODE) {
-    RegExpObject* reobj = RegExpObject::create(
-        xdr->cx(), source, RegExpFlags(flags), TenuredObject);
-    if (!reobj) {
-      return xdr->fail(JS::TranscodeResult::Throw);
-    }
-
-    objp.set(reobj);
-  }
-  return Ok();
-}
-
-template XDRResult js::XDRScriptRegExpObject(XDRState<XDR_ENCODE>* xdr,
-                                             MutableHandle<RegExpObject*> objp);
-
-template XDRResult js::XDRScriptRegExpObject(XDRState<XDR_DECODE>* xdr,
-                                             MutableHandle<RegExpObject*> objp);
-
-JSObject* js::CloneScriptRegExpObject(JSContext* cx, RegExpObject& reobj) {
-  /* NB: Keep this in sync with XDRScriptRegExpObject. */
-
-  RootedAtom source(cx, reobj.getSource());
-  cx->markAtom(source);
-
-  return RegExpObject::create(cx, source, reobj.getFlags(), TenuredObject);
 }
 
 JS::ubi::Node::Size JS::ubi::Concrete<RegExpShared>::size(

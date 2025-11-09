@@ -4,7 +4,6 @@
 
 #include "vm/TraceLogging.h"
 
-#include "mozilla/EndianUtils.h"
 #include "mozilla/MemoryReporting.h"
 
 #include <algorithm>
@@ -24,7 +23,6 @@
 #include "vm/JSContext.h"
 #include "vm/JSScript.h"
 #include "vm/Runtime.h"
-#include "vm/Time.h"
 #include "vm/TraceLoggingGraph.h"
 
 using namespace js;
@@ -1272,7 +1270,7 @@ void TraceLoggerThreadState::enableTextId(JSContext* cx, uint32_t textId) {
     return;
   }
 
-  ReleaseAllJITCode(cx->runtime()->defaultFreeOp());
+  ReleaseAllJITCode(cx->gcContext());
 
   enabledTextIds[textId] = true;
   if (textId == TraceLogger_Engine) {
@@ -1295,7 +1293,7 @@ void TraceLoggerThreadState::disableTextId(JSContext* cx, uint32_t textId) {
     return;
   }
 
-  ReleaseAllJITCode(cx->runtime()->defaultFreeOp());
+  ReleaseAllJITCode(cx->gcContext());
 
   enabledTextIds[textId] = false;
   if (textId == TraceLogger_Engine) {
@@ -1680,8 +1678,6 @@ bool TraceLoggerThread::sortTraceLoggerStats(ScriptMap& map,
 //                  encountered that matches a script event on the top of
 //                  eventStack.
 bool TraceLoggerThread::collectTraceLoggerStats(ScriptMap& map) {
-  uint32_t totalJSTime = 0;
-
   struct eventInfo {
     uint32_t textId;
     uint32_t time;
@@ -1731,7 +1727,6 @@ bool TraceLoggerThread::collectTraceLoggerStats(ScriptMap& map) {
             }
           }
         }
-        totalJSTime += deltaTime;
       }
 
       if (TLTextIdIsScriptEvent(textId)) {
@@ -1778,7 +1773,6 @@ bool TraceLoggerThread::collectTraceLoggerStats(ScriptMap& map) {
           funcStack.popBack();
         }
 
-        totalJSTime += deltaTime;
         startTime = events_[i].time;
       }
     }

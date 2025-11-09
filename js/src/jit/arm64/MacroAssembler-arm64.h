@@ -12,7 +12,6 @@
 #include "jit/MoveResolver.h"
 #include "vm/BigIntType.h"  // JS::BigInt
 #include "wasm/WasmBuiltins.h"
-#include "wasm/WasmTlsData.h"
 
 #ifdef _M_ARM64
 #  ifdef move32
@@ -1131,6 +1130,9 @@ class MacroAssemblerCompat : public vixl::MacroAssembler {
   void cmpPtr(Register lhs, ImmPtr rhs) {
     Cmp(ARMRegister(lhs, 64), Operand(uint64_t(rhs.value)));
   }
+  void cmpPtr(Register lhs, Imm64 rhs) {
+    Cmp(ARMRegister(lhs, 64), Operand(uint64_t(rhs.value)));
+  }
   void cmpPtr(Register lhs, Register rhs) {
     Cmp(ARMRegister(lhs, 64), ARMRegister(rhs, 64));
   }
@@ -1352,6 +1354,9 @@ class MacroAssemblerCompat : public vixl::MacroAssembler {
     Str(scratch32, toMemOperand(dest));
   }
   void adds64(Imm32 imm, Register dest) {
+    Adds(ARMRegister(dest, 64), ARMRegister(dest, 64), Operand(imm.value));
+  }
+  void adds64(ImmWord imm, Register dest) {
     Adds(ARMRegister(dest, 64), ARMRegister(dest, 64), Operand(imm.value));
   }
   void adds64(Register src, Register dest) {
@@ -1580,10 +1585,31 @@ class MacroAssemblerCompat : public vixl::MacroAssembler {
   }
 
   void loadConstantDouble(double d, FloatRegister dest) {
-    Fmov(ARMFPRegister(dest, 64), d);
+    ARMFPRegister r(dest, 64);
+    if (d == 0.0) {
+      // Clang11 does movi for 0 and movi+fneg for -0, and this seems like a
+      // good implementation-independent strategy as it avoids any gpr->fpr
+      // moves or memory traffic.
+      Movi(r, 0);
+      if (std::signbit(d)) {
+        Fneg(r, r);
+      }
+    } else {
+      Fmov(r, d);
+    }
   }
   void loadConstantFloat32(float f, FloatRegister dest) {
-    Fmov(ARMFPRegister(dest, 32), f);
+    ARMFPRegister r(dest, 32);
+    if (f == 0.0) {
+      // See comments above.  There's not a movi variant for a single register,
+      // so clear the double.
+      Movi(ARMFPRegister(dest, 64), 0);
+      if (std::signbit(f)) {
+        Fneg(r, r);
+      }
+    } else {
+      Fmov(r, f);
+    }
   }
 
   void cmpTag(Register tag, ImmTag ref) {
@@ -2216,15 +2242,6 @@ class MacroAssemblerCompat : public vixl::MacroAssembler {
 #ifdef JS_SIMULATOR_ARM64
     svc(vixl::kCheckStackPointer);
 #endif
-  }
-
-  void loadWasmGlobalPtr(uint32_t globalDataOffset, Register dest) {
-    loadPtr(Address(WasmTlsReg,
-                    offsetof(wasm::TlsData, globalArea) + globalDataOffset),
-            dest);
-  }
-  void loadWasmPinnedRegsFromTls() {
-    loadPtr(Address(WasmTlsReg, offsetof(wasm::TlsData, memoryBase)), HeapReg);
   }
 
   // Overwrites the payload bits of a dest register containing a Value.

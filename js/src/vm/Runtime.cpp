@@ -6,6 +6,9 @@
 
 #include "mozilla/Atomics.h"
 #include "mozilla/DebugOnly.h"
+#if JS_HAS_INTL_API
+#  include "mozilla/intl/Locale.h"
+#endif
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/ThreadLocal.h"
 
@@ -24,7 +27,6 @@
 #include "jsmath.h"
 
 #include "frontend/CompilationStencil.h"
-#include "gc/FreeOp.h"
 #include "gc/PublicIterators.h"
 #include "jit/IonCompileTask.h"
 #include "jit/JitRuntime.h"
@@ -36,9 +38,6 @@
 #include "js/MemoryMetrics.h"
 #include "js/SliceBudget.h"
 #include "js/Wrapper.h"
-#if JS_HAS_INTL_API
-#  include "unicode/uloc.h"
-#endif
 #include "util/WindowsWrapper.h"
 #include "vm/DateTime.h"
 #include "vm/JSAtom.h"
@@ -122,7 +121,6 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
       activeThreadHasScriptDataAccess(false),
 #endif
       numParseTasks(0),
-      numActiveHelperThreadZones(0),
       numRealms(0),
       numDebuggeeRealms_(0),
       numDebuggeeRealmsObservingCoverage_(0),
@@ -135,7 +133,6 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
       gc(thisFromCtor()),
       gcInitialized(false),
       emptyString(nullptr),
-      defaultFreeOp_(nullptr),
 #if !JS_HAS_INTL_API
       thousandsSeparator(nullptr),
       decimalSeparator(nullptr),
@@ -144,7 +141,6 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
       beingDestroyed_(false),
       allowContentJS_(true),
       atoms_(nullptr),
-      permanentAtomsDuringInit_(nullptr),
       permanentAtoms_(nullptr),
       staticStrings(nullptr),
       commonNames(nullptr),
@@ -154,10 +150,6 @@ JSRuntime::JSRuntime(JSRuntime* parentRuntime)
       afterWaitCallback(nullptr),
       offthreadIonCompilationEnabled_(true),
       parallelParsingEnabled_(true),
-#ifdef DEBUG
-      offThreadParsesRunning_(0),
-      offThreadParsingBlocked_(false),
-#endif
       autoWritableJitCodeActive_(false),
       oomCallback(nullptr),
       debuggerMallocSizeOf(ReturnZeroSize),
@@ -187,9 +179,6 @@ JSRuntime::~JSRuntime() {
 
   MOZ_ASSERT(wasmInstances.lock()->empty());
 
-  MOZ_ASSERT(offThreadParsesRunning_ == 0);
-  MOZ_ASSERT(!offThreadParsingBlocked_);
-
   MOZ_ASSERT(numRealms == 0);
   MOZ_ASSERT(numDebuggeeRealms_ == 0);
   MOZ_ASSERT(numDebuggeeRealmsObservingCoverage_ == 0);
@@ -206,8 +195,6 @@ bool JSRuntime::init(JSContext* cx, uint32_t maxbytes) {
   }
 
   mainContext_ = cx;
-
-  defaultFreeOp_ = cx->defaultFreeOp();
 
   if (!gc.init(maxbytes)) {
     return false;
@@ -252,10 +239,13 @@ void JSRuntime::destroyRuntime() {
   sharedIntlData.ref().destroyInstance();
 #endif
 
+  // Caches might hold on ScriptData which are saved in the ScriptDataTable.
+  // Clear all stencils from caches to remove ScriptDataTable entries.
+  caches().purgeStencils();
+
   if (gcInitialized) {
     /*
-     * Finish any in-progress GCs first. This ensures the parseWaitingOnGC
-     * list is empty in CancelOffThreadParses.
+     * Finish any in-progress GCs first.
      */
     JSContext* cx = mainContextFromOwnThread();
     if (JS::IsIncrementalGCInProgress(cx)) {
@@ -273,6 +263,7 @@ void JSRuntime::destroyRuntime() {
      */
     CancelOffThreadIonCompile(this);
     CancelOffThreadParses(this);
+    CancelOffThreadDelazify(this);
     CancelOffThreadCompressions(this);
 
     /*
@@ -288,12 +279,10 @@ void JSRuntime::destroyRuntime() {
     profilingScripts = false;
 
     JS::PrepareForFullGC(cx);
-    gc.gc(JS::GCOptions::Normal, JS::GCReason::DESTROY_RUNTIME);
+    gc.gc(JS::GCOptions::Shutdown, JS::GCReason::DESTROY_RUNTIME);
   }
 
   AutoNoteSingleThreadedRegion anstr;
-
-  MOZ_ASSERT(!hasHelperThreadZones());
 
 #ifdef DEBUG
   {
@@ -314,11 +303,6 @@ void JSRuntime::destroyRuntime() {
 #ifdef DEBUG
   initialized_ = false;
 #endif
-}
-
-void JSRuntime::setSourceElementCallback(JSRuntime* rt,
-                                         JSSourceElementCallback callback) {
-  rt->sourceElementCallback = callback;
 }
 
 void JSRuntime::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
@@ -511,7 +495,7 @@ const char* JSRuntime::getDefaultLocale() {
   // Use ICU if available to retrieve the default locale, this ensures ICU's
   // default locale matches our default locale.
 #if JS_HAS_INTL_API
-  const char* locale = uloc_getDefault();
+  const char* locale = mozilla::intl::Locale::GetDefaultLocale();
 #else
   const char* locale = setlocale(LC_ALL, nullptr);
 #endif
@@ -543,17 +527,6 @@ void JSRuntime::traceSharedIntlData(JSTracer* trc) {
   sharedIntlData.ref().trace(trc);
 }
 #endif
-
-JSFreeOp::JSFreeOp(JSRuntime* maybeRuntime, bool isDefault)
-    : runtime_(maybeRuntime), isDefault(isDefault), isCollecting_(!isDefault) {
-  MOZ_ASSERT_IF(maybeRuntime, CurrentThreadCanAccessRuntime(maybeRuntime));
-}
-
-JSFreeOp::~JSFreeOp() {
-  if (!jitPoisonRanges.empty()) {
-    jit::ExecutableAllocator::poisonCode(runtime(), jitPoisonRanges);
-  }
-}
 
 GlobalObject* JSRuntime::getIncumbentGlobal(JSContext* cx) {
   MOZ_ASSERT(cx->jobQueue);
@@ -720,31 +693,6 @@ bool JSRuntime::activeGCInAtomsZone() {
          zone->wasGCStarted();
 }
 
-void JSRuntime::setUsedByHelperThread(Zone* zone) {
-  MOZ_ASSERT(!zone->usedByHelperThread());
-  MOZ_ASSERT(!zone->wasGCStarted());
-  MOZ_ASSERT(!isOffThreadParsingBlocked());
-
-  zone->setUsedByHelperThread();
-  if (numActiveHelperThreadZones++ == 0) {
-    gc.setParallelAtomsAllocEnabled(true);
-  }
-}
-
-void JSRuntime::clearUsedByHelperThread(Zone* zone) {
-  MOZ_ASSERT(zone->usedByHelperThread());
-
-  zone->clearUsedByHelperThread();
-  if (--numActiveHelperThreadZones == 0) {
-    gc.setParallelAtomsAllocEnabled(false);
-  }
-
-  JSContext* cx = mainContextFromOwnThread();
-  if (gc.fullGCForAtomsRequested() && cx->canCollectAtoms()) {
-    gc.triggerFullGCForAtoms(cx);
-  }
-}
-
 void JSRuntime::incrementNumDebuggeeRealms() {
   if (numDebuggeeRealms_ == 0) {
     jitRuntime()->baselineInterpreter().toggleDebuggerInstrumentation(true);
@@ -794,21 +742,8 @@ bool js::CurrentThreadCanAccessRuntime(const JSRuntime* rt) {
 }
 
 bool js::CurrentThreadCanAccessZone(Zone* zone) {
-  // Helper thread zones can only be used by their owning thread.
-  if (zone->usedByHelperThread()) {
-    return zone->ownedByCurrentHelperThread();
-  }
-
-  // Other zones can only be accessed by the runtime's active context.
   return CurrentThreadCanAccessRuntime(zone->runtime_);
 }
-
-#ifdef DEBUG
-bool js::CurrentThreadIsPerformingGC() {
-  JSContext* cx = TlsContext.get();
-  return cx->defaultFreeOp()->isCollecting();
-}
-#endif
 
 JS_PUBLIC_API void JS::SetJSContextProfilerSampleBufferRangeStart(
     JSContext* cx, uint64_t rangeStart) {

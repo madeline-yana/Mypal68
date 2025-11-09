@@ -67,6 +67,7 @@ class FloatRegisters {
   typedef FPRegisterID Code;
   typedef FPRegisterID Encoding;
   union RegisterContent {
+    float s;
     double d;
   };
 

@@ -10,8 +10,7 @@
 #include "frontend/TDZCheckCache.h"
 #include "js/friend/ErrorMessages.h"  // JSMSG_*
 #include "vm/EnvironmentObject.h"     // ClassBodyLexicalEnvironmentObject
-#include "vm/GlobalObject.h"
-#include "vm/WellKnownAtom.h"  // js_*_str
+#include "vm/WellKnownAtom.h"         // js_*_str
 
 using namespace js;
 using namespace js::frontend;
@@ -48,7 +47,7 @@ bool EmitterScope::checkEnvironmentChainLength(BytecodeEmitter* bce) {
   uint32_t hops;
   if (EmitterScope* emitterScope = enclosing(&bce)) {
     hops = emitterScope->environmentChainLength_;
-  } else if (bce->compilationState.input.enclosingScope) {
+  } else if (!bce->compilationState.input.enclosingScope.isNull()) {
     hops =
         bce->compilationState.scopeContext.enclosingScopeEnvironmentChainLength;
   } else {

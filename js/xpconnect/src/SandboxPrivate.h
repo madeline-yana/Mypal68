@@ -6,11 +6,17 @@
 #define __SANDBOXPRIVATE_H__
 
 #include "mozilla/WeakPtr.h"
+#include "mozilla/StaticPrefs_dom.h"
+#include "mozilla/StorageAccess.h"
+#include "mozilla/net/CookieSettings.h"
 #include "nsIGlobalObject.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIPrincipal.h"
+#include "nsGlobalWindowInner.h"
 #include "nsWeakReference.h"
 #include "nsWrapperCache.h"
+
+#include "js/loader/ModuleLoaderBase.h"
 
 #include "js/Object.h"  // JS::GetPrivate, JS::SetPrivate
 #include "js/RootingAPI.h"
@@ -55,12 +61,26 @@ class SandboxPrivate : public nsIGlobalObject,
     return GetWrapperPreserveColor();
   }
 
+  mozilla::StorageAccess GetStorageAccess() final {
+    MOZ_ASSERT(NS_IsMainThread());
+    if (mozilla::StaticPrefs::dom_serviceWorkers_testing_enabled()) {
+      // XXX: This is a hack to workaround bug 1732159 and is not intended
+      return mozilla::StorageAccess::eAllow;
+    }
+    nsCOMPtr<nsICookieSettings> cookieSettings =
+        mozilla::net::CookieSettings::Create();
+    return mozilla::StorageAllowedForServiceWorker(mPrincipal,
+                                                   cookieSettings);
+  }
+
   void ForgetGlobalObject(JSObject* obj) { ClearWrapper(obj); }
 
   virtual JSObject* WrapObject(JSContext* cx,
                                JS::Handle<JSObject*> aGivenProto) override {
     MOZ_CRASH("SandboxPrivate doesn't use DOM bindings!");
   }
+
+  JS::loader::ModuleLoaderBase* GetModuleLoader(JSContext* aCx) override;
 
   size_t ObjectMoved(JSObject* obj, JSObject* old) {
     UpdateWrapper(obj, old);
@@ -73,6 +93,8 @@ class SandboxPrivate : public nsIGlobalObject,
   virtual ~SandboxPrivate() = default;
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
+
+  RefPtr<JS::loader::ModuleLoaderBase> mModuleLoader;
 };
 
 #endif  // __SANDBOXPRIVATE_H__

@@ -31,10 +31,8 @@
 #include "builtin/JSON.h"
 #include "builtin/Promise.h"
 #include "builtin/Symbol.h"
-#include "frontend/BytecodeCompilation.h"  // frontend::CompileGlobalScriptToStencil, frontend::InstantiateStencils
 #include "frontend/BytecodeCompiler.h"
-#include "frontend/CompilationStencil.h"  // frontend::CompilationStencil, frontend::CompilationGCOutput
-#include "gc/FreeOp.h"
+#include "gc/GCContext.h"
 #include "gc/Marking.h"
 #include "gc/PublicIterators.h"
 #include "jit/JitSpewer.h"
@@ -53,7 +51,6 @@
 #include "js/LocaleSensitive.h"
 #include "js/MemoryCallbacks.h"
 #include "js/MemoryFunctions.h"
-#include "js/OffThreadScriptCompilation.h"  // js::UseOffThreadParseGlobal
 #include "js/PropertySpec.h"
 #include "js/Proxy.h"
 #include "js/ScriptPrivate.h"
@@ -88,7 +85,6 @@
 #include "vm/StringType.h"
 #include "vm/ToSource.h"
 #include "vm/WrapperObject.h"
-#include "vm/Xdr.h"
 #include "wasm/WasmModule.h"
 #include "wasm/WasmProcess.h"
 
@@ -113,12 +109,6 @@ using JS::AutoStableStringChars;
 using JS::CompileOptions;
 using JS::ReadOnlyCompileOptions;
 using JS::SourceText;
-
-#ifdef HAVE_VA_LIST_AS_ARRAY
-#  define JS_ADDRESSOF_VA_LIST(ap) ((va_list*)(ap))
-#else
-#  define JS_ADDRESSOF_VA_LIST(ap) (&(ap))
-#endif
 
 // See preprocessor definition of JS_BITS_PER_WORD in jstypes.h; make sure
 // JS_64BIT (used internally) agrees with it
@@ -271,6 +261,18 @@ JS_PUBLIC_API bool JS::ObjectOpResult::failNoIndexedSetter() {
 
 JS_PUBLIC_API bool JS::ObjectOpResult::failNotDataDescriptor() {
   return fail(JSMSG_NOT_DATA_DESCRIPTOR);
+}
+
+JS_PUBLIC_API bool JS::ObjectOpResult::failInvalidDescriptor() {
+  return fail(JSMSG_INVALID_DESCRIPTOR);
+}
+
+JS_PUBLIC_API bool JS::ObjectOpResult::failBadArrayLength() {
+  return fail(JSMSG_BAD_ARRAY_LENGTH);
+}
+
+JS_PUBLIC_API bool JS::ObjectOpResult::failBadIndex() {
+  return fail(JSMSG_BAD_INDEX);
 }
 
 JS_PUBLIC_API int64_t JS_Now() { return PRMJ_Now(); }
@@ -1159,10 +1161,6 @@ JS_PUBLIC_API void* JS_string_realloc(JSContext* cx, void* p, size_t oldBytes,
 
 JS_PUBLIC_API void JS_string_free(JSContext* cx, void* p) { return js_free(p); }
 
-JS_PUBLIC_API void JS_freeop(JSFreeOp* fop, void* p) {
-  return fop->freeUntracked(p);
-}
-
 JS_PUBLIC_API void JS::AddAssociatedMemory(JSObject* obj, size_t nbytes,
                                            JS::MemoryUse use) {
   MOZ_ASSERT(obj);
@@ -1184,7 +1182,7 @@ JS_PUBLIC_API void JS::RemoveAssociatedMemory(JSObject* obj, size_t nbytes,
   }
 
   JSRuntime* rt = obj->runtimeFromAnyThread();
-  rt->defaultFreeOp()->removeCellMemory(obj, nbytes, js::MemoryUse(use));
+  rt->gcContext()->removeCellMemory(obj, nbytes, js::MemoryUse(use));
 }
 
 #undef JS_AddRoot
@@ -1292,14 +1290,14 @@ JS_PUBLIC_API void JS_RemoveWeakPointerCompartmentCallback(
   cx->runtime()->gc.removeWeakPointerCompartmentCallback(cb);
 }
 
-JS_PUBLIC_API void JS_UpdateWeakPointerAfterGC(JS::Heap<JSObject*>* objp) {
-  JS_UpdateWeakPointerAfterGCUnbarriered(objp->unsafeGet());
+JS_PUBLIC_API bool JS_UpdateWeakPointerAfterGC(JSTracer* trc,
+                                               JS::Heap<JSObject*>* objp) {
+  return TraceWeakEdge(trc, objp);
 }
 
-JS_PUBLIC_API void JS_UpdateWeakPointerAfterGCUnbarriered(JSObject** objp) {
-  if (IsAboutToBeFinalizedUnbarriered(objp)) {
-    *objp = nullptr;
-  }
+JS_PUBLIC_API bool JS_UpdateWeakPointerAfterGCUnbarriered(JSTracer* trc,
+                                                          JSObject** objp) {
+  return TraceManuallyBarrieredWeakEdge(trc, objp, "External weak pointer");
 }
 
 JS_PUBLIC_API void JS_SetGCParameter(JSContext* cx, JSGCParamKey key,
@@ -1565,7 +1563,7 @@ JS_PUBLIC_API bool JS_HasInstance(JSContext* cx, HandleObject obj,
                                   HandleValue value, bool* bp) {
   AssertHeapIsIdle();
   cx->check(obj, value);
-  return HasInstance(cx, obj, value, bp);
+  return InstanceofOperator(cx, obj, value, bp);
 }
 
 JS_PUBLIC_API void SetPrivate(JSObject* obj, void* data) {
@@ -1679,23 +1677,18 @@ JS_PUBLIC_API void JS_GlobalObjectTraceHook(JSTracer* trc, JSObject* global) {
   GlobalObject* globalObj = &global->as<GlobalObject>();
   Realm* globalRealm = globalObj->realm();
 
-  // Off thread parsing and compilation tasks create a dummy global which is
-  // then merged back into the host realm. Since it used to be a global, it
-  // will still have this trace hook, but it does not have a meaning relative
-  // to its new realm. We can safely skip it.
-  //
-  // Similarly, if we GC when creating the global, we may not have set that
-  // global's realm's global pointer yet. In this case, the realm will not yet
-  // contain anything that needs to be traced.
+  // If we GC when creating the global, we may not have set that global's
+  // realm's global pointer yet. In this case, the realm will not yet contain
+  // anything that needs to be traced.
   if (globalRealm->unsafeUnbarrieredMaybeGlobal() != globalObj) {
     return;
   }
 
   // Trace the realm for any GC things that should only stick around if we
   // know the global is live.
-  globalRealm->traceGlobal(trc);
+  globalRealm->traceGlobalData(trc);
 
-  globalObj->traceData(trc);
+  globalObj->traceData(trc, globalObj);
 
   if (JSTraceOp trace = globalRealm->creationOptions().getTrace()) {
     trace(trc, global);
@@ -1711,7 +1704,6 @@ const JSClassOps JS::DefaultGlobalClassOps = {
     JS_MayResolveStandardClass,      // mayResolve
     nullptr,                         // finalize
     nullptr,                         // call
-    nullptr,                         // hasInstance
     nullptr,                         // construct
     JS_GlobalObjectTraceHook,        // trace
 };
@@ -1934,12 +1926,11 @@ JS_PUBLIC_API bool JSPropertySpec::getValue(JSContext* cx,
 }
 
 bool PropertySpecNameToId(JSContext* cx, JSPropertySpec::Name name,
-                          MutableHandleId id,
-                          js::PinningBehavior pin = js::DoNotPinAtom) {
+                          MutableHandleId id) {
   if (name.isSymbol()) {
-    id.set(SYMBOL_TO_JSID(cx->wellKnownSymbols().get(name.symbol())));
+    id.set(PropertyKey::Symbol(cx->wellKnownSymbols().get(name.symbol())));
   } else {
-    JSAtom* atom = Atomize(cx, name.string(), strlen(name.string()), pin);
+    JSAtom* atom = Atomize(cx, name.string(), strlen(name.string()));
     if (!atom) {
       return false;
     }
@@ -1955,8 +1946,16 @@ JS_PUBLIC_API bool JS::PropertySpecNameToPermanentId(JSContext* cx,
   // location that will never be marked. This is OK because the whole point
   // of this API is to populate *idp with a jsid that does not need to be
   // marked.
-  return PropertySpecNameToId(
-      cx, name, MutableHandleId::fromMarkedLocation(idp), js::PinAtom);
+  MutableHandleId id = MutableHandleId::fromMarkedLocation(idp);
+  if (!PropertySpecNameToId(cx, name, id)) {
+    return false;
+  }
+
+  if (id.isString() && !PinAtom(cx, &id.toString()->asAtom())) {
+    return false;
+  }
+
+  return true;
 }
 
 JS_PUBLIC_API bool JS::ObjectToCompletePropertyDescriptor(
@@ -2110,11 +2109,11 @@ JS_PUBLIC_API JSFunction* JS::NewFunctionFromSpec(JSContext* cx,
 
 #ifdef DEBUG
   if (fs->name.isSymbol()) {
-    MOZ_ASSERT(SYMBOL_TO_JSID(cx->wellKnownSymbols().get(fs->name.symbol())) ==
-               id);
+    JS::Symbol* sym = cx->wellKnownSymbols().get(fs->name.symbol());
+    MOZ_ASSERT(PropertyKey::Symbol(sym) == id);
   } else {
-    MOZ_ASSERT(JSID_IS_STRING(id) &&
-               StringEqualsAscii(JSID_TO_LINEAR_STRING(id), fs->name.string()));
+    MOZ_ASSERT(id.isString() &&
+               StringEqualsAscii(id.toLinearString(), fs->name.string()));
   }
 #endif
 
@@ -2215,30 +2214,38 @@ extern JS_PUBLIC_API bool JS_IsConstructor(JSFunction* fun) {
 
 void JS::TransitiveCompileOptions::copyPODTransitiveOptions(
     const TransitiveCompileOptions& rhs) {
+  // filename_, introducerFilename_, sourceMapURL_ should be handled in caller.
+
   mutedErrors_ = rhs.mutedErrors_;
-  forceFullParse_ = rhs.forceFullParse_;
   forceStrictMode_ = rhs.forceStrictMode_;
-  skipFilenameValidation_ = rhs.skipFilenameValidation_;
   sourcePragmas_ = rhs.sourcePragmas_;
+  skipFilenameValidation_ = rhs.skipFilenameValidation_;
+  hideScriptFromDebugger_ = rhs.hideScriptFromDebugger_;
+  deferDebugMetadata_ = rhs.deferDebugMetadata_;
+  eagerDelazificationStrategy_ = rhs.eagerDelazificationStrategy_;
+
   selfHostingMode = rhs.selfHostingMode;
   asmJSOption = rhs.asmJSOption;
   throwOnAsmJSValidationFailureOption = rhs.throwOnAsmJSValidationFailureOption;
   forceAsync = rhs.forceAsync;
   discardSource = rhs.discardSource;
   sourceIsLazy = rhs.sourceIsLazy;
+  allowHTMLComments = rhs.allowHTMLComments;
+  nonSyntacticScope = rhs.nonSyntacticScope;
+
+  topLevelAwait = rhs.topLevelAwait;
+  importAssertions = rhs.importAssertions;
+  useFdlibmForSinCosTan = rhs.useFdlibmForSinCosTan;
+
+  borrowBuffer = rhs.borrowBuffer;
+  usePinnedBytecode = rhs.usePinnedBytecode;
+  allocateInstantiationStorage = rhs.allocateInstantiationStorage;
+  deoptimizeModuleGlobalVars = rhs.deoptimizeModuleGlobalVars;
+
   introductionType = rhs.introductionType;
   introductionLineno = rhs.introductionLineno;
   introductionOffset = rhs.introductionOffset;
   hasIntroductionInfo = rhs.hasIntroductionInfo;
-  hideScriptFromDebugger = rhs.hideScriptFromDebugger;
-  deferDebugMetadata = rhs.deferDebugMetadata;
-  nonSyntacticScope = rhs.nonSyntacticScope;
-  privateClassFields = rhs.privateClassFields;
-  privateClassMethods = rhs.privateClassMethods;
-  classStaticBlocks = rhs.classStaticBlocks;
-  useStencilXDR = rhs.useStencilXDR;
-  useOffThreadParseGlobal = rhs.useOffThreadParseGlobal;
-  useFdlibmForSinCosTan = rhs.useFdlibmForSinCosTan;
 };
 
 void JS::ReadOnlyCompileOptions::copyPODNonTransitiveOptions(
@@ -2311,20 +2318,16 @@ JS::CompileOptions::CompileOptions(JSContext* cx) : ReadOnlyCompileOptions() {
     asmJSOption = !cx->options().asmJS()
                       ? AsmJSOption::DisabledByAsmJSPref
                       : AsmJSOption::DisabledByNoWasmCompiler;
-  } else if (cx->realm() && cx->realm()->debuggerObservesAsmJS()) {
+  } else if (cx->realm() && (cx->realm()->debuggerObservesWasm() ||
+                             cx->realm()->debuggerObservesAsmJS())) {
     asmJSOption = AsmJSOption::DisabledByDebugger;
   } else {
     asmJSOption = AsmJSOption::Enabled;
   }
   throwOnAsmJSValidationFailureOption =
       cx->options().throwOnAsmJSValidationFailure();
-  privateClassFields = cx->options().privateClassFields();
-  privateClassMethods = cx->options().privateClassMethods();
 
-  classStaticBlocks = cx->options().classStaticBlocks();
-
-  useStencilXDR = !UseOffThreadParseGlobal();
-  useOffThreadParseGlobal = UseOffThreadParseGlobal();
+  importAssertions = cx->options().importAssertions();
 
   useFdlibmForSinCosTan = math_use_fdlibm_for_sin_cos_tan();
 
@@ -2334,7 +2337,9 @@ JS::CompileOptions::CompileOptions(JSContext* cx) : ReadOnlyCompileOptions() {
   forceStrictMode_ = cx->options().strictMode();
 
   // Certain modes of operation disallow syntax parsing in general.
-  forceFullParse_ = coverage::IsLCovEnabled();
+  if (coverage::IsLCovEnabled()) {
+    eagerDelazificationStrategy_ = DelazificationOption::ParseEverythingEagerly;
+  }
 
   // Note: If we parse outside of a specific realm, we do not inherit any realm
   // behaviours. These can still be set manually on the options though.
@@ -2427,7 +2432,7 @@ JS_PUBLIC_API void JS::SetScriptPrivate(JSScript* script,
 }
 
 JS_PUBLIC_API JS::Value JS::GetScriptPrivate(JSScript* script) {
-  return script->sourceObject()->canonicalPrivate();
+  return script->sourceObject()->getPrivate();
 }
 
 JS_PUBLIC_API JS::Value JS::GetScriptedCallerPrivate(JSContext* cx) {
@@ -2439,7 +2444,7 @@ JS_PUBLIC_API JS::Value JS::GetScriptedCallerPrivate(JSContext* cx) {
     return UndefinedValue();
   }
 
-  return iter.script()->sourceObject()->canonicalPrivate();
+  return iter.script()->sourceObject()->getPrivate();
 }
 
 JS_PUBLIC_API void JS::SetScriptPrivateReferenceHooks(
@@ -2534,9 +2539,8 @@ JS_PUBLIC_API JSObject* JS::GetPromisePrototype(JSContext* cx) {
   return GlobalObject::getOrCreatePromisePrototype(cx, global);
 }
 
-JS_PUBLIC_API JS::PromiseState JS::GetPromiseState(
-    JS::HandleObject promiseObj_) {
-  PromiseObject* promiseObj = promiseObj_->maybeUnwrapIf<PromiseObject>();
+JS_PUBLIC_API JS::PromiseState JS::GetPromiseState(JS::HandleObject promise) {
+  PromiseObject* promiseObj = promise->maybeUnwrapIf<PromiseObject>();
   if (!promiseObj) {
     return JS::PromiseState::Pending;
   }
@@ -2555,31 +2559,51 @@ JS_PUBLIC_API JS::Value JS::GetPromiseResult(JS::HandleObject promiseObj) {
                                                          : promise->reason();
 }
 
-JS_PUBLIC_API bool JS::GetPromiseIsHandled(JS::HandleObject promiseObj) {
-  PromiseObject* promise = &promiseObj->as<PromiseObject>();
-  return !promise->isUnhandled();
+JS_PUBLIC_API bool JS::GetPromiseIsHandled(JS::HandleObject promise) {
+  PromiseObject* promiseObj = &promise->as<PromiseObject>();
+  return !promiseObj->isUnhandled();
 }
 
-JS_PUBLIC_API void JS::SetSettledPromiseIsHandled(JSContext* cx,
-                                                  JS::HandleObject promise) {
+static PromiseObject* UnwrapPromise(JSContext* cx, JS::HandleObject promise,
+                                    mozilla::Maybe<AutoRealm>& ar) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
   cx->check(promise);
 
-  mozilla::Maybe<AutoRealm> ar;
-  Rooted<PromiseObject*> promiseObj(cx);
+  PromiseObject* promiseObj;
   if (IsWrapper(promise)) {
     promiseObj = promise->maybeUnwrapAs<PromiseObject>();
     if (!promiseObj) {
       ReportAccessDenied(cx);
-      return;
+      return nullptr;
     }
     ar.emplace(cx, promiseObj);
   } else {
     promiseObj = promise.as<PromiseObject>();
   }
+  return promiseObj;
+}
 
+JS_PUBLIC_API bool JS::SetSettledPromiseIsHandled(JSContext* cx,
+                                                  JS::HandleObject promise) {
+  mozilla::Maybe<AutoRealm> ar;
+  Rooted<PromiseObject*> promiseObj(cx, UnwrapPromise(cx, promise, ar));
+  if (!promiseObj) {
+    return false;
+  }
   js::SetSettledPromiseIsHandled(cx, promiseObj);
+  return true;
+}
+
+JS_PUBLIC_API bool JS::SetAnyPromiseIsHandled(JSContext* cx,
+                                              JS::HandleObject promise) {
+  mozilla::Maybe<AutoRealm> ar;
+  Rooted<PromiseObject*> promiseObj(cx, UnwrapPromise(cx, promise, ar));
+  if (!promiseObj) {
+    return false;
+  }
+  js::SetAnyPromiseIsHandled(cx, promiseObj);
+  return true;
 }
 
 JS_PUBLIC_API JSObject* JS::GetPromiseAllocationSite(JS::HandleObject promise) {
@@ -2872,14 +2896,14 @@ JS_PUBLIC_API JSString* JS_NewStringCopyUTF8Z(JSContext* cx,
                                               const JS::ConstUTF8CharsZ s) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  return NewStringCopyUTF8Z<CanGC>(cx, s);
+  return NewStringCopyUTF8Z(cx, s);
 }
 
 JS_PUBLIC_API JSString* JS_NewStringCopyUTF8N(JSContext* cx,
                                               const JS::UTF8Chars s) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  return NewStringCopyUTF8N<CanGC>(cx, s);
+  return NewStringCopyUTF8N(cx, s);
 }
 
 JS_PUBLIC_API bool JS_StringHasBeenPinned(JSContext* cx, JSString* str) {
@@ -2897,7 +2921,10 @@ JS_PUBLIC_API JSString* JS_AtomizeAndPinJSString(JSContext* cx,
                                                  HandleString str) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  JSAtom* atom = AtomizeString(cx, str, PinAtom);
+  JSAtom* atom = AtomizeString(cx, str);
+  if (!atom || !PinAtom(cx, atom)) {
+    return nullptr;
+  }
   MOZ_ASSERT_IF(atom, JS_StringHasBeenPinned(cx, atom));
   return atom;
 }
@@ -2910,7 +2937,7 @@ JS_PUBLIC_API JSString* JS_AtomizeStringN(JSContext* cx, const char* s,
                                           size_t length) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  return Atomize(cx, s, length, DoNotPinAtom);
+  return Atomize(cx, s, length);
 }
 
 JS_PUBLIC_API JSString* JS_AtomizeAndPinString(JSContext* cx, const char* s) {
@@ -2921,8 +2948,14 @@ JS_PUBLIC_API JSString* JS_AtomizeAndPinStringN(JSContext* cx, const char* s,
                                                 size_t length) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  JSAtom* atom = Atomize(cx, s, length, PinAtom);
-  MOZ_ASSERT_IF(atom, JS_StringHasBeenPinned(cx, atom));
+
+  JSAtom* atom = cx->zone() ? Atomize(cx, s, length)
+                            : AtomizeWithoutActiveZone(cx, s, length);
+  if (!atom || !PinAtom(cx, atom)) {
+    return nullptr;
+  }
+
+  MOZ_ASSERT(JS_StringHasBeenPinned(cx, atom));
   return atom;
 }
 
@@ -2977,7 +3010,7 @@ JS_PUBLIC_API JSString* JS_AtomizeUCStringN(JSContext* cx, const char16_t* s,
                                             size_t length) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  return AtomizeChars(cx, s, length, DoNotPinAtom);
+  return AtomizeChars(cx, s, length);
 }
 
 JS_PUBLIC_API JSString* JS_AtomizeAndPinUCStringN(JSContext* cx,
@@ -2985,7 +3018,10 @@ JS_PUBLIC_API JSString* JS_AtomizeAndPinUCStringN(JSContext* cx,
                                                   size_t length) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  JSAtom* atom = AtomizeChars(cx, s, length, PinAtom);
+  JSAtom* atom = AtomizeChars(cx, s, length);
+  if (!atom || !PinAtom(cx, atom)) {
+    return nullptr;
+  }
   MOZ_ASSERT_IF(atom, JS_StringHasBeenPinned(cx, atom));
   return atom;
 }
@@ -3298,6 +3334,11 @@ JS_PUBLIC_API JS::SymbolCode JS::GetSymbolCode(Handle<Symbol*> symbol) {
 JS_PUBLIC_API JS::Symbol* JS::GetWellKnownSymbol(JSContext* cx,
                                                  JS::SymbolCode which) {
   return cx->wellKnownSymbols().get(which);
+}
+
+JS_PUBLIC_API JS::PropertyKey JS::GetWellKnownSymbolKey(JSContext* cx,
+                                                        JS::SymbolCode which) {
+  return PropertyKey::Symbol(cx->wellKnownSymbols().get(which));
 }
 
 #ifdef DEBUG
@@ -3618,7 +3659,7 @@ JS_PUBLIC_API void JS_SetPendingException(JSContext* cx, HandleValue value,
   // exception values can be in an abitrary compartment.
 
   if (behavior == JS::ExceptionStackBehavior::Capture) {
-    cx->setPendingExceptionAndCaptureStack(value);
+    cx->setPendingException(value, ShouldCaptureStack::Always);
   } else {
     cx->setPendingException(value, nullptr);
   }
@@ -3971,18 +4012,18 @@ JS_PUBLIC_API void JS_SetGlobalJitCompilerOption(JSContext* cx,
       if (value == 1) {
         jit::JitOptions.baselineInterpreter = true;
       } else if (value == 0) {
-        ReleaseAllJITCode(rt->defaultFreeOp());
+        ReleaseAllJITCode(rt->gcContext());
         jit::JitOptions.baselineInterpreter = false;
       }
       break;
     case JSJITCOMPILER_BASELINE_ENABLE:
       if (value == 1) {
         jit::JitOptions.baselineJit = true;
-        ReleaseAllJITCode(rt->defaultFreeOp());
+        ReleaseAllJITCode(rt->gcContext());
         JitSpew(js::jit::JitSpew_BaselineScripts, "Enable baseline");
       } else if (value == 0) {
         jit::JitOptions.baselineJit = false;
-        ReleaseAllJITCode(rt->defaultFreeOp());
+        ReleaseAllJITCode(rt->gcContext());
         JitSpew(js::jit::JitSpew_BaselineScripts, "Disable baseline");
       }
       break;
@@ -4026,6 +4067,9 @@ JS_PUBLIC_API void JS_SetGlobalJitCompilerOption(JSContext* cx,
       break;
     case JSJITCOMPILER_SPECTRE_JIT_TO_CXX_CALLS:
       jit::JitOptions.spectreJitToCxxCalls = !!value;
+      break;
+    case JSJITCOMPILER_WATCHTOWER_MEGAMORPHIC:
+      jit::JitOptions.enableWatchtowerMegamorphic = !!value;
       break;
     case JSJITCOMPILER_WASM_FOLD_OFFSETS:
       jit::JitOptions.wasmFoldOffsets = !!value;
@@ -4100,6 +4144,9 @@ JS_PUBLIC_API bool JS_GetGlobalJitCompilerOption(JSContext* cx,
       break;
     case JSJITCOMPILER_OFFTHREAD_COMPILATION_ENABLE:
       *valueOut = rt->canUseOffthreadIonCompilation();
+      break;
+    case JSJITCOMPILER_WATCHTOWER_MEGAMORPHIC:
+      *valueOut = jit::JitOptions.enableWatchtowerMegamorphic ? 1 : 0;
       break;
     case JSJITCOMPILER_WASM_FOLD_OFFSETS:
       *valueOut = jit::JitOptions.wasmFoldOffsets ? 1 : 0;
@@ -4401,166 +4448,6 @@ JS_PUBLIC_API void JS::detail::AssertArgumentsAreSane(JSContext* cx,
 }
 #endif /* JS_DEBUG */
 
-JS_PUBLIC_API JS::TranscodeResult JS::EncodeScript(JSContext* cx,
-                                                   TranscodeBuffer& buffer,
-                                                   HandleScript scriptArg) {
-  // Run-once top-level scripts may mutate singleton objects so do not allow
-  // encoding them. It could be possible to encode early enough to avoid this,
-  // but for consistency with `CopyScriptImpl` we always disallow.
-  MOZ_ASSERT(!scriptArg->isFunction());
-  if (scriptArg->treatAsRunOnce()) {
-    return JS::TranscodeResult::Failure_RunOnceNotSupported;
-  }
-
-  XDREncoder encoder(cx, buffer, buffer.length());
-  RootedScript script(cx, scriptArg);
-  XDRResult res = encoder.codeScript(&script);
-  if (res.isErr()) {
-    buffer.clearAndFree();
-    return res.unwrapErr();
-  }
-  MOZ_ASSERT(!buffer.empty());
-  return JS::TranscodeResult::Ok;
-}
-
-JS_PUBLIC_API JS::TranscodeResult JS::DecodeScript(
-    JSContext* cx, const ReadOnlyCompileOptions& options,
-    TranscodeBuffer& buffer, JS::MutableHandleScript scriptp,
-    size_t cursorIndex) {
-  auto decoder = js::MakeUnique<XDRDecoder>(cx, &options, buffer, cursorIndex);
-  if (!decoder) {
-    ReportOutOfMemory(cx);
-    return JS::TranscodeResult::Throw;
-  }
-  XDRResult res = decoder->codeScript(scriptp);
-  MOZ_ASSERT(bool(scriptp) == res.isOk());
-  if (res.isErr()) {
-    return res.unwrapErr();
-  }
-  return JS::TranscodeResult::Ok;
-}
-
-static JS::TranscodeResult DecodeStencil(JSContext* cx,
-                                         JS::TranscodeBuffer& buffer,
-                                         frontend::CompilationInput& input,
-                                         frontend::CompilationStencil& stencil,
-                                         size_t cursorIndex) {
-  XDRStencilDecoder decoder(cx, buffer, cursorIndex);
-
-  if (!input.initForGlobal(cx)) {
-    return JS::TranscodeResult::Throw;
-  }
-
-  XDRResult res = decoder.codeStencil(input.options, stencil);
-  if (res.isErr()) {
-    return res.unwrapErr();
-  }
-
-  return JS::TranscodeResult::Ok;
-}
-
-JS_PUBLIC_API JS::TranscodeResult JS::DecodeScriptMaybeStencil(
-    JSContext* cx, const ReadOnlyCompileOptions& options,
-    TranscodeBuffer& buffer, JS::MutableHandleScript scriptp,
-    size_t cursorIndex) {
-  if (!options.useStencilXDR) {
-    // The buffer contains JSScript.
-    return JS::DecodeScript(cx, options, buffer, scriptp, cursorIndex);
-  }
-
-  MOZ_ASSERT(JS::IsTranscodingBytecodeAligned(buffer.begin()));
-  MOZ_ASSERT(JS::IsTranscodingBytecodeOffsetAligned(cursorIndex));
-
-  // The buffer contains stencil.
-
-  CompileOptions opts(cx, options);
-  opts.borrowBuffer = true;
-
-  Rooted<frontend::CompilationInput> input(cx,
-                                           frontend::CompilationInput(opts));
-  frontend::CompilationStencil stencil(nullptr);
-
-  JS::TranscodeResult res =
-      DecodeStencil(cx, buffer, input.get(), stencil, cursorIndex);
-  if (res != JS::TranscodeResult::Ok) {
-    return res;
-  }
-
-  Rooted<frontend::CompilationGCOutput> gcOutput(cx);
-  if (!frontend::InstantiateStencils(cx, input.get(), stencil,
-                                     gcOutput.get())) {
-    return JS::TranscodeResult::Throw;
-  }
-
-  MOZ_ASSERT(gcOutput.get().script);
-  scriptp.set(gcOutput.get().script);
-
-  return JS::TranscodeResult::Ok;
-}
-
-JS_PUBLIC_API JS::TranscodeResult JS::DecodeScript(
-    JSContext* cx, const ReadOnlyCompileOptions& options,
-    const TranscodeRange& range, JS::MutableHandleScript scriptp) {
-  auto decoder = js::MakeUnique<XDRDecoder>(cx, &options, range);
-  if (!decoder) {
-    ReportOutOfMemory(cx);
-    return JS::TranscodeResult::Throw;
-  }
-  XDRResult res = decoder->codeScript(scriptp);
-  MOZ_ASSERT(bool(scriptp) == res.isOk());
-  if (res.isErr()) {
-    return res.unwrapErr();
-  }
-  return JS::TranscodeResult::Ok;
-}
-
-JS_PUBLIC_API JS::TranscodeResult JS::DecodeScriptAndStartIncrementalEncoding(
-    JSContext* cx, const ReadOnlyCompileOptions& options,
-    TranscodeBuffer& buffer, JS::MutableHandleScript scriptp,
-    size_t cursorIndex) {
-  MOZ_DIAGNOSTIC_ASSERT(options.useStencilXDR);
-
-  CompileOptions opts(cx, options);
-  opts.borrowBuffer = true;
-
-  Rooted<frontend::CompilationInput> input(cx,
-                                           frontend::CompilationInput(opts));
-  frontend::CompilationStencil stencil(nullptr);
-
-  JS::TranscodeResult res =
-      DecodeStencil(cx, buffer, input.get(), stencil, cursorIndex);
-  if (res != JS::TranscodeResult::Ok) {
-    return res;
-  }
-
-  Rooted<frontend::CompilationGCOutput> gcOutput(cx);
-  if (!frontend::InstantiateStencils(cx, input.get(), stencil,
-                                     gcOutput.get())) {
-    return JS::TranscodeResult::Throw;
-  }
-
-  MOZ_ASSERT(gcOutput.get().script);
-
-  auto initial =
-      js::MakeUnique<frontend::ExtensibleCompilationStencil>(cx, input.get());
-  if (!initial) {
-    ReportOutOfMemory(cx);
-    return JS::TranscodeResult::Throw;
-  }
-  if (!initial->steal(cx, std::move(stencil))) {
-    return JS::TranscodeResult::Throw;
-  }
-
-  if (!gcOutput.get().script->scriptSource()->startIncrementalEncoding(
-          cx, opts, std::move(initial))) {
-    return JS::TranscodeResult::Throw;
-  }
-
-  scriptp.set(gcOutput.get().script);
-
-  return JS::TranscodeResult::Ok;
-}
-
 JS_PUBLIC_API bool JS::FinishIncrementalEncoding(JSContext* cx,
                                                  JS::HandleScript script,
                                                  TranscodeBuffer& buffer) {
@@ -4568,6 +4455,18 @@ JS_PUBLIC_API bool JS::FinishIncrementalEncoding(JSContext* cx,
     return false;
   }
   if (!script->scriptSource()->xdrFinalizeEncoder(cx, buffer)) {
+    return false;
+  }
+  return true;
+}
+
+JS_PUBLIC_API bool JS::FinishIncrementalEncoding(JSContext* cx,
+                                                 JS::Handle<JSObject*> module,
+                                                 TranscodeBuffer& buffer) {
+  if (!module->as<ModuleObject>()
+           .scriptSourceObject()
+           ->source()
+           ->xdrFinalizeEncoder(cx, buffer)) {
     return false;
   }
   return true;

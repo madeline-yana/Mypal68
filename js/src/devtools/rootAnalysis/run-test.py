@@ -51,7 +51,14 @@ parser.add_argument(
 parser.add_argument(
     "tests",
     nargs="*",
-    default=["sixgill-tree", "suppression", "hazards", "exceptions", "virtual"],
+    default=[
+        "sixgill-tree",
+        "suppression",
+        "hazards",
+        "exceptions",
+        "virtual",
+        "graph",
+    ],
     help="tests to run",
 )
 
@@ -97,6 +104,8 @@ def make_dir(dirname, exist_ok=True):
 
 outroot = os.path.join(testdir, "out")
 make_dir(outroot)
+
+os.environ["HAZARD_RUN_INTERNAL_TESTS"] = "1"
 
 failed = set()
 for name in cfg.tests:

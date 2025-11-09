@@ -5,7 +5,7 @@
 #ifndef builtin_intl_RelativeTimeFormat_h
 #define builtin_intl_RelativeTimeFormat_h
 
-#include "mozilla/intl/NumberFormatFields.h"
+#include "mozilla/intl/NumberPart.h"
 
 #include <stdint.h>
 
@@ -53,7 +53,7 @@ class RelativeTimeFormatObject : public NativeObject {
   static const JSClassOps classOps_;
   static const ClassSpec classSpec_;
 
-  static void finalize(JSFreeOp* fop, JSObject* obj);
+  static void finalize(JS::GCContext* gcx, JSObject* obj);
 };
 
 /**

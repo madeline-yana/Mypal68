@@ -12,7 +12,7 @@
 #include <algorithm>
 
 #include "debugger/DebugAPI.h"
-#include "gc/FreeOp.h"
+#include "gc/GCContext.h"
 #include "gc/PublicIterators.h"
 #include "jit/AutoWritableJitCode.h"
 #include "jit/BaselineCodeGen.h"
@@ -177,8 +177,6 @@ JitExecStatus jit::EnterBaselineInterpreterAtBranch(JSContext* cx,
   data.osrNumStackValues =
       fp->script()->nfixed() + cx->interpreterRegs().stackDepth();
 
-  RootedValue newTarget(cx);
-
   if (fp->isFunctionFrame()) {
     data.constructing = fp->isConstructing();
     data.numActualArgs = fp->numActualArgs();
@@ -193,14 +191,7 @@ JitExecStatus jit::EnterBaselineInterpreterAtBranch(JSContext* cx,
     data.maxArgc = 0;
     data.maxArgv = nullptr;
     data.envChain = fp->environmentChain();
-
     data.calleeToken = CalleeToToken(fp->script());
-
-    if (fp->isEvalFrame()) {
-      newTarget = fp->newTarget();
-      data.maxArgc = 1;
-      data.maxArgv = newTarget.address();
-    }
   }
 
   TraceLoggerThread* logger = TraceLoggerForCurrentThread(cx);
@@ -525,21 +516,16 @@ void BaselineScript::trace(JSTracer* trc) {
   TraceEdge(trc, &method_, "baseline-method");
 }
 
-/* static */
-void BaselineScript::preWriteBarrier(Zone* zone, BaselineScript* script) {
-  PreWriteBarrier(zone, script);
-}
-
-void BaselineScript::Destroy(JSFreeOp* fop, BaselineScript* script) {
+void BaselineScript::Destroy(JS::GCContext* gcx, BaselineScript* script) {
   MOZ_ASSERT(!script->hasPendingIonCompileTask());
 
   // This allocation is tracked by JSScript::setBaselineScriptImpl.
-  fop->deleteUntracked(script);
+  gcx->deleteUntracked(script);
 }
 
 void JS::DeletePolicy<js::jit::BaselineScript>::operator()(
     const js::jit::BaselineScript* script) {
-  BaselineScript::Destroy(rt_->defaultFreeOp(),
+  BaselineScript::Destroy(rt_->gcContext(),
                           const_cast<BaselineScript*>(script));
 }
 
@@ -654,7 +640,7 @@ const RetAddrEntry& BaselineScript::prologueRetAddrEntry(
 }
 
 const RetAddrEntry& BaselineScript::retAddrEntryFromReturnAddress(
-    uint8_t* returnAddr) {
+    const uint8_t* returnAddr) {
   MOZ_ASSERT(returnAddr > method_->raw());
   MOZ_ASSERT(returnAddr < method_->raw() + method_->instructionsSize());
   CodeOffset offset(returnAddr - method_->raw());
@@ -962,13 +948,13 @@ void BaselineInterpreter::toggleCodeCoverageInstrumentation(bool enable) {
   toggleCodeCoverageInstrumentationUnchecked(enable);
 }
 
-void jit::FinishDiscardBaselineScript(JSFreeOp* fop, JSScript* script) {
+void jit::FinishDiscardBaselineScript(JS::GCContext* gcx, JSScript* script) {
   MOZ_ASSERT(script->hasBaselineScript());
   MOZ_ASSERT(!script->jitScript()->active());
 
   BaselineScript* baseline =
-      script->jitScript()->clearBaselineScript(fop, script);
-  BaselineScript::Destroy(fop, baseline);
+      script->jitScript()->clearBaselineScript(gcx, script);
+  BaselineScript::Destroy(gcx, baseline);
 }
 
 void jit::AddSizeOfBaselineData(JSScript* script,

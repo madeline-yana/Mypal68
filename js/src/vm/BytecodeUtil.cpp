@@ -740,8 +740,8 @@ uint32_t BytecodeParser::simulateOp(JSOp op, uint32_t offset,
 
     case JSOp::IsGenClosing:
     case JSOp::IsNoIter:
+    case JSOp::IsNullOrUndefined:
     case JSOp::MoreIter:
-    case JSOp::OptimizeSpreadCall:
       // Keep the top value and push one more value.
       MOZ_ASSERT(nuses == 1);
       MOZ_ASSERT(ndefs == 2);
@@ -872,14 +872,14 @@ bool BytecodeParser::parse() {
 
     uint32_t stackDepth = simulateOp(op, offset, offsetStack, code->stackDepth);
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(JS_JITSPEW)
     if (isStackDump) {
       if (!code->captureOffsetStackAfter(alloc(), offsetStack, stackDepth)) {
         reportOOM();
         return false;
       }
     }
-#endif /* DEBUG */
+#endif /* defined(DEBUG) || defined(JS_JITSPEW) */
 
     switch (op) {
       case JSOp::TableSwitch: {
@@ -924,7 +924,13 @@ bool BytecodeParser::parse() {
                 return false;
               }
             } else if (tn.kind() == TryNoteKind::Finally) {
-              if (!addJump(catchOffset, stackDepth, offsetStack, pc,
+              // Two additional values will be on the stack at the beginning
+              // of the finally block: the exception/resume index, and the
+              // |throwing| value. For the benefit of the decompiler, point
+              // them at this Try.
+              offsetStack[stackDepth].set(offset, 0);
+              offsetStack[stackDepth + 1].set(offset, 1);
+              if (!addJump(catchOffset, stackDepth + 2, offsetStack, pc,
                            JumpKind::TryFinally)) {
                 return false;
               }
@@ -1347,6 +1353,7 @@ static bool PrintShapeProperties(JSContext* cx, Sprinter* sp, Shape* shape) {
     RootedValue keyv(cx, IdToValue(key));
     JSString* str = ToString<NoGC>(cx, keyv);
     if (!str) {
+      ReportOutOfMemory(cx);
       return false;
     }
     if (!sp->putString(str)) {
@@ -1932,6 +1939,7 @@ bool ExpressionDecompiler::decompilePC(jsbytecode* pc, uint8_t defIndex) {
     case JSOp::Undefined:
       return write(js_undefined_str);
     case JSOp::GlobalThis:
+    case JSOp::NonSyntacticGlobalThis:
       // |this| could convert to a very long object initialiser, so cite it by
       // its keyword name.
       return write(js_this_str);
@@ -1939,9 +1947,7 @@ bool ExpressionDecompiler::decompilePC(jsbytecode* pc, uint8_t defIndex) {
       return write("new.target");
     case JSOp::Call:
     case JSOp::CallIgnoresRv:
-    case JSOp::CallIter:
-    case JSOp::FunCall:
-    case JSOp::FunApply: {
+    case JSOp::CallIter: {
       uint16_t argc = GET_ARGC(pc);
       return decompilePCForStackOperand(pc, -int32_t(argc + 2)) &&
              write(argc ? "(...)" : "()");
@@ -2043,6 +2049,15 @@ bool ExpressionDecompiler::decompilePC(jsbytecode* pc, uint8_t defIndex) {
       return write(BuiltinObjectName(kind));
     }
 
+#ifdef ENABLE_RECORD_TUPLE
+    case JSOp::InitTuple:
+      return write("#[]");
+
+    case JSOp::AddTupleElement:
+    case JSOp::FinishTuple:
+      return write("#[...]");
+#endif
+
     default:
       break;
   }
@@ -2076,14 +2091,15 @@ bool ExpressionDecompiler::decompilePC(jsbytecode* pc, uint8_t defIndex) {
       case JSOp::Exception:
         return write("EXCEPTION");
 
-      case JSOp::Finally:
+      case JSOp::Try:
+        // Used for the values live on entry to the finally block.
+        // See TryNoteKind::Finally above.
         if (defIndex == 0) {
-          return write("THROWING");
+          return write("PC");
         }
         MOZ_ASSERT(defIndex == 1);
-        return write("PC");
+        return write("THROWING");
 
-      case JSOp::GImplicitThis:
       case JSOp::FunctionThis:
       case JSOp::ImplicitThis:
         return write("THIS");
@@ -2116,11 +2132,13 @@ bool ExpressionDecompiler::decompilePC(jsbytecode* pc, uint8_t defIndex) {
       case JSOp::IsConstructing:
         return write("JS_IS_CONSTRUCTING");
 
+      case JSOp::IsNullOrUndefined:
+        return write("IS_NULL_OR_UNDEF");
+
       case JSOp::Iter:
         return write("ITER");
 
       case JSOp::Lambda:
-      case JSOp::LambdaArrow:
         return write("FUN");
 
       case JSOp::ToAsyncIter:
@@ -2140,8 +2158,6 @@ bool ExpressionDecompiler::decompilePC(jsbytecode* pc, uint8_t defIndex) {
         return write("OBJ");
 
       case JSOp::OptimizeSpreadCall:
-        // For stack dump, defIndex == 0 is not used.
-        MOZ_ASSERT(defIndex == 1);
         return write("OPTIMIZED");
 
       case JSOp::Rest:
@@ -2248,6 +2264,9 @@ bool ExpressionDecompiler::write(const char* s) { return sprinter.put(s); }
 bool ExpressionDecompiler::write(JSString* str) {
   if (str == cx->names().dotThis) {
     return write("this");
+  }
+  if (str == cx->names().dotNewTarget) {
+    return write("new.target");
   }
   return sprinter.putString(str);
 }
@@ -2561,7 +2580,7 @@ JSString* js::DecompileArgument(JSContext* cx, int formalIndex, HandleValue v) {
     }
     if (result && strcmp(result.get(), "(intermediate value)")) {
       JS::ConstUTF8CharsZ utf8chars(result.get(), strlen(result.get()));
-      return NewStringCopyUTF8Z<CanGC>(cx, utf8chars);
+      return NewStringCopyUTF8Z(cx, utf8chars);
     }
   }
   if (v.isUndefined()) {
@@ -2626,7 +2645,7 @@ void JS::StartPCCountProfiling(JSContext* cx) {
     ReleaseScriptCounts(rt);
   }
 
-  ReleaseAllJITCode(rt->defaultFreeOp());
+  ReleaseAllJITCode(rt->gcContext());
 
   rt->profilingScripts = true;
 }
@@ -2639,7 +2658,7 @@ void JS::StopPCCountProfiling(JSContext* cx) {
   }
   MOZ_ASSERT(!rt->scriptAndCountsVector);
 
-  ReleaseAllJITCode(rt->defaultFreeOp());
+  ReleaseAllJITCode(rt->gcContext());
 
   auto* vec = cx->new_<PersistentRooted<ScriptAndCountsVector>>(
       cx, ScriptAndCountsVector());
@@ -2828,7 +2847,7 @@ static bool GetPCCountJSON(JSContext* cx, const ScriptAndCounts& sac,
       }
 
       JS::ConstUTF8CharsZ utf8chars(text.get(), strlen(text.get()));
-      JSString* str = NewStringCopyUTF8Z<CanGC>(cx, utf8chars);
+      JSString* str = NewStringCopyUTF8Z(cx, utf8chars);
       if (!str) {
         return false;
       }

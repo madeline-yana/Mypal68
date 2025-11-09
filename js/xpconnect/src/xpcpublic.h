@@ -53,6 +53,7 @@ struct nsXPTInterfaceInfo;
 
 namespace JS {
 class Compartment;
+class ContextOptions;
 class Realm;
 class RealmOptions;
 class Value;
@@ -82,6 +83,11 @@ class Scriptability {
   void SetDocShellAllowsScript(bool aAllowed);
 
   static Scriptability& Get(JSObject* aScope);
+
+  // Returns true if scripting is allowed, false otherwise (if no Scriptability
+  // exists, like for example inside a ShadowRealm global, then script execution
+  // is assumed to be allowed)
+  static bool AllowedIfExists(JSObject* aScope);
 
  private:
   // Whenever a consumer wishes to prevent script from running on a global,
@@ -574,6 +580,7 @@ class MOZ_RAII AutoScriptActivity {
 bool ShouldDiscardSystemSource();
 
 void SetPrefableRealmOptions(JS::RealmOptions& options);
+void SetPrefableContextOptions(JS::ContextOptions& options);
 
 class ErrorBase {
  public:

@@ -8,6 +8,10 @@
 #include "js/PropertyAndElement.h"  // JS_GetElement, JS_SetElement
 #include "jsapi-tests/tests.h"
 
+#include "vm/NativeObject-inl.h"
+
+using namespace js;
+
 static bool constructHook(JSContext* cx, unsigned argc, JS::Value* vp) {
   JS::CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -104,7 +108,6 @@ BEGIN_TEST(testNewObject_1) {
       nullptr,        // mayResolve
       nullptr,        // finalize
       nullptr,        // call
-      nullptr,        // hasInstance
       constructHook,  // construct
       nullptr,        // trace
   };
@@ -159,7 +162,6 @@ static const JSClassOps Base_classOps = {
     nullptr,  // mayResolve
     nullptr,  // finalize
     nullptr,  // call
-    nullptr,  // hasInstance
     nullptr,  // construct
     nullptr,  // trace
 };
@@ -223,3 +225,31 @@ static bool Base_constructor(JSContext* cx, unsigned argc, JS::Value* vp) {
 }
 
 END_TEST(testNewObject_Subclassing)
+
+static const JSClass TestClass = {"TestObject", JSCLASS_HAS_RESERVED_SLOTS(0)};
+
+BEGIN_TEST(testNewObject_elements) {
+  RootedNativeObject obj(
+      cx, NewBuiltinClassInstance(cx, &TestClass, GenericObject));
+  CHECK(obj);
+  CHECK(!obj->isTenured());
+  CHECK(obj->hasEmptyElements());
+  CHECK(!obj->hasFixedElements());
+  CHECK(!obj->hasDynamicElements());
+
+  CHECK(obj->ensureElements(cx, 1));
+  CHECK(!obj->hasEmptyElements());
+  CHECK(!obj->hasFixedElements());
+  CHECK(obj->hasDynamicElements());
+
+  RootedObject array(cx, NewArrayObject(cx, 1));
+  CHECK(array);
+  obj = &array->as<NativeObject>();
+  CHECK(!obj->isTenured());
+  CHECK(!obj->hasEmptyElements());
+  CHECK(obj->hasFixedElements());
+  CHECK(!obj->hasDynamicElements());
+
+  return true;
+}
+END_TEST(testNewObject_elements)

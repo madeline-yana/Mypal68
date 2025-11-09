@@ -211,11 +211,11 @@ nsXPCComponents_Interfaces::Resolve(nsIXPConnectWrappedNative* wrapper,
   RootedObject obj(cx, objArg);
   RootedId id(cx, idArg);
 
-  if (!JSID_IS_STRING(id)) {
+  if (!id.isString()) {
     return NS_OK;
   }
 
-  RootedString str(cx, JSID_TO_STRING(id));
+  RootedString str(cx, id.toString());
   JS::UniqueChars name = JS_EncodeStringToLatin1(cx, str);
 
   // we only allow interfaces by name here
@@ -365,8 +365,7 @@ nsXPCComponents_Classes::Resolve(nsIXPConnectWrappedNative* wrapper,
   RootedObject obj(cx, objArg);
 
   RootedValue cidv(cx);
-  if (JSID_IS_STRING(id) &&
-      xpc::ContractID2JSValue(cx, JSID_TO_STRING(id), &cidv)) {
+  if (id.isString() && xpc::ContractID2JSValue(cx, id.toString(), &cidv)) {
     *resolvedp = true;
     *_retval = JS_DefinePropertyById(cx, obj, id, cidv,
                                      JSPROP_ENUMERATE | JSPROP_READONLY |
@@ -494,11 +493,11 @@ nsXPCComponents_Results::Resolve(nsIXPConnectWrappedNative* wrapper,
                                  bool* resolvedp, bool* _retval) {
   RootedObject obj(cx, objArg);
   RootedId id(cx, idArg);
-  if (!JSID_IS_STRING(id)) {
+  if (!id.isString()) {
     return NS_OK;
   }
 
-  JS::UniqueChars name = JS_EncodeStringToLatin1(cx, JSID_TO_STRING(id));
+  JS::UniqueChars name = JS_EncodeStringToLatin1(cx, id.toString());
   if (name) {
     const char* rv_name;
     const void* iter = nullptr;
@@ -2434,8 +2433,7 @@ nsXPCComponents_Utils::CreateHTMLCopyEncoder(
 
 NS_IMETHODIMP
 nsXPCComponents_Utils::GetLoadedModules(nsTArray<nsCString>& aLoadedModules) {
-  mozJSComponentLoader::Get()->GetLoadedModules(aLoadedModules);
-  return NS_OK;
+  return mozJSComponentLoader::Get()->GetLoadedJSAndESModules(aLoadedModules);
 }
 
 NS_IMETHODIMP

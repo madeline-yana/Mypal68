@@ -10,12 +10,14 @@
 
 #include "jit/CacheIR.h"
 #include "jit/CacheIRCompiler.h"
+#include "jit/CacheIRReader.h"
 #include "jit/CompileInfo.h"
 #include "jit/InlineScriptTree.h"
 #include "jit/JitRealm.h"
 #include "jit/JitScript.h"
 #include "jit/JitSpewer.h"
 #include "jit/MIRGenerator.h"
+#include "jit/TrialInlining.h"
 #include "jit/TypeData.h"
 #include "jit/WarpBuilder.h"
 #include "vm/BuiltinObjectKind.h"
@@ -54,7 +56,7 @@ class MOZ_STACK_CLASS WarpScriptOracle {
     return oracle_->abort(script_, args...);
   }
 
-  AbortReasonOr<WarpEnvironment> createEnvironment();
+  WarpEnvironment createEnvironment();
   AbortReasonOr<Ok> maybeInlineIC(WarpOpSnapshotList& snapshots,
                                   BytecodeLocation loc);
   AbortReasonOr<bool> maybeInlineCall(WarpOpSnapshotList& snapshots,
@@ -241,7 +243,7 @@ ICEntry& WarpScriptOracle::getICEntryAndFallback(BytecodeLocation loc,
   return icScript_->icEntry(icEntryIndex_ - 1);
 }
 
-AbortReasonOr<WarpEnvironment> WarpScriptOracle::createEnvironment() {
+WarpEnvironment WarpScriptOracle::createEnvironment() {
   // Don't do anything if the script doesn't use the environment chain.
   // Always make an environment chain if the script needs an arguments object
   // because ArgumentsObject construction requires the environment chain to be
@@ -251,7 +253,8 @@ AbortReasonOr<WarpEnvironment> WarpScriptOracle::createEnvironment() {
     return WarpEnvironment(NoEnvironment());
   }
 
-  if (ModuleObject* module = script_->module()) {
+  if (script_->isModule()) {
+    ModuleObject* module = script_->module();
     JSObject* obj = &module->initialEnvironment();
     return WarpEnvironment(ConstantObjectEnvironment(obj));
   }
@@ -264,11 +267,6 @@ AbortReasonOr<WarpEnvironment> WarpScriptOracle::createEnvironment() {
     MOZ_ASSERT(!script_->hasNonSyntacticScope());
     JSObject* obj = &script_->global().lexicalEnvironment();
     return WarpEnvironment(ConstantObjectEnvironment(obj));
-  }
-
-  // Parameter expression-induced extra var environment not yet handled.
-  if (fun->needsExtraBodyVarEnvironment()) {
-    return abort(AbortReason::Disable, "Extra var environment unsupported");
   }
 
   JSObject* templateEnv = script_->jitScript()->templateEnvironment();
@@ -297,10 +295,6 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
     return abort(AbortReason::Error);
   }
 
-  if (script_->jitScript()->hasTryFinally()) {
-    return abort(AbortReason::Disable, "Try-finally not supported");
-  }
-
   if (script_->failedBoundsCheck()) {
     oracle_->bailoutInfo().setFailedBoundsCheck();
   }
@@ -308,8 +302,7 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
     oracle_->bailoutInfo().setFailedLexicalCheck();
   }
 
-  WarpEnvironment environment{NoEnvironment()};
-  MOZ_TRY_VAR(environment, createEnvironment());
+  WarpEnvironment environment = createEnvironment();
 
   // Unfortunately LinkedList<> asserts the list is empty in its destructor.
   // Clear the list if we abort compilation.
@@ -357,12 +350,7 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
         break;
 
       case JSOp::GlobalThis:
-        if (script_->hasNonSyntacticScope()) {
-          // We don't compile global scripts with a non-syntactic scope, but
-          // we can end up here when we're compiling an arrow function.
-          return abort(AbortReason::Disable,
-                       "JSOp::GlobalThis with non-syntactic scope");
-        }
+        MOZ_ASSERT(!script_->hasNonSyntacticScope());
         break;
 
       case JSOp::BuiltinObject: {
@@ -384,7 +372,7 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
         //       way so this is only a temporary problem.
         PropertyName* name = loc.getPropertyName(script_);
         Value val;
-        if (cx_->global()->maybeExistingIntrinsicValue(name, &val) &&
+        if (cx_->global()->maybeGetIntrinsicValue(name, &val, cx_) &&
             JS::GCPolicy<Value>::isTenured(val)) {
           if (!AddOpSnapshot<WarpGetIntrinsic>(alloc_, opSnapshots, offset,
                                                val)) {
@@ -418,31 +406,23 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
         break;
       }
 
-      case JSOp::Lambda:
-      case JSOp::LambdaArrow: {
+      case JSOp::Lambda: {
         JSFunction* fun = loc.getFunction(script_);
         if (IsAsmJSModule(fun)) {
           return abort(AbortReason::Disable, "asm.js module function lambda");
-        }
-
-        if (!AddOpSnapshot<WarpLambda>(alloc_, opSnapshots, offset,
-                                       fun->baseScript(), fun->flags(),
-                                       fun->nargs())) {
-          return abort(AbortReason::Alloc);
         }
         break;
       }
 
       case JSOp::GetElemSuper: {
 #if defined(JS_CODEGEN_X86)
-        // x86 does not have enough registers if profiling is enabled.
-        if (mirGen_.instrumentedProfiling()) {
-          return abort(AbortReason::Disable,
-                       "GetElemSuper with profiling is not supported on x86");
-        }
-#endif
+        // x86 does not have enough registers.
+        return abort(AbortReason::Disable,
+                     "GetElemSuper is not supported on x86");
+#else
         MOZ_TRY(maybeInlineIC(opSnapshots, loc));
         break;
+#endif
       }
 
       case JSOp::Rest: {
@@ -478,11 +458,11 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
       case JSOp::Call:
       case JSOp::CallIgnoresRv:
       case JSOp::CallIter:
-      case JSOp::FunCall:
-      case JSOp::FunApply:
       case JSOp::New:
       case JSOp::SuperCall:
       case JSOp::SpreadCall:
+      case JSOp::SpreadNew:
+      case JSOp::SpreadSuperCall:
       case JSOp::ToNumeric:
       case JSOp::Pos:
       case JSOp::Inc:
@@ -521,6 +501,7 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
       case JSOp::InitHiddenProp:
       case JSOp::InitElem:
       case JSOp::InitHiddenElem:
+      case JSOp::InitLockedElem:
       case JSOp::InitElemInc:
       case JSOp::SetName:
       case JSOp::StrictSetName:
@@ -564,7 +545,6 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
       case JSOp::Uint24:
       case JSOp::Int32:
       case JSOp::Double:
-      case JSOp::ResumeIndex:
       case JSOp::BigInt:
       case JSOp::String:
       case JSOp::Symbol:
@@ -603,6 +583,7 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
       case JSOp::MoreIter:
       case JSOp::EndIter:
       case JSOp::IsNoIter:
+      case JSOp::IsNullOrUndefined:
       case JSOp::DelProp:
       case JSOp::StrictDelProp:
       case JSOp::DelElem:
@@ -612,9 +593,9 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
       case JSOp::PopLexicalEnv:
       case JSOp::FreshenLexicalEnv:
       case JSOp::RecreateLexicalEnv:
+      case JSOp::PushVarEnv:
       case JSOp::PushClassBodyEnv:
       case JSOp::ImplicitThis:
-      case JSOp::GImplicitThis:
       case JSOp::CheckClassHeritage:
       case JSOp::CheckThis:
       case JSOp::CheckThisReinit:
@@ -647,8 +628,6 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
       case JSOp::CheckIsObj:
       case JSOp::CheckObjCoercible:
       case JSOp::FunWithProto:
-      case JSOp::SpreadNew:
-      case JSOp::SpreadSuperCall:
       case JSOp::Debugger:
       case JSOp::TableSwitch:
       case JSOp::Exception:
@@ -663,6 +642,7 @@ AbortReasonOr<WarpScriptSnapshot*> WarpScriptOracle::createScriptSnapshot() {
       case JSOp::ResumeKind:
       case JSOp::ThrowMsg:
       case JSOp::Try:
+      case JSOp::Finally:
       case JSOp::NewPrivateName:
         // Supported by WarpBuilder. Nothing to do.
         break;
@@ -1049,6 +1029,8 @@ bool WarpScriptOracle::replaceNurseryAndAllocSitePointers(
       case StubField::Type::RawInt32:
       case StubField::Type::RawPointer:
       case StubField::Type::RawInt64:
+      case StubField::Type::Double:
+        break;
       case StubField::Type::Shape:
         static_assert(std::is_convertible_v<Shape*, gc::TenuredCell*>,
                       "Code assumes shapes are tenured");

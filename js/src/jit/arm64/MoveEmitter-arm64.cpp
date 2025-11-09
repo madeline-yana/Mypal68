@@ -20,7 +20,8 @@ MemOperand MoveEmitterARM64::toMemOperand(const MoveOperand& operand) const {
 
 void MoveEmitterARM64::emit(const MoveResolver& moves) {
   if (moves.numCycles()) {
-    masm.reserveStack(sizeof(void*));
+    static_assert(SpillSlotSize == 16);
+    masm.reserveStack(SpillSlotSize);
     pushedAtCycle_ = masm.framePushed();
   }
 
@@ -132,7 +133,7 @@ void MoveEmitterARM64::emitSimd128Move(const MoveOperand& from,
   }
 
   vixl::UseScratchRegisterScope temps(&masm.asVIXL());
-  const ARMFPRegister scratch = temps.AcquireD();
+  const ARMFPRegister scratch = temps.AcquireQ();
   masm.Ldr(scratch, toMemOperand(from));
   masm.Str(scratch, toMemOperand(to));
 }

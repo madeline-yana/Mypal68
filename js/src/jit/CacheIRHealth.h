@@ -9,9 +9,15 @@
 
 #  include "mozilla/Sprintf.h"
 
+#  include "gc/Rooting.h"
 #  include "jit/CacheIR.h"
 
+enum class JSOp : uint8_t;
+
 namespace js {
+
+class AutoStructuredSpewer;
+
 namespace jit {
 
 class ICEntry;

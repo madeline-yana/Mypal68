@@ -5,8 +5,6 @@
 #ifndef jsmath_h
 #define jsmath_h
 
-#include "mozilla/MemoryReporting.h"
-
 #include <stdint.h>
 
 #include "NamespaceImports.h"

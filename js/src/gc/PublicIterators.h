@@ -26,14 +26,9 @@ class JS_PUBLIC_API Realm;
 
 namespace js {
 
-// Accessing the atoms zone can be dangerous because helper threads may be
-// accessing it concurrently to the main thread, so it's better to skip the
-// atoms zone when iterating over zones. If you need to iterate over the atoms
-// zone, consider using AutoLockAllAtoms.
 enum ZoneSelector { WithAtoms, SkipAtoms };
 
-// Iterate over all zones in the runtime apart from the atoms zone and those
-// which may be in use by parse threads.
+// Iterate over all zones in the runtime apart from the atoms zone.
 class NonAtomZonesIter {
   gc::AutoEnterIteration iterMarker;
   JS::Zone** it;
@@ -41,9 +36,7 @@ class NonAtomZonesIter {
 
  public:
   explicit NonAtomZonesIter(gc::GCRuntime* gc)
-      : iterMarker(gc), it(gc->zones().begin()), end(gc->zones().end()) {
-    skipHelperThreadZones();
-  }
+      : iterMarker(gc), it(gc->zones().begin()), end(gc->zones().end()) {}
   explicit NonAtomZonesIter(JSRuntime* rt) : NonAtomZonesIter(&rt->gc) {}
 
   bool done() const { return it == end; }
@@ -51,13 +44,6 @@ class NonAtomZonesIter {
   void next() {
     MOZ_ASSERT(!done());
     it++;
-    skipHelperThreadZones();
-  }
-
-  void skipHelperThreadZones() {
-    while (!done() && get()->usedByHelperThread()) {
-      it++;
-    }
   }
 
   JS::Zone* get() const {

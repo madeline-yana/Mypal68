@@ -14,7 +14,7 @@
 
 #include "builtin/MapObject.h"
 #include "debugger/DebugAPI.h"
-#include "gc/FreeOp.h"
+#include "gc/GCContext.h"
 #include "gc/GCInternals.h"
 #include "gc/GCLock.h"
 #include "gc/Memory.h"
@@ -67,10 +67,14 @@ struct NurseryChunk : public ChunkBase {
                    MemCheckKind checkKind);
   void poisonAfterEvict(size_t extent = ChunkSize);
 
-  // The end of the range is always ChunkSize.
-  void markPagesUnusedHard(size_t from);
-  // The start of the range is always the beginning of the chunk.
-  [[nodiscard]] bool markPagesInUseHard(size_t to);
+  // Mark pages from startOffset to the end of the chunk as unused. The start
+  // offset must be after the first page, which contains the chunk header and is
+  // not marked as unused.
+  void markPagesUnusedHard(size_t startOffset);
+
+  // Mark pages from the second page of the chunk to endOffset as in use,
+  // following a call to markPagesUnusedHard.
+  [[nodiscard]] bool markPagesInUseHard(size_t endOffset);
 
   uintptr_t start() const { return uintptr_t(&data); }
   uintptr_t end() const { return uintptr_t(this) + ChunkSize; }
@@ -106,17 +110,22 @@ inline void js::NurseryChunk::poisonAfterEvict(size_t extent) {
               JS_SWEPT_NURSERY_PATTERN, MemCheckKind::MakeNoAccess);
 }
 
-inline void js::NurseryChunk::markPagesUnusedHard(size_t from) {
-  MOZ_ASSERT(from >= sizeof(ChunkBase));  // Don't touch the header.
-  MOZ_ASSERT(from <= ChunkSize);
-  uintptr_t start = uintptr_t(this) + from;
-  MarkPagesUnusedHard(reinterpret_cast<void*>(start), ChunkSize - from);
+inline void js::NurseryChunk::markPagesUnusedHard(size_t startOffset) {
+  MOZ_ASSERT(startOffset >= sizeof(ChunkBase));  // Don't touch the header.
+  MOZ_ASSERT(startOffset >= SystemPageSize());
+  MOZ_ASSERT(startOffset <= ChunkSize);
+  uintptr_t start = uintptr_t(this) + startOffset;
+  size_t length = ChunkSize - startOffset;
+  MarkPagesUnusedHard(reinterpret_cast<void*>(start), length);
 }
 
-inline bool js::NurseryChunk::markPagesInUseHard(size_t to) {
-  MOZ_ASSERT(to >= sizeof(ChunkBase));
-  MOZ_ASSERT(to <= ChunkSize);
-  return MarkPagesInUseHard(this, to);
+inline bool js::NurseryChunk::markPagesInUseHard(size_t endOffset) {
+  MOZ_ASSERT(endOffset >= sizeof(ChunkBase));
+  MOZ_ASSERT(endOffset >= SystemPageSize());
+  MOZ_ASSERT(endOffset <= ChunkSize);
+  uintptr_t start = uintptr_t(this) + SystemPageSize();
+  size_t length = endOffset - SystemPageSize();
+  return MarkPagesInUseHard(reinterpret_cast<void*>(start), length);
 }
 
 // static
@@ -163,7 +172,7 @@ void js::NurseryDecommitTask::run(AutoLockHelperThreadState& lock) {
     NurseryChunk* nurseryChunk = chunksToDecommit().popCopy();
     AutoUnlockHelperThreadState unlock(lock);
     auto* tenuredChunk = reinterpret_cast<TenuredChunk*>(nurseryChunk);
-    tenuredChunk->init(gc);
+    tenuredChunk->init(gc, /* allMemoryCommitted = */ false);
     AutoLockGC lock(gc);
     gc->recycleChunk(tenuredChunk, lock);
   }
@@ -645,6 +654,7 @@ void* js::Nursery::allocateZeroedBuffer(
 void* js::Nursery::reallocateBuffer(Zone* zone, Cell* cell, void* oldBuffer,
                                     size_t oldBytes, size_t newBytes) {
   if (!IsInsideNursery(cell)) {
+    MOZ_ASSERT(!isInside(oldBuffer));
     return zone->pod_realloc<uint8_t>((uint8_t*)oldBuffer, oldBytes, newBytes);
   }
 
@@ -1068,6 +1078,7 @@ void js::Nursery::collect(JS::GCOptions options, JS::GCReason reason) {
   bool wasEmpty = isEmpty();
   if (!wasEmpty) {
     CollectionResult result = doCollection(reason);
+    MOZ_ASSERT(result.tenuredBytes <= previousGC.nurseryUsedBytes);
     previousGC.reason = reason;
     previousGC.tenuredBytes = result.tenuredBytes;
     previousGC.tenuredCells = result.tenuredCells;
@@ -1173,17 +1184,17 @@ js::Nursery::CollectionResult js::Nursery::doCollection(JS::GCReason reason) {
   // to the nursery, then those nursery objects get moved as well, until no
   // objects are left to move. That is, we iterate to a fixed point.
   startProfile(ProfileKey::CollectToObjFP);
-  collectToObjectFixedPoint(mover);
+  mover.collectToObjectFixedPoint();
   endProfile(ProfileKey::CollectToObjFP);
 
   startProfile(ProfileKey::CollectToStrFP);
-  collectToStringFixedPoint(mover);
+  mover.collectToStringFixedPoint();
   endProfile(ProfileKey::CollectToStrFP);
 
   // Sweep to update any pointers to nursery objects that have now been
   // tenured.
   startProfile(ProfileKey::Sweep);
-  sweep(&mover);
+  sweep();
   endProfile(ProfileKey::Sweep);
 
   // Update any slot or element pointers whose destination has been tenured.
@@ -1220,12 +1231,13 @@ js::Nursery::CollectionResult js::Nursery::doCollection(JS::GCReason reason) {
   startProfile(ProfileKey::CheckHashTables);
 #ifdef JS_GC_ZEAL
   if (gc->hasZealMode(ZealMode::CheckHashTablesOnMinorGC)) {
+    runtime()->caches().checkEvalCacheAfterMinorGC();
     gc->checkHashTablesAfterMovingGC();
   }
 #endif
   endProfile(ProfileKey::CheckHashTables);
 
-  return {mover.tenuredSize, mover.tenuredCells};
+  return {mover.getTenuredSize(), mover.getTenuredCells()};
 }
 
 void js::Nursery::traceRoots(AutoGCSession& session, TenuringTracer& mover) {
@@ -1324,7 +1336,7 @@ void js::Nursery::doPretenuring(JSRuntime* rt, JS::GCReason reason,
       CancelOffThreadIonCompile(zone);
       bool preserving = zone->isPreservingCode();
       zone->setPreservingCode(false);
-      zone->discardJitCode(rt->defaultFreeOp());
+      zone->discardJitCode(rt->gcContext());
       zone->setPreservingCode(preserving);
       for (RealmsInZoneIter r(zone); !r.done(); r.next()) {
         if (jit::JitRealm* jitRealm = r->jitRealm()) {
@@ -1374,7 +1386,9 @@ bool js::Nursery::registerMallocedBuffer(void* buffer, size_t nbytes) {
   return true;
 }
 
-void js::Nursery::sweep(JSTracer* trc) {
+void js::Nursery::sweep() {
+  MinorSweepingTracer trc(runtime());
+
   // Sweep unique IDs first before we sweep any tables that may be keyed based
   // on them.
   for (Cell* cell : cellsWithUid_) {
@@ -1388,15 +1402,13 @@ void js::Nursery::sweep(JSTracer* trc) {
   }
   cellsWithUid_.clear();
 
-  for (CompartmentsIter c(runtime()); !c.done(); c.next()) {
-    c->sweepAfterMinorGC(trc);
-  }
-
-  for (ZonesIter zone(trc->runtime(), SkipAtoms); !zone.done(); zone.next()) {
-    zone->sweepAfterMinorGC(trc);
+  for (ZonesIter zone(runtime(), SkipAtoms); !zone.done(); zone.next()) {
+    zone->sweepAfterMinorGC(&trc);
   }
 
   sweepMapAndSetObjects();
+
+  runtime()->caches().sweepAfterMinorGC(&trc);
 }
 
 void js::Nursery::clear() {
@@ -1583,7 +1595,7 @@ size_t js::Nursery::targetSize(JS::GCOptions options, JS::GCReason reason) {
   }
 
   // Don't resize the nursery during shutdown.
-  if (gc::IsShutdownReason(reason)) {
+  if (options == JS::GCOptions::Shutdown) {
     clearRecentGrowthData();
     return capacity();
   }
@@ -1789,39 +1801,39 @@ bool js::Nursery::isSubChunkMode() const {
 }
 
 void js::Nursery::sweepMapAndSetObjects() {
-  auto fop = runtime()->defaultFreeOp();
+  auto gcx = runtime()->gcContext();
 
   for (auto mapobj : mapsWithNurseryMemory_) {
-    MapObject::sweepAfterMinorGC(fop, mapobj);
+    MapObject::sweepAfterMinorGC(gcx, mapobj);
   }
   mapsWithNurseryMemory_.clearAndFree();
 
   for (auto setobj : setsWithNurseryMemory_) {
-    SetObject::sweepAfterMinorGC(fop, setobj);
+    SetObject::sweepAfterMinorGC(gcx, setobj);
   }
   setsWithNurseryMemory_.clearAndFree();
 }
 
 JS_PUBLIC_API void JS::EnableNurseryStrings(JSContext* cx) {
   AutoEmptyNursery empty(cx);
-  ReleaseAllJITCode(cx->defaultFreeOp());
+  ReleaseAllJITCode(cx->gcContext());
   cx->runtime()->gc.nursery().enableStrings();
 }
 
 JS_PUBLIC_API void JS::DisableNurseryStrings(JSContext* cx) {
   AutoEmptyNursery empty(cx);
-  ReleaseAllJITCode(cx->defaultFreeOp());
+  ReleaseAllJITCode(cx->gcContext());
   cx->runtime()->gc.nursery().disableStrings();
 }
 
 JS_PUBLIC_API void JS::EnableNurseryBigInts(JSContext* cx) {
   AutoEmptyNursery empty(cx);
-  ReleaseAllJITCode(cx->defaultFreeOp());
+  ReleaseAllJITCode(cx->gcContext());
   cx->runtime()->gc.nursery().enableBigInts();
 }
 
 JS_PUBLIC_API void JS::DisableNurseryBigInts(JSContext* cx) {
   AutoEmptyNursery empty(cx);
-  ReleaseAllJITCode(cx->defaultFreeOp());
+  ReleaseAllJITCode(cx->gcContext());
   cx->runtime()->gc.nursery().disableBigInts();
 }

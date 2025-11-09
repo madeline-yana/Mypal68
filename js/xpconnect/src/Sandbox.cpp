@@ -33,6 +33,7 @@
 #include "xpc_make_class.h"
 #include "XPCWrapper.h"
 #include "Crypto.h"
+#include "mozilla/dom/AbortControllerBinding.h"
 #include "mozilla/dom/AutoEntryScript.h"
 #include "mozilla/dom/BindingCallContext.h"
 #include "mozilla/dom/BindingUtils.h"
@@ -55,6 +56,7 @@
 #include "mozilla/dom/InspectorUtilsBinding.h"
 #include "mozilla/dom/MessageChannelBinding.h"
 #include "mozilla/dom/MessagePortBinding.h"
+#include "mozilla/dom/ModuleLoader.h"
 #include "mozilla/dom/NodeBinding.h"
 #include "mozilla/dom/NodeFilterBinding.h"
 #include "mozilla/dom/PerformanceBinding.h"
@@ -62,11 +64,13 @@
 #include "mozilla/dom/PromiseDebuggingBinding.h"
 #include "mozilla/dom/RangeBinding.h"
 #include "mozilla/dom/RequestBinding.h"
+#include "mozilla/dom/ReadableStreamBinding.h"
 #include "mozilla/dom/ResponseBinding.h"
 #ifdef MOZ_WEBRTC
 #  include "mozilla/dom/RTCIdentityProviderRegistrar.h"
 #endif
 #include "mozilla/dom/FileReaderBinding.h"
+#include "mozilla/dom/ScriptLoader.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/SelectionBinding.h"
 #include "mozilla/dom/TextDecoderBinding.h"
@@ -75,6 +79,8 @@
 #include "mozilla/dom/URLBinding.h"
 #include "mozilla/dom/URLSearchParamsBinding.h"
 #include "mozilla/dom/XMLHttpRequest.h"
+#include "mozilla/dom/WebSocketBinding.h"
+#include "mozilla/dom/WindowBinding.h"
 #include "mozilla/dom/XMLSerializerBinding.h"
 #include "mozilla/dom/FormDataBinding.h"
 #include "mozilla/dom/nsCSPContext.h"
@@ -88,6 +94,7 @@
 
 using namespace mozilla;
 using namespace JS;
+using namespace JS::loader;
 using namespace xpc;
 
 using mozilla::dom::DestroyProtoAndIfaceCache;
@@ -98,11 +105,13 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(SandboxPrivate)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(SandboxPrivate)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_WEAK_PTR 1645510 1535617
-  tmp->UnlinkHostObjectURIs();
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mModuleLoader)
+  tmp->UnlinkObjectsInGlobal();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(SandboxPrivate)
-  tmp->TraverseHostObjectURIs(cb);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mModuleLoader)
+  tmp->TraverseObjectsInGlobal(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(SandboxPrivate)
@@ -471,7 +480,7 @@ static bool SandboxCloneInto(JSContext* cx, unsigned argc, Value* vp) {
   return xpc::CloneInto(cx, args[0], args[1], options, args.rval());
 }
 
-static void sandbox_finalize(JSFreeOp* fop, JSObject* obj) {
+static void sandbox_finalize(JS::GCContext* gcx, JSObject* obj) {
   SandboxPrivate* priv = SandboxPrivate::GetPrivate(obj);
   if (!priv) {
     // priv can be null if CreateSandboxObject fails in the middle.
@@ -507,7 +516,6 @@ static const JSClassOps SandboxClassOps = {
     JS_MayResolveStandardClass,      // mayResolve
     sandbox_finalize,                // finalize
     nullptr,                         // call
-    nullptr,                         // hasInstance
     nullptr,                         // construct
     JS_GlobalObjectTraceHook,        // trace
 };
@@ -877,7 +885,10 @@ bool xpc::GlobalProperties::Parse(JSContext* cx, JS::HandleObject obj) {
     if (!nameStr) {
       return false;
     }
-    if (JS_LinearStringEqualsLiteral(nameStr, "Blob")) {
+
+    if (JS_LinearStringEqualsLiteral(nameStr, "AbortController")) {
+      AbortController = true;
+    } else if (JS_LinearStringEqualsLiteral(nameStr, "Blob")) {
       Blob = true;
     } else if (JS_LinearStringEqualsLiteral(nameStr, "ChromeUtils")) {
       ChromeUtils = true;
@@ -933,8 +944,14 @@ bool xpc::GlobalProperties::Parse(JSContext* cx, JS::HandleObject obj) {
       URLSearchParams = true;
     } else if (JS_LinearStringEqualsLiteral(nameStr, "XMLHttpRequest")) {
       XMLHttpRequest = true;
+    } else if (JS_LinearStringEqualsLiteral(nameStr, "WebSocket")) {
+      WebSocket = true;
+    } else if (JS_LinearStringEqualsLiteral(nameStr, "Window")) {
+      Window = true;
     } else if (JS_LinearStringEqualsLiteral(nameStr, "XMLSerializer")) {
       XMLSerializer = true;
+    } else if (JS_LinearStringEqualsLiteral(nameStr, "ReadableStream")) {
+      ReadableStream = true;
     } else if (JS_LinearStringEqualsLiteral(nameStr, "atob")) {
       atob = true;
     } else if (JS_LinearStringEqualsLiteral(nameStr, "btoa")) {
@@ -974,6 +991,11 @@ bool xpc::GlobalProperties::Define(JSContext* cx, JS::HandleObject obj) {
   // This function holds common properties not exposed automatically but able
   // to be requested either in |Cu.importGlobalProperties| or
   // |wantGlobalProperties| of a sandbox.
+  if (AbortController &&
+      !dom::AbortController_Binding::GetConstructorObject(cx)) {
+    return false;
+  }
+
   if (Blob && !dom::Blob_Binding::GetConstructorObject(cx)) return false;
 
   if (ChromeUtils && !dom::ChromeUtils_Binding::GetConstructorObject(cx)) {
@@ -1072,7 +1094,15 @@ bool xpc::GlobalProperties::Define(JSContext* cx, JS::HandleObject obj) {
   if (XMLHttpRequest && !dom::XMLHttpRequest_Binding::GetConstructorObject(cx))
     return false;
 
+  if (WebSocket && !dom::WebSocket_Binding::GetConstructorObject(cx))
+    return false;
+
+  if (Window && !dom::Window_Binding::GetConstructorObject(cx)) return false;
+
   if (XMLSerializer && !dom::XMLSerializer_Binding::GetConstructorObject(cx))
+    return false;
+
+  if (ReadableStream && !dom::ReadableStream_Binding::GetConstructorObject(cx))
     return false;
 
   if (atob && !JS_DefineFunction(cx, obj, "atob", Atob, 1, 0)) return false;
@@ -1178,8 +1208,7 @@ nsresult ApplyAddonContentScriptCSP(nsISupports* prinOrSop) {
 #endif
 
   csp = new nsCSPContext();
-  MOZ_TRY(
-      csp->SetRequestContextWithPrincipal(expanded, selfURI, EmptyString(), 0));
+  MOZ_TRY(csp->SetRequestContextWithPrincipal(expanded, selfURI, u""_ns, 0));
 
   bool reportOnly = StaticPrefs::extensions_content_script_csp_report_only();
 
@@ -2106,4 +2135,28 @@ nsresult xpc::SetSandboxMetadata(JSContext* cx, HandleObject sandbox,
   JS_SetReservedSlot(sandbox, XPCONNECT_SANDBOX_CLASS_METADATA_SLOT, metadata);
 
   return NS_OK;
+}
+
+ModuleLoaderBase* SandboxPrivate::GetModuleLoader(JSContext* aCx) {
+  if (mModuleLoader) {
+    return mModuleLoader;
+  }
+
+  JSObject* object = GetGlobalJSObject();
+  nsGlobalWindowInner* sandboxWindow = xpc::SandboxWindowOrNull(object, aCx);
+  if (!sandboxWindow) {
+    return nullptr;
+  }
+
+  ModuleLoader* mainModuleLoader =
+      static_cast<ModuleLoader*>(sandboxWindow->GetModuleLoader(aCx));
+
+  ScriptLoader* scriptLoader = mainModuleLoader->GetScriptLoader();
+
+  ModuleLoader* moduleLoader =
+      new ModuleLoader(scriptLoader, this, ModuleLoader::WebExtension);
+  scriptLoader->RegisterContentScriptModuleLoader(moduleLoader);
+  mModuleLoader = moduleLoader;
+
+  return moduleLoader;
 }

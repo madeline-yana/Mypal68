@@ -42,6 +42,7 @@
 #include "vm/JSAtom.h"
 #include "vm/JSContext.h"
 #include "vm/JSObject.h"
+#include "vm/StaticStrings.h"
 #include "vm/WellKnownAtom.h"  // js_*_str
 
 #include "vm/Compartment-inl.h"  // For js::UnwrapAndTypeCheckThis
@@ -830,11 +831,7 @@ template JSLinearString* js::Int32ToString<NoGC>(JSContext* cx, int32_t si);
 
 JSLinearString* js::Int32ToStringPure(JSContext* cx, int32_t si) {
   AutoUnsafeCallWithABI unsafe;
-  JSLinearString* res = Int32ToString<NoGC>(cx, si);
-  if (!res) {
-    cx->recoverFromOutOfMemory();
-  }
-  return res;
+  return Int32ToString<NoGC>(cx, si);
 }
 
 JSAtom* js::Int32ToAtom(JSContext* cx, int32_t si) {
@@ -852,7 +849,7 @@ JSAtom* js::Int32ToAtom(JSContext* cx, int32_t si) {
     indexValue.emplace(si);
   }
 
-  JSAtom* atom = Atomize(cx, start, length, js::DoNotPinAtom, indexValue);
+  JSAtom* atom = Atomize(cx, start, length, indexValue);
   if (!atom) {
     return nullptr;
   }
@@ -1639,7 +1636,9 @@ static JSString* NumberToStringWithBase(JSContext* cx, double d, int base) {
 
     numStr = FracNumberToCString(cx, &cbuf, d, base);
     if (!numStr) {
-      ReportOutOfMemory(cx);
+      if constexpr (allowGC) {
+        ReportOutOfMemory(cx);
+      }
       return nullptr;
     }
     MOZ_ASSERT_IF(base == 10, !cbuf.dbuf && numStr >= cbuf.sbuf &&
@@ -1674,11 +1673,7 @@ template JSString* js::NumberToString<NoGC>(JSContext* cx, double d);
 
 JSString* js::NumberToStringPure(JSContext* cx, double d) {
   AutoUnsafeCallWithABI unsafe;
-  JSString* res = NumberToString<NoGC>(cx, d);
-  if (!res) {
-    cx->recoverFromOutOfMemory();
-  }
-  return res;
+  return NumberToString<NoGC>(cx, d);
 }
 
 JSAtom* js::NumberToAtom(JSContext* cx, double d) {
@@ -1948,14 +1943,12 @@ bool js::MaybeStringToNumber(JSLinearString* str, double* result) {
 
 JS_PUBLIC_API bool js::ToNumberSlow(JSContext* cx, HandleValue v_,
                                     double* out) {
+  MOZ_ASSERT(cx->isMainThreadContext());
+
   RootedValue v(cx, v_);
   MOZ_ASSERT(!v.isNumber());
 
   if (!v.isPrimitive()) {
-    if (cx->isHelperThreadContext()) {
-      return false;
-    }
-
     if (!ToPrimitive(cx, JSTYPE_NUMBER, &v)) {
       return false;
     }
@@ -1976,32 +1969,34 @@ JS_PUBLIC_API bool js::ToNumberSlow(JSContext* cx, HandleValue v_,
     *out = 0.0;
     return true;
   }
-
   if (v.isUndefined()) {
     *out = GenericNaN();
     return true;
   }
+#ifdef ENABLE_RECORD_TUPLE
+  if (v.isExtendedPrimitive()) {
+    JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                              JSMSG_RECORD_TUPLE_TO_NUMBER);
+    return false;
+  }
+#endif
 
   MOZ_ASSERT(v.isSymbol() || v.isBigInt());
-  if (!cx->isHelperThreadContext()) {
-    unsigned errnum = JSMSG_SYMBOL_TO_NUMBER;
-    if (v.isBigInt()) {
-      errnum = JSMSG_BIGINT_TO_NUMBER;
-    }
-    JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, errnum);
+  unsigned errnum = JSMSG_SYMBOL_TO_NUMBER;
+  if (v.isBigInt()) {
+    errnum = JSMSG_BIGINT_TO_NUMBER;
   }
+  JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, errnum);
   return false;
 }
 
 // BigInt proposal section 3.1.6
 bool js::ToNumericSlow(JSContext* cx, MutableHandleValue vp) {
+  MOZ_ASSERT(cx->isMainThreadContext());
   MOZ_ASSERT(!vp.isNumeric());
 
   // Step 1.
   if (!vp.isPrimitive()) {
-    if (cx->isHelperThreadContext()) {
-      return false;
-    }
     if (!ToPrimitive(cx, JSTYPE_NUMBER, vp)) {
       return false;
     }

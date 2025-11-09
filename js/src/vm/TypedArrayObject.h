@@ -140,7 +140,7 @@ class TypedArrayObject : public ArrayBufferViewObject {
 
   static bool isOriginalByteLengthGetter(Native native);
 
-  static void finalize(JSFreeOp* fop, JSObject* obj);
+  static void finalize(JS::GCContext* gcx, JSObject* obj);
   static size_t objectMoved(JSObject* obj, JSObject* old);
 
   /* Initialization bits */
@@ -166,6 +166,11 @@ class TypedArrayObject : public ArrayBufferViewObject {
 
 [[nodiscard]] bool TypedArray_bufferGetter(JSContext* cx, unsigned argc,
                                            Value* vp);
+
+#ifdef ENABLE_CHANGE_ARRAY_BY_COPY
+extern JSObject* GetTypedArrayConstructorFromKind(JSContext* cx,
+                                                  Scalar::Type type);
+#endif
 
 extern TypedArrayObject* NewTypedArrayWithTemplateAndLength(
     JSContext* cx, HandleObject templateObj, int32_t len);
@@ -228,14 +233,14 @@ inline bool CanStartTypedArrayIndex(CharT ch) {
 
 [[nodiscard]] inline bool ToTypedArrayIndex(JSContext* cx, jsid id,
                                             mozilla::Maybe<uint64_t>* indexp) {
-  if (JSID_IS_INT(id)) {
-    int32_t i = JSID_TO_INT(id);
+  if (id.isInt()) {
+    int32_t i = id.toInt();
     MOZ_ASSERT(i >= 0);
     indexp->emplace(i);
     return true;
   }
 
-  if (MOZ_UNLIKELY(!JSID_IS_STRING(id))) {
+  if (MOZ_UNLIKELY(!id.isString())) {
     MOZ_ASSERT(indexp->isNothing());
     return true;
   }

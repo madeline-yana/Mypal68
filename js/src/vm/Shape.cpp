@@ -7,7 +7,7 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/PodOperations.h"
 
-#include "gc/FreeOp.h"
+#include "gc/GCContext.h"
 #include "gc/HashUtil.h"
 #include "gc/Policy.h"
 #include "gc/PublicIterators.h"
@@ -19,6 +19,7 @@
 #include "vm/JSContext.h"
 #include "vm/JSObject.h"
 #include "vm/ShapeZone.h"
+#include "vm/Watchtower.h"
 
 #include "vm/JSContext-inl.h"
 #include "vm/JSObject-inl.h"
@@ -149,12 +150,16 @@ static void AssertValidCustomDataProp(NativeObject* obj, PropertyFlags flags) {
 /* static */
 bool NativeObject::addCustomDataProperty(JSContext* cx, HandleNativeObject obj,
                                          HandleId id, PropertyFlags flags) {
-  MOZ_ASSERT(!JSID_IS_VOID(id));
+  MOZ_ASSERT(!id.isVoid());
   MOZ_ASSERT(!id.isPrivateName());
   MOZ_ASSERT(!obj->containsPure(id));
 
   AutoCheckShapeConsistency check(obj);
   AssertValidCustomDataProp(obj, flags);
+
+  if (!Watchtower::watchPropertyAdd(cx, obj, id)) {
+    return false;
+  }
 
   if (!maybeConvertToDictionaryForAdd(cx, obj)) {
     return false;
@@ -268,12 +273,19 @@ bool NativeObject::addProperty(JSContext* cx, HandleNativeObject obj,
 
   // The object must not contain a property named |id|. The object must be
   // extensible, but allow private fields and sparsifying dense elements.
-  MOZ_ASSERT(!JSID_IS_VOID(id));
+  MOZ_ASSERT(!id.isVoid());
   MOZ_ASSERT(!obj->containsPure(id));
-  MOZ_ASSERT_IF(
-      !id.isPrivateName(),
-      obj->isExtensible() ||
-          (JSID_IS_INT(id) && obj->containsDenseElement(JSID_TO_INT(id))));
+  MOZ_ASSERT_IF(!id.isPrivateName(),
+                obj->isExtensible() ||
+                    (id.isInt() && obj->containsDenseElement(id.toInt())) ||
+                    // R&T wrappers are non-extensible, but we still want to be
+                    // able to lazily resolve their properties. We can
+                    // special-case them to allow doing so.
+                    IF_RECORD_TUPLE(IsExtendedPrimitiveWrapper(*obj), false));
+
+  if (!Watchtower::watchPropertyAdd(cx, obj, id)) {
+    return false;
+  }
 
   if (!maybeConvertToDictionaryForAdd(cx, obj)) {
     return false;
@@ -376,13 +388,17 @@ bool NativeObject::addPropertyInReservedSlot(JSContext* cx,
   MOZ_ASSERT(slot < JSCLASS_RESERVED_SLOTS(obj->getClass()));
 
   // The object must not contain a property named |id| and must be extensible.
-  MOZ_ASSERT(!JSID_IS_VOID(id));
+  MOZ_ASSERT(!id.isVoid());
   MOZ_ASSERT(!obj->containsPure(id));
   MOZ_ASSERT(!id.isPrivateName());
   MOZ_ASSERT(obj->isExtensible());
 
   // The object must not be in dictionary mode. This simplifies the code below.
   MOZ_ASSERT(!obj->inDictionaryMode());
+
+  // We don't need to call Watchtower::watchPropertyAdd here because this isn't
+  // used for any watched objects.
+  MOZ_ASSERT(!Watchtower::watchesPropertyAdd(obj));
 
   ObjectFlags objectFlags = obj->shape()->objectFlags();
   const JSClass* clasp = obj->shape()->getObjectClass();
@@ -445,12 +461,16 @@ static void AssertValidArrayIndex(NativeObject* obj, jsid id) {
 bool NativeObject::changeProperty(JSContext* cx, HandleNativeObject obj,
                                   HandleId id, PropertyFlags flags,
                                   uint32_t* slotOut) {
-  MOZ_ASSERT(!JSID_IS_VOID(id));
+  MOZ_ASSERT(!id.isVoid());
 
   AutoCheckShapeConsistency check(obj);
   AssertValidArrayIndex(obj, id);
   MOZ_ASSERT(!flags.isCustomDataProperty(),
              "Use changeCustomDataPropAttributes for custom data properties");
+
+  if (!Watchtower::watchPropertyChange(cx, obj, id)) {
+    return false;
+  }
 
   Rooted<PropMap*> map(cx, obj->shape()->propMap());
   uint32_t mapLength = obj->shape()->propMapLength();
@@ -561,11 +581,15 @@ bool NativeObject::changeCustomDataPropAttributes(JSContext* cx,
                                                   HandleNativeObject obj,
                                                   HandleId id,
                                                   PropertyFlags flags) {
-  MOZ_ASSERT(!JSID_IS_VOID(id));
+  MOZ_ASSERT(!id.isVoid());
 
   AutoCheckShapeConsistency check(obj);
   AssertValidArrayIndex(obj, id);
   AssertValidCustomDataProp(obj, flags);
+
+  if (!Watchtower::watchPropertyChange(cx, obj, id)) {
+    return false;
+  }
 
   Rooted<PropMap*> map(cx, obj->shape()->propMap());
   uint32_t mapLength = obj->shape()->propMapLength();
@@ -658,6 +682,10 @@ bool NativeObject::removeProperty(JSContext* cx, HandleNativeObject obj,
 
   if (!propMap) {
     return true;
+  }
+
+  if (!Watchtower::watchPropertyRemove(cx, obj, id)) {
+    return false;
   }
 
   PropertyInfo prop = propMap->getPropertyInfo(propIndex);
@@ -773,6 +801,12 @@ bool NativeObject::densifySparseElements(JSContext* cx,
 // static
 bool NativeObject::freezeOrSealProperties(JSContext* cx, HandleNativeObject obj,
                                           IntegrityLevel level) {
+  AutoCheckShapeConsistency check(obj);
+
+  if (!Watchtower::watchFreezeOrSeal(cx, obj)) {
+    return false;
+  }
+
   uint32_t mapLength = obj->shape()->propMapLength();
   MOZ_ASSERT(mapLength > 0);
 
@@ -860,10 +894,21 @@ bool JSObject::setFlag(JSContext* cx, HandleObject obj, ObjectFlag flag) {
 bool JSObject::setProtoUnchecked(JSContext* cx, HandleObject obj,
                                  Handle<TaggedProto> proto) {
   MOZ_ASSERT(cx->compartment() == obj->compartment());
-  MOZ_ASSERT_IF(proto.isObject(), proto.toObject()->isUsedAsPrototype());
+  MOZ_ASSERT(!obj->staticPrototypeIsImmutable());
+  MOZ_ASSERT_IF(!obj->is<ProxyObject>(), obj->nonProxyIsExtensible());
+  MOZ_ASSERT(obj->shape()->proto() != proto);
 
-  if (obj->shape()->proto() == proto) {
-    return true;
+  // Notify Watchtower of this proto change, so it can properly invalidate shape
+  // teleporting and other optimizations.
+  if (!Watchtower::watchProtoChange(cx, obj)) {
+    return false;
+  }
+
+  if (proto.isObject()) {
+    RootedObject protoObj(cx, proto.toObject());
+    if (!JSObject::setIsUsedAsPrototype(cx, protoObj)) {
+      return false;
+    }
   }
 
   if (obj->is<NativeObject>() && obj->as<NativeObject>().inDictionaryMode()) {

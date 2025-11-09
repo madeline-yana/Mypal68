@@ -25,6 +25,8 @@ class DateTimePatternGenerator;
 
 namespace js {
 
+class ArrayObject;
+
 namespace intl {
 
 /**
@@ -223,9 +225,9 @@ class SharedIntlData {
   using CountAvailable = int32_t (*)();
   using GetAvailable = const char* (*)(int32_t localeIndex);
 
+  template <class AvailableLocales>
   static bool getAvailableLocales(JSContext* cx, LocaleSet& locales,
-                                  CountAvailable countAvailable,
-                                  GetAvailable getAvailable);
+                                  const AvailableLocales& availableLocales);
 
   /**
    * Precomputes the available locales sets.
@@ -250,6 +252,13 @@ class SharedIntlData {
   [[nodiscard]] bool isSupportedLocale(JSContext* cx, SupportedLocaleKind kind,
                                        JS::Handle<JSString*> locale,
                                        bool* supported);
+
+  /**
+   * Returns all available locales for |kind|.
+   */
+#ifdef ENABLE_TESTS
+  ArrayObject* availableLocalesOf(JSContext* cx, SupportedLocaleKind kind);
+#endif
 
  private:
   /**

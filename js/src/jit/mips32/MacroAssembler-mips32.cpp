@@ -114,6 +114,12 @@ void MacroAssemblerMIPSCompat::convertDoubleToFloat32(FloatRegister src,
   as_cvtsd(dest, src);
 }
 
+void MacroAssemblerMIPSCompat::convertDoubleToPtr(FloatRegister src,
+                                                  Register dest, Label* fail,
+                                                  bool negativeZeroCheck) {
+  convertDoubleToInt32(src, dest, fail, negativeZeroCheck);
+}
+
 const int CauseBitPos = int(Assembler::CauseI);
 const int CauseBitCount = 1 + int(Assembler::CauseV) - int(Assembler::CauseI);
 const int CauseIOrVMask = ((1 << int(Assembler::CauseI)) |
@@ -205,8 +211,8 @@ void MacroAssemblerMIPS::ma_liPatchable(Register dest, ImmWord imm) {
 // Arithmetic-based ops.
 
 // Add.
-void MacroAssemblerMIPS::ma_addTestOverflow(Register rd, Register rs,
-                                            Register rt, Label* overflow) {
+void MacroAssemblerMIPS::ma_add32TestOverflow(Register rd, Register rs,
+                                              Register rt, Label* overflow) {
   MOZ_ASSERT_IF(rs == rd, rs != rt);
   MOZ_ASSERT(rs != ScratchRegister);
   MOZ_ASSERT(rt != ScratchRegister);
@@ -232,8 +238,8 @@ void MacroAssemblerMIPS::ma_addTestOverflow(Register rd, Register rs,
   ma_b(SecondScratchReg, Imm32(0), overflow, Assembler::LessThan);
 }
 
-void MacroAssemblerMIPS::ma_addTestOverflow(Register rd, Register rs, Imm32 imm,
-                                            Label* overflow) {
+void MacroAssemblerMIPS::ma_add32TestOverflow(Register rd, Register rs,
+                                              Imm32 imm, Label* overflow) {
   MOZ_ASSERT(rs != ScratchRegister);
   MOZ_ASSERT(rs != SecondScratchReg);
   MOZ_ASSERT(rd != ScratchRegister);
@@ -266,8 +272,8 @@ void MacroAssemblerMIPS::ma_addTestOverflow(Register rd, Register rs, Imm32 imm,
 }
 
 // Subtract.
-void MacroAssemblerMIPS::ma_subTestOverflow(Register rd, Register rs,
-                                            Register rt, Label* overflow) {
+void MacroAssemblerMIPS::ma_sub32TestOverflow(Register rd, Register rs,
+                                              Register rt, Label* overflow) {
   // The rs == rt case should probably be folded at MIR stage.
   // Happens for Number_isInteger*. Not worth specializing here.
   MOZ_ASSERT_IF(rs == rd, rs != rt);
@@ -1764,28 +1770,31 @@ void MacroAssemblerMIPSCompat::handleFailureWithHandlerTail(
   Label entryFrame;
   Label catch_;
   Label finally;
-  Label return_;
+  Label returnBaseline;
+  Label returnIon;
   Label bailout;
   Label wasm;
   Label wasmCatch;
 
   // Already clobbered a0, so use it...
-  load32(Address(StackPointer, offsetof(ResumeFromException, kind)), a0);
+  load32(Address(StackPointer, ResumeFromException::offsetOfKind()), a0);
   asMasm().branch32(Assembler::Equal, a0,
-                    Imm32(ResumeFromException::RESUME_ENTRY_FRAME),
-                    &entryFrame);
-  asMasm().branch32(Assembler::Equal, a0,
-                    Imm32(ResumeFromException::RESUME_CATCH), &catch_);
-  asMasm().branch32(Assembler::Equal, a0,
-                    Imm32(ResumeFromException::RESUME_FINALLY), &finally);
-  asMasm().branch32(Assembler::Equal, a0,
-                    Imm32(ResumeFromException::RESUME_FORCED_RETURN), &return_);
-  asMasm().branch32(Assembler::Equal, a0,
-                    Imm32(ResumeFromException::RESUME_BAILOUT), &bailout);
-  asMasm().branch32(Assembler::Equal, a0,
-                    Imm32(ResumeFromException::RESUME_WASM), &wasm);
-  asMasm().branch32(Assembler::Equal, a0,
-                    Imm32(ResumeFromException::RESUME_WASM_CATCH), &wasmCatch);
+                    Imm32(ExceptionResumeKind::EntryFrame), &entryFrame);
+  asMasm().branch32(Assembler::Equal, a0, Imm32(ExceptionResumeKind::Catch),
+                    &catch_);
+  asMasm().branch32(Assembler::Equal, a0, Imm32(ExceptionResumeKind::Finally),
+                    &finally);
+  asMasm().branch32(Assembler::Equal, r0,
+                    Imm32(ExceptionResumeKind::ForcedReturnBaseline),
+                    &returnBaseline);
+  asMasm().branch32(Assembler::Equal, r0,
+                    Imm32(ExceptionResumeKind::ForcedReturnIon), &returnIon);
+  asMasm().branch32(Assembler::Equal, a0, Imm32(ExceptionResumeKind::Bailout),
+                    &bailout);
+  asMasm().branch32(Assembler::Equal, a0, Imm32(ExceptionResumeKind::Wasm),
+                    &wasm);
+  asMasm().branch32(Assembler::Equal, a0, Imm32(ExceptionResumeKind::WasmCatch),
+                    &wasmCatch);
 
   breakpoint();  // Invalid kind.
 
@@ -1793,7 +1802,7 @@ void MacroAssemblerMIPSCompat::handleFailureWithHandlerTail(
   // and return from the entry frame.
   bind(&entryFrame);
   asMasm().moveValue(MagicValue(JS_ION_ERROR), JSReturnOperand);
-  loadPtr(Address(StackPointer, offsetof(ResumeFromException, stackPointer)),
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfStackPointer()),
           StackPointer);
 
   // We're going to be returning by the ion calling convention
@@ -1804,44 +1813,54 @@ void MacroAssemblerMIPSCompat::handleFailureWithHandlerTail(
   // If we found a catch handler, this must be a baseline frame. Restore
   // state and jump to the catch block.
   bind(&catch_);
-  loadPtr(Address(StackPointer, offsetof(ResumeFromException, target)), a0);
-  loadPtr(Address(StackPointer, offsetof(ResumeFromException, framePointer)),
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfTarget()), a0);
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfFramePointer()),
           BaselineFrameReg);
-  loadPtr(Address(StackPointer, offsetof(ResumeFromException, stackPointer)),
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfStackPointer()),
           StackPointer);
   jump(a0);
 
-  // If we found a finally block, this must be a baseline frame. Push
-  // two values expected by JSOp::Retsub: BooleanValue(true) and the
-  // exception.
+  // If we found a finally block, this must be a baseline frame. Push two
+  // values expected by the finally block: the exception and BooleanValue(true).
   bind(&finally);
   ValueOperand exception = ValueOperand(a1, a2);
-  loadValue(Address(sp, offsetof(ResumeFromException, exception)), exception);
+  loadValue(Address(sp, ResumeFromException::offsetOfException()), exception);
 
-  loadPtr(Address(sp, offsetof(ResumeFromException, target)), a0);
-  loadPtr(Address(sp, offsetof(ResumeFromException, framePointer)),
+  loadPtr(Address(sp, ResumeFromException::offsetOfTarget()), a0);
+  loadPtr(Address(sp, ResumeFromException::offsetOfFramePointer()),
           BaselineFrameReg);
-  loadPtr(Address(sp, offsetof(ResumeFromException, stackPointer)), sp);
+  loadPtr(Address(sp, ResumeFromException::offsetOfStackPointer()), sp);
 
-  pushValue(BooleanValue(true));
   pushValue(exception);
+  pushValue(BooleanValue(true));
   jump(a0);
 
-  // Only used in debug mode. Return BaselineFrame->returnValue() to the
-  // caller.
-  bind(&return_);
-  loadPtr(Address(StackPointer, offsetof(ResumeFromException, framePointer)),
+  // Return BaselineFrame->returnValue() to the caller.
+  // Used in debug mode and for GeneratorReturn.
+  Label profilingInstrumentation;
+  bind(&returnBaseline);
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfFramePointer()),
           BaselineFrameReg);
-  loadPtr(Address(StackPointer, offsetof(ResumeFromException, stackPointer)),
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfStackPointer()),
           StackPointer);
   loadValue(
       Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfReturnValue()),
       JSReturnOperand);
   ma_move(StackPointer, BaselineFrameReg);
   pop(BaselineFrameReg);
+  jump(&profilingInstrumentation);
+
+  // Return the given value to the caller.
+  bind(&returnIon);
+  loadValue(Address(StackPointer, ResumeFromException::offsetOfException()),
+            JSReturnOperand);
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfFramePointer()),
+          StackPointer);
 
   // If profiling is enabled, then update the lastProfilingFrame to refer to
-  // caller frame before returning.
+  // caller frame before returning. This code is shared by ForcedReturnIon
+  // and ForcedReturnBaseline.
+  bind(&profilingInstrumentation);
   {
     Label skipProfilingInstrumentation;
     // Test if profiler enabled.
@@ -1858,27 +1877,27 @@ void MacroAssemblerMIPSCompat::handleFailureWithHandlerTail(
   // If we are bailing out to baseline to handle an exception, jump to
   // the bailout tail stub. Load 1 (true) in ReturnReg to indicate success.
   bind(&bailout);
-  loadPtr(Address(sp, offsetof(ResumeFromException, bailoutInfo)), a2);
+  loadPtr(Address(sp, ResumeFromException::offsetOfBailoutInfo()), a2);
   ma_li(ReturnReg, Imm32(1));
-  loadPtr(Address(sp, offsetof(ResumeFromException, target)), a1);
+  loadPtr(Address(sp, ResumeFromException::offsetOfTarget()), a1);
   jump(a1);
 
   // If we are throwing and the innermost frame was a wasm frame, reset SP and
   // FP; SP is pointing to the unwound return address to the wasm entry, so
   // we can just ret().
   bind(&wasm);
-  loadPtr(Address(StackPointer, offsetof(ResumeFromException, framePointer)),
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfFramePointer()),
           FramePointer);
-  loadPtr(Address(StackPointer, offsetof(ResumeFromException, stackPointer)),
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfStackPointer()),
           StackPointer);
   ret();
 
   // Found a wasm catch handler, restore state and jump to it.
   bind(&wasmCatch);
-  loadPtr(Address(sp, offsetof(ResumeFromException, target)), a1);
-  loadPtr(Address(StackPointer, offsetof(ResumeFromException, framePointer)),
+  loadPtr(Address(sp, ResumeFromException::offsetOfTarget()), a1);
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfFramePointer()),
           FramePointer);
-  loadPtr(Address(StackPointer, offsetof(ResumeFromException, stackPointer)),
+  loadPtr(Address(StackPointer, ResumeFromException::offsetOfStackPointer()),
           StackPointer);
   jump(a1);
 }
@@ -2294,16 +2313,15 @@ template void MacroAssembler::storeUnboxedValue(
 void MacroAssembler::PushBoxed(FloatRegister reg) { Push(reg); }
 
 void MacroAssembler::wasmBoundsCheck32(Condition cond, Register index,
-                                       Register boundsCheckLimit,
-                                       Label* label) {
-  ma_b(index, boundsCheckLimit, label, cond);
+                                       Register boundsCheckLimit, Label* ok) {
+  ma_b(index, boundsCheckLimit, ok, cond);
 }
 
 void MacroAssembler::wasmBoundsCheck32(Condition cond, Register index,
-                                       Address boundsCheckLimit, Label* label) {
+                                       Address boundsCheckLimit, Label* ok) {
   SecondScratchRegisterScope scratch2(*this);
   load32(boundsCheckLimit, SecondScratchReg);
-  ma_b(index, SecondScratchReg, label, cond);
+  ma_b(index, SecondScratchReg, ok, cond);
 }
 
 void MacroAssembler::wasmTruncateDoubleToUInt32(FloatRegister input,

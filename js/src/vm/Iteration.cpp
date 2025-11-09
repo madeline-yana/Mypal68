@@ -21,7 +21,7 @@
 #include "builtin/Array.h"
 #include "builtin/SelfHostingDefines.h"
 #include "ds/Sort.h"
-#include "gc/FreeOp.h"
+#include "gc/GCContext.h"
 #include "gc/Marking.h"
 #include "js/CallAndConstruct.h"      // JS::IsCallable
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
@@ -29,7 +29,6 @@
 #include "js/Proxy.h"
 #include "util/DifferentialTesting.h"
 #include "util/Poison.h"
-#include "vm/BytecodeUtil.h"
 #include "vm/GlobalObject.h"
 #include "vm/Interpreter.h"
 #include "vm/JSAtom.h"
@@ -40,6 +39,11 @@
 #include "vm/Shape.h"
 #include "vm/TypedArrayObject.h"
 #include "vm/WellKnownAtom.h"  // js_*_str
+
+#ifdef ENABLE_RECORD_TUPLE
+#  include "builtin/RecordObject.h"
+#  include "builtin/TupleObject.h"
+#endif
 
 #include "vm/Compartment-inl.h"
 #include "vm/JSScript-inl.h"
@@ -187,8 +191,21 @@ static bool EnumerateNativeProperties(JSContext* cx, HandleNativeObject pobj,
                                       unsigned flags,
                                       MutableHandle<PropertyKeySet> visited,
                                       MutableHandleIdVector props) {
+  // We don't need to iterate over the shape's properties if we're only
+  // interested in enumerable properties and the object is known to have no
+  // enumerable properties.
+  //
+  // Don't optimize if CheckForDuplicates is true, because non-enumerable
+  // properties still have to participate in duplicate-property checking.
+  const bool iterShapeProperties = CheckForDuplicates ||
+                                   (flags & JSITER_HIDDEN) ||
+                                   pobj->hasEnumerableProperty();
+
   bool enumerateSymbols;
   if (flags & JSITER_SYMBOLSONLY) {
+    if (!iterShapeProperties) {
+      return true;
+    }
     enumerateSymbols = true;
   } else {
     // Collect any dense elements from this object.
@@ -202,7 +219,7 @@ static bool EnumerateNativeProperties(JSContext* cx, HandleNativeObject pobj,
       } else {
         // Dense arrays never get so large that i would not fit into an
         // integer id.
-        if (!Enumerate<CheckForDuplicates>(cx, pobj, INT_TO_JSID(i),
+        if (!Enumerate<CheckForDuplicates>(cx, pobj, PropertyKey::Int(i),
                                            /* enumerable = */ true, flags,
                                            visited, props)) {
           return false;
@@ -217,20 +234,69 @@ static bool EnumerateNativeProperties(JSContext* cx, HandleNativeObject pobj,
 
       // Fail early if the typed array is enormous, because this will be very
       // slow and will likely report OOM. This also means we don't need to
-      // handle indices greater than JSID_INT_MAX in the loop below.
-      static_assert(JSID_INT_MAX == INT32_MAX);
+      // handle indices greater than PropertyKey::IntMax in the loop below.
+      static_assert(PropertyKey::IntMax == INT32_MAX);
       if (len > INT32_MAX) {
         ReportOutOfMemory(cx);
         return false;
       }
 
       for (size_t i = 0; i < len; i++) {
-        if (!Enumerate<CheckForDuplicates>(cx, pobj, INT_TO_JSID(i),
+        if (!Enumerate<CheckForDuplicates>(cx, pobj, PropertyKey::Int(i),
                                            /* enumerable = */ true, flags,
                                            visited, props)) {
           return false;
         }
       }
+    }
+#ifdef ENABLE_RECORD_TUPLE
+    else {
+      Rooted<RecordType*> rec(cx);
+      if (RecordObject::maybeUnbox(pobj, &rec)) {
+        RootedArrayObject keys(cx, rec->keys());
+        RootedId id(cx);
+        RootedString key(cx);
+
+        for (size_t i = 0; i < keys->length(); i++) {
+          key.set(keys->getDenseElement(i).toString());
+          if (!JS_StringToId(cx, key, &id)) {
+            return false;
+          }
+          if (!Enumerate<CheckForDuplicates>(cx, pobj, id,
+                                             /* enumerable = */ true, flags,
+                                             visited, props)) {
+            return false;
+          }
+        }
+
+        return true;
+      } else {
+        mozilla::Maybe<TupleType&> tup = TupleObject::maybeUnbox(pobj);
+        if (tup) {
+          uint32_t len = (*tup).length();
+          RootedId id(cx);
+
+          for (size_t i = 0; i < len; i++) {
+            if (!JS_IndexToId(cx, i, &id)) {
+              return false;
+            }
+            if (!Enumerate<CheckForDuplicates>(cx, pobj, id,
+                                               /* enumerable = */ true, flags,
+                                               visited, props)) {
+              return false;
+            }
+          }
+
+          return true;
+        }
+      }
+    }
+#endif
+
+    // The code below enumerates shape properties (including sparse elements) so
+    // if we can ignore those we're done.
+    if (!iterShapeProperties) {
+      return true;
     }
 
     // Collect any sparse elements from this object.
@@ -297,6 +363,8 @@ static bool EnumerateNativeProperties(JSContext* cx, HandleNativeObject pobj,
   }
 
   if (enumerateSymbols) {
+    MOZ_ASSERT(iterShapeProperties);
+
     // Do a second pass to collect symbols. ES6 draft rev 25 (2014 May 22)
     // 9.1.12 requires that all symbols appear after all strings in the
     // result.
@@ -398,15 +466,29 @@ struct SortComparatorIds {
       return true;
     }
 
-    size_t ta = JSID_BITS(a.get()) & JSID_TYPE_MASK;
-    size_t tb = JSID_BITS(b.get()) & JSID_TYPE_MASK;
-    if (ta != tb) {
-      *lessOrEqualp = (ta <= tb);
+    enum class KeyType { Void, Int, String, Symbol };
+
+    auto keyType = [](PropertyKey key) {
+      if (key.isString()) {
+        return KeyType::String;
+      }
+      if (key.isInt()) {
+        return KeyType::Int;
+      }
+      if (key.isSymbol()) {
+        return KeyType::Symbol;
+      }
+      MOZ_ASSERT(key.isVoid());
+      return KeyType::Void;
+    };
+
+    if (keyType(a) != keyType(b)) {
+      *lessOrEqualp = (keyType(a) <= keyType(b));
       return true;
     }
 
-    if (JSID_IS_INT(a)) {
-      *lessOrEqualp = (JSID_TO_INT(a) <= JSID_TO_INT(b));
+    if (a.isInt()) {
+      *lessOrEqualp = (a.toInt() <= b.toInt());
       return true;
     }
 
@@ -455,10 +537,68 @@ struct SortComparatorIds {
 
 #endif /* DEBUG */
 
+static void AssertNoEnumerableProperties(NativeObject* obj) {
+#ifdef DEBUG
+  // Verify the object has no enumerable properties if the HasEnumerable
+  // ObjectFlag is not set.
+
+  MOZ_ASSERT(!obj->hasEnumerableProperty());
+
+  static constexpr size_t MaxPropsToCheck = 5;
+
+  size_t count = 0;
+  for (ShapePropertyIter<NoGC> iter(obj->shape()); !iter.done(); iter++) {
+    MOZ_ASSERT(!iter->enumerable());
+    if (++count > MaxPropsToCheck) {
+      break;
+    }
+  }
+#endif  // DEBUG
+}
+
+// Typed arrays and classes with an enumerate hook can have extra properties not
+// included in the shape's property map or the object's dense elements.
+static bool ClassCanHaveExtraEnumeratedProperties(const JSClass* clasp) {
+  return IsTypedArrayClass(clasp) || clasp->getNewEnumerate() ||
+         clasp->getEnumerate();
+}
+
+static bool ProtoMayHaveEnumerableProperties(JSObject* obj) {
+  if (!obj->is<NativeObject>()) {
+    return true;
+  }
+
+  JSObject* proto = obj->as<NativeObject>().staticPrototype();
+  while (proto) {
+    if (!proto->is<NativeObject>()) {
+      return true;
+    }
+    NativeObject* nproto = &proto->as<NativeObject>();
+    if (nproto->hasEnumerableProperty() ||
+        nproto->getDenseInitializedLength() > 0 ||
+        ClassCanHaveExtraEnumeratedProperties(nproto->getClass())) {
+      return true;
+    }
+    AssertNoEnumerableProperties(nproto);
+    proto = nproto->staticPrototype();
+  }
+
+  return false;
+}
+
 static bool Snapshot(JSContext* cx, HandleObject pobj_, unsigned flags,
                      MutableHandleIdVector props) {
   Rooted<PropertyKeySet> visited(cx, PropertyKeySet(cx));
   RootedObject pobj(cx, pobj_);
+
+  // If we're only interested in enumerable properties and the proto chain has
+  // no enumerable properties (the common case), we can optimize this to ignore
+  // the proto chain. This also lets us take advantage of the no-duplicate-check
+  // optimization below.
+  if (!(flags & JSITER_HIDDEN) && !(flags & JSITER_OWNONLY) &&
+      !ProtoMayHaveEnumerableProperties(pobj)) {
+    flags |= JSITER_OWNONLY;
+  }
 
   // Don't check for duplicates if we're only interested in own properties.
   // This does the right thing for most objects: native objects don't have
@@ -845,11 +985,7 @@ static bool CanStoreInIteratorCache(JSObject* obj) {
 
     // Typed arrays have indexed properties not captured by the Shape guard.
     // Enumerate hooks may add extra properties.
-    const JSClass* clasp = obj->getClass();
-    if (MOZ_UNLIKELY(IsTypedArrayClass(clasp))) {
-      return false;
-    }
-    if (MOZ_UNLIKELY(clasp->getNewEnumerate() || clasp->getEnumerate())) {
+    if (MOZ_UNLIKELY(ClassCanHaveExtraEnumeratedProperties(obj->getClass()))) {
       return false;
     }
 
@@ -899,22 +1035,6 @@ bool js::EnumerateProperties(JSContext* cx, HandleObject obj,
 
   return Snapshot(cx, obj, 0, props);
 }
-
-#ifdef DEBUG
-static bool PrototypeMayHaveIndexedProperties(NativeObject* nobj) {
-  JSObject* proto = nobj->staticPrototype();
-  if (!proto) {
-    return false;
-  }
-
-  if (proto->is<NativeObject>() &&
-      proto->as<NativeObject>().getDenseInitializedLength() > 0) {
-    return true;
-  }
-
-  return ObjectMayHaveExtraIndexedProperties(proto);
-}
-#endif
 
 static JSObject* GetIterator(JSContext* cx, HandleObject obj) {
   MOZ_ASSERT(!obj->is<PropertyIteratorObject>());
@@ -1092,10 +1212,10 @@ void PropertyIteratorObject::trace(JSTracer* trc, JSObject* obj) {
   }
 }
 
-void PropertyIteratorObject::finalize(JSFreeOp* fop, JSObject* obj) {
+void PropertyIteratorObject::finalize(JS::GCContext* gcx, JSObject* obj) {
   if (NativeIterator* ni =
           obj->as<PropertyIteratorObject>().getNativeIterator()) {
-    fop->free_(obj, ni, ni->allocationSize(), MemoryUse::NativeIterator);
+    gcx->free_(obj, ni, ni->allocationSize(), MemoryUse::NativeIterator);
   }
 }
 
@@ -1108,7 +1228,6 @@ const JSClassOps PropertyIteratorObject::classOps_ = {
     nullptr,   // mayResolve
     finalize,  // finalize
     nullptr,   // call
-    nullptr,   // hasInstance
     nullptr,   // construct
     trace,     // trace
 };

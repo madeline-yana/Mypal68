@@ -12,9 +12,10 @@
 
 using namespace js;
 
-static const jsid voidIdValue = JSID_VOID;
-const JS::HandleId JSID_VOIDHANDLE =
-    JS::HandleId::fromMarkedLocation(&voidIdValue);
+static const JS::PropertyKey voidKeyValue = JS::PropertyKey::Void();
+
+const JS::HandleId JS::VoidHandlePropertyKey =
+    JS::HandleId::fromMarkedLocation(&voidKeyValue);
 
 bool JS::PropertyKey::isPrivateName() const {
   return isSymbol() && toSymbol()->isPrivateName();
@@ -38,8 +39,8 @@ bool JS::PropertyKey::isWellKnownSymbol(JS::SymbolCode code) const {
   if (!atom->isIndex(&index)) {
     return true;
   }
-  static_assert(JSID_INT_MIN == 0);
-  return index > JSID_INT_MAX;
+  static_assert(PropertyKey::IntMin == 0);
+  return index > PropertyKey::IntMax;
 }
 
 /* static */ bool JS::PropertyKey::isNonIntAtom(JSString* str) {

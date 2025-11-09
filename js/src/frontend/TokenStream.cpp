@@ -8,7 +8,6 @@
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/IntegerTypeTraits.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/MemoryChecking.h"
@@ -23,28 +22,22 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 #include <type_traits>
 #include <utility>
 
-#include "jsexn.h"
 #include "jsnum.h"
 
 #include "frontend/BytecodeCompiler.h"
 #include "frontend/Parser.h"
 #include "frontend/ParserAtom.h"
 #include "frontend/ReservedWords.h"
-#include "js/CharacterEncoding.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "js/Printf.h"                // JS_smprintf
 #include "js/RegExpFlags.h"           // JS::RegExpFlags
 #include "js/UniquePtr.h"
-#include "util/StringBuffer.h"
 #include "util/Text.h"
 #include "util/Unicode.h"
 #include "vm/FrameIter.h"  // js::{,NonBuiltin}FrameIter
-#include "vm/HelperThreads.h"
-#include "vm/JSAtom.h"
 #include "vm/JSContext.h"
 #include "vm/Realm.h"
 #include "vm/WellKnownAtom.h"  // js_*_str
@@ -1555,6 +1548,9 @@ bool TokenStreamSpecific<Unit, AnyCharsAccess>::advance(size_t position) {
   Token* cur = const_cast<Token*>(&anyChars.currentToken());
   cur->pos.begin = this->sourceUnits.offset();
   cur->pos.end = cur->pos.begin;
+#ifdef DEBUG
+  cur->type = TokenKind::Limit;
+#endif
   MOZ_MAKE_MEM_UNDEFINED(&cur->type, sizeof(cur->type));
   anyChars.lookahead = 0;
   return true;
@@ -3075,20 +3071,25 @@ template <typename Unit, class AnyCharsAccess>
         break;
 
       case '#': {
-        if (options().privateClassFields) {
-          TokenStart start(this->sourceUnits, -1);
-          const Unit* identStart =
-              this->sourceUnits.addressOfNextCodeUnit() - 1;
-          IdentifierEscapes sawEscape;
-          if (!matchIdentifierStart(&sawEscape)) {
-            return badToken();
-          }
-          return identifierName(start, identStart, sawEscape, modifier,
-                                NameVisibility::Private, ttp);
+#ifdef ENABLE_RECORD_TUPLE
+        if (matchCodeUnit('{')) {
+          simpleKind = TokenKind::HashCurly;
+          break;
         }
-        ungetCodeUnit(unit);
-        error(JSMSG_PRIVATE_FIELDS_NOT_SUPPORTED);
-        return badToken();
+        if (matchCodeUnit('[')) {
+          simpleKind = TokenKind::HashBracket;
+          break;
+        }
+#endif
+
+        TokenStart start(this->sourceUnits, -1);
+        const Unit* identStart = this->sourceUnits.addressOfNextCodeUnit() - 1;
+        IdentifierEscapes sawEscape;
+        if (!matchIdentifierStart(&sawEscape)) {
+          return badToken();
+        }
+        return identifierName(start, identStart, sawEscape, modifier,
+                              NameVisibility::Private, ttp);
       }
 
       case '=':

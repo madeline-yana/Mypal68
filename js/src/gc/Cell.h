@@ -52,7 +52,8 @@ enum class AllocKind : uint8_t;
 class StoreBuffer;
 class TenuredCell;
 
-extern void PerformIncrementalBarrier(TenuredCell* cell);
+extern void PerformIncrementalReadBarrier(TenuredCell* cell);
+extern void PerformIncrementalPreWriteBarrier(TenuredCell* cell);
 extern void PerformIncrementalBarrierDuringFlattening(JSString* str);
 extern void UnmarkGrayGCThingRecursively(TenuredCell* cell);
 
@@ -219,7 +220,7 @@ struct Cell {
 
  protected:
   uintptr_t address() const;
-  inline TenuredChunk* chunk() const;
+  inline ChunkBase* chunk() const;
 
  private:
   // Cells are destroyed by the GC. Do not delete them directly.
@@ -233,6 +234,10 @@ class TenuredCell : public Cell {
   MOZ_ALWAYS_INLINE bool isTenured() const {
     MOZ_ASSERT(!IsInsideNursery(this));
     return true;
+  }
+
+  TenuredChunk* chunk() const {
+    return static_cast<TenuredChunk*>(Cell::chunk());
   }
 
   // Mark bit management.
@@ -345,11 +350,11 @@ inline uintptr_t Cell::address() const {
   return addr;
 }
 
-TenuredChunk* Cell::chunk() const {
+ChunkBase* Cell::chunk() const {
   uintptr_t addr = uintptr_t(this);
   MOZ_ASSERT(addr % CellAlignBytes == 0);
   addr &= ~ChunkMask;
-  return reinterpret_cast<TenuredChunk*>(addr);
+  return reinterpret_cast<ChunkBase*>(addr);
 }
 
 inline StoreBuffer* Cell::storeBuffer() const { return chunk()->storeBuffer; }
@@ -459,7 +464,7 @@ MOZ_ALWAYS_INLINE void ReadBarrier(T* thing) {
   static_assert(std::is_base_of_v<Cell, T>);
   static_assert(!std::is_same_v<Cell, T> && !std::is_same_v<TenuredCell, T>);
 
-  if (thing && !thing->isPermanentAndMayBeShared()) {
+  if (thing) {
     ReadBarrierImpl(thing);
   }
 }
@@ -468,7 +473,6 @@ MOZ_ALWAYS_INLINE void ReadBarrierImpl(TenuredCell* thing) {
   MOZ_ASSERT(!CurrentThreadIsIonCompiling());
   MOZ_ASSERT(!CurrentThreadIsGCMarking());
   MOZ_ASSERT(thing);
-  MOZ_ASSERT(CurrentThreadCanAccessZone(thing->zoneFromAnyThread()));
 
   // Barriers should not be triggered on main thread while collecting.
   mozilla::DebugOnly<JSRuntime*> runtime = thing->runtimeFromAnyThread();
@@ -477,9 +481,7 @@ MOZ_ALWAYS_INLINE void ReadBarrierImpl(TenuredCell* thing) {
 
   JS::shadow::Zone* shadowZone = thing->shadowZoneFromAnyThread();
   if (shadowZone->needsIncrementalBarrier()) {
-    // We should only observe barriers being enabled on the main thread.
-    MOZ_ASSERT(CurrentThreadCanAccessRuntime(runtime));
-    PerformIncrementalBarrier(thing);
+    PerformIncrementalReadBarrier(thing);
     return;
   }
 
@@ -492,6 +494,8 @@ MOZ_ALWAYS_INLINE void ReadBarrierImpl(TenuredCell* thing) {
 
 MOZ_ALWAYS_INLINE void ReadBarrierImpl(Cell* thing) {
   MOZ_ASSERT(!CurrentThreadIsGCMarking());
+  MOZ_ASSERT(thing);
+
   if (thing->isTenured()) {
     ReadBarrierImpl(&thing->asTenured());
   }
@@ -500,10 +504,7 @@ MOZ_ALWAYS_INLINE void ReadBarrierImpl(Cell* thing) {
 MOZ_ALWAYS_INLINE void PreWriteBarrierImpl(TenuredCell* thing) {
   MOZ_ASSERT(!CurrentThreadIsIonCompiling());
   MOZ_ASSERT(!CurrentThreadIsGCMarking());
-
-  if (!thing) {
-    return;
-  }
+  MOZ_ASSERT(thing);
 
   // Barriers can be triggered on the main thread while collecting, but are
   // disabled. For example, this happens when destroying HeapPtr wrappers.
@@ -513,26 +514,14 @@ MOZ_ALWAYS_INLINE void PreWriteBarrierImpl(TenuredCell* thing) {
     return;
   }
 
-  // Barriers can be triggered on off the main thread in two situations:
-  //  - background finalization of HeapPtrs to the atoms zone
-  //  - while we are verifying pre-barriers for a worker runtime
-  // The barrier is not required in either case.
-  bool checkThread = zone->isAtomsZone();
-  JSRuntime* runtime = thing->runtimeFromAnyThread();
-  if (checkThread && !CurrentThreadCanAccessRuntime(runtime)) {
-    MOZ_ASSERT(CurrentThreadIsGCFinalizing() ||
-               RuntimeIsVerifyingPreBarriers(runtime));
-    return;
-  }
-
-  MOZ_ASSERT(CurrentThreadCanAccessRuntime(runtime));
-  MOZ_ASSERT(!RuntimeFromMainThreadIsHeapMajorCollecting(zone));
-  PerformIncrementalBarrier(thing);
+  PerformIncrementalPreWriteBarrier(thing);
 }
 
 MOZ_ALWAYS_INLINE void PreWriteBarrierImpl(Cell* thing) {
   MOZ_ASSERT(!CurrentThreadIsGCMarking());
-  if (thing && thing->isTenured()) {
+  MOZ_ASSERT(thing);
+
+  if (thing->isTenured()) {
     PreWriteBarrierImpl(&thing->asTenured());
   }
 }
@@ -542,7 +531,7 @@ MOZ_ALWAYS_INLINE void PreWriteBarrier(T* thing) {
   static_assert(std::is_base_of_v<Cell, T>);
   static_assert(!std::is_same_v<Cell, T> && !std::is_same_v<TenuredCell, T>);
 
-  if (thing && !thing->isPermanentAndMayBeShared()) {
+  if (thing) {
     PreWriteBarrierImpl(thing);
   }
 }
@@ -552,6 +541,7 @@ MOZ_ALWAYS_INLINE void PreWriteBarrier(T* thing) {
 template <typename T, typename F>
 MOZ_ALWAYS_INLINE void PreWriteBarrier(JS::Zone* zone, T* data,
                                        const F& traceFn) {
+  MOZ_ASSERT(data);
   MOZ_ASSERT(!CurrentThreadIsIonCompiling());
   MOZ_ASSERT(!CurrentThreadIsGCMarking());
 
@@ -570,6 +560,7 @@ MOZ_ALWAYS_INLINE void PreWriteBarrier(JS::Zone* zone, T* data,
 // support a |trace| method.
 template <typename T>
 MOZ_ALWAYS_INLINE void PreWriteBarrier(JS::Zone* zone, T* data) {
+  MOZ_ASSERT(data);
   PreWriteBarrier(zone, data, [](JSTracer* trc, T* data) { data->trace(trc); });
 }
 

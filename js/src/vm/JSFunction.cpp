@@ -28,7 +28,6 @@
 #include "builtin/Symbol.h"
 #include "frontend/BytecodeCompilation.h"
 #include "frontend/BytecodeCompiler.h"
-#include "frontend/TokenStream.h"
 #include "gc/Marking.h"
 #include "gc/Policy.h"
 #include "jit/Ion.h"
@@ -64,8 +63,11 @@
 #include "vm/StringObject.h"
 #include "vm/WellKnownAtom.h"  // js_*_str
 #include "vm/WrapperObject.h"
-#include "vm/Xdr.h"
 #include "wasm/AsmJS.h"
+#ifdef ENABLE_RECORD_TUPLE
+#  include "vm/RecordType.h"
+#  include "vm/TupleType.h"
+#endif
 
 #include "debugger/DebugAPI-inl.h"
 #include "vm/FrameIter-inl.h"  // js::FrameIter::unaliasedForEachActual
@@ -187,6 +189,14 @@ bool ArgumentsGetterImpl(JSContext* cx, const CallArgs& args) {
   RootedFunction fun(cx, &args.thisv().toObject().as<JSFunction>());
   if (!ArgumentsRestrictions(cx, fun)) {
     return false;
+  }
+
+  // Function.arguments isn't standard (not even Annex B), so it isn't
+  // worth the effort to guarantee that we can always recover it from
+  // an Ion frame. Always return null for differential fuzzing.
+  if (js::SupportDifferentialTesting()) {
+    args.rval().setNull();
+    return true;
   }
 
   // Return null if this function wasn't found on the stack.
@@ -543,130 +553,6 @@ static bool fun_resolve(JSContext* cx, HandleObject obj, HandleId id,
   return true;
 }
 
-template <XDRMode mode>
-XDRResult js::XDRInterpretedFunction(XDRState<mode>* xdr,
-                                     HandleScope enclosingScope,
-                                     HandleScriptSourceObject sourceObject,
-                                     MutableHandleFunction objp) {
-  enum FirstWordFlag {
-    HasAtom = 1 << 0,
-    IsGenerator = 1 << 1,
-    IsAsync = 1 << 2,
-    IsLazy = 1 << 3,
-  };
-
-  /* NB: Keep this in sync with CloneInnerInterpretedFunction. */
-
-  JSContext* cx = xdr->cx();
-
-  uint8_t xdrFlags = 0; /* bitmask of FirstWordFlag */
-
-  uint16_t nargs = 0;
-  uint16_t flags = 0;
-
-  RootedFunction fun(cx);
-  RootedAtom atom(cx);
-  RootedScript script(cx);
-  Rooted<BaseScript*> lazy(cx);
-
-  if (mode == XDR_ENCODE) {
-    fun = objp;
-    if (!fun->isInterpreted() || fun->isBoundFunction()) {
-      return xdr->fail(JS::TranscodeResult::Failure_NotInterpretedFun);
-    }
-
-    if (fun->isGenerator()) {
-      xdrFlags |= IsGenerator;
-    }
-    if (fun->isAsync()) {
-      xdrFlags |= IsAsync;
-    }
-
-    if (fun->hasBytecode()) {
-      // Encode the script.
-      script = fun->nonLazyScript();
-    } else {
-      // Encode a lazy script.
-      xdrFlags |= IsLazy;
-      lazy = fun->baseScript();
-    }
-
-    if (fun->displayAtom()) {
-      xdrFlags |= HasAtom;
-    }
-
-    nargs = fun->nargs();
-    flags = FunctionFlags::clearMutableflags(fun->flags()).toRaw();
-
-    atom = fun->displayAtom();
-  }
-
-  MOZ_TRY(xdr->codeUint8(&xdrFlags));
-
-  MOZ_TRY(xdr->codeUint16(&nargs));
-  MOZ_TRY(xdr->codeUint16(&flags));
-
-  if (xdrFlags & HasAtom) {
-    MOZ_TRY(XDRAtom(xdr, &atom));
-  }
-
-  if (mode == XDR_DECODE) {
-    GeneratorKind generatorKind = (xdrFlags & IsGenerator)
-                                      ? GeneratorKind::Generator
-                                      : GeneratorKind::NotGenerator;
-    FunctionAsyncKind asyncKind = (xdrFlags & IsAsync)
-                                      ? FunctionAsyncKind::AsyncFunction
-                                      : FunctionAsyncKind::SyncFunction;
-
-    RootedObject proto(cx);
-    if (!GetFunctionPrototype(cx, generatorKind, asyncKind, &proto)) {
-      return xdr->fail(JS::TranscodeResult::Throw);
-    }
-
-    gc::AllocKind allocKind = gc::AllocKind::FUNCTION;
-    if (flags & FunctionFlags::EXTENDED) {
-      allocKind = gc::AllocKind::FUNCTION_EXTENDED;
-    }
-
-    // Sanity check the flags. We should have cleared the mutable flags already
-    // and we do not support self-hosted-lazy, bound or wasm functions.
-    constexpr uint16_t UnsupportedFlags =
-        FunctionFlags::MUTABLE_FLAGS | FunctionFlags::SELFHOSTLAZY |
-        FunctionFlags::BOUND_FUN | FunctionFlags::WASM_JIT_ENTRY;
-    if ((flags & UnsupportedFlags) != 0) {
-      return xdr->fail(JS::TranscodeResult::Failure_BadDecode);
-    }
-
-    fun = NewFunctionWithProto(cx, nullptr, nargs, FunctionFlags(flags),
-                               nullptr, atom, proto, allocKind, TenuredObject);
-    if (!fun) {
-      return xdr->fail(JS::TranscodeResult::Throw);
-    }
-    objp.set(fun);
-  }
-
-  if (xdrFlags & IsLazy) {
-    MOZ_TRY(XDRLazyScript(xdr, enclosingScope, sourceObject, fun, &lazy));
-  } else {
-    MOZ_TRY(XDRScript(xdr, enclosingScope, sourceObject, fun, &script));
-  }
-
-  // Verify marker at end of function to detect buffer trunction.
-  MOZ_TRY(xdr->codeMarker(0x9E35CA1F));
-
-  return Ok();
-}
-
-template XDRResult js::XDRInterpretedFunction(XDRState<XDR_ENCODE>*,
-                                              HandleScope,
-                                              HandleScriptSourceObject,
-                                              MutableHandleFunction);
-
-template XDRResult js::XDRInterpretedFunction(XDRState<XDR_DECODE>*,
-                                              HandleScope,
-                                              HandleScriptSourceObject,
-                                              MutableHandleFunction);
-
 /* ES6 (04-25-16) 19.2.3.6 Function.prototype [ @@hasInstance ] */
 static bool fun_symbolHasInstance(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
@@ -766,11 +652,11 @@ inline void JSFunction::trace(JSTracer* trc) {
   if (isInterpreted() && hasBaseScript()) {
     if (BaseScript* script = baseScript()) {
       TraceManuallyBarrieredEdge(trc, &script, "script");
-      // Self-hosted scripts are shared with workers but are never
-      // relocated. Skip unnecessary writes to prevent the possible data race.
+      // Self-hosted scripts are shared with workers but are never relocated.
+      // Skip unnecessary writes to prevent the possible data race.
       if (baseScript() != script) {
-        setFixedSlot(NativeJitInfoOrInterpretedScriptSlot,
-                     JS::PrivateValue(script));
+        HeapSlot& slot = getFixedSlotRef(NativeJitInfoOrInterpretedScriptSlot);
+        slot.unbarrieredSet(JS::PrivateValue(script));
       }
     }
   }
@@ -922,6 +808,7 @@ JSString* js::FunctionToString(JSContext* cx, HandleFunction fun,
     // can be matched as the 'PropertyName' grammar production.
     if (fun->explicitName() && !fun->isBoundFunction() &&
         (fun->kind() == FunctionFlags::NormalFunction ||
+         fun->kind() == FunctionFlags::Wasm ||
          fun->kind() == FunctionFlags::ClassConstructor)) {
       if (!out.append(' ')) {
         return nullptr;
@@ -1153,7 +1040,6 @@ static const JSClassOps JSFunctionClassOps = {
     fun_mayResolve,  // mayResolve
     nullptr,         // finalize
     nullptr,         // call
-    nullptr,         // hasInstance
     nullptr,         // construct
     fun_trace,       // trace
 };
@@ -1649,7 +1535,7 @@ static bool CreateDynamicFunction(JSContext* cx, const CallArgs& args,
       .setNoScriptRval(false)
       .setIntroductionInfo(introducerFilename, introductionType, lineno,
                            pcOffset)
-      .setdeferDebugMetadata();
+      .setDeferDebugMetadata();
 
   JSStringBuilder sb(cx);
 
@@ -1786,8 +1672,10 @@ static bool CreateDynamicFunction(JSContext* cx, const CallArgs& args,
 
   RootedValue undefValue(cx);
   RootedScript funScript(cx, JS_GetFunctionScript(cx, fun));
-  if (funScript && !UpdateDebugMetadata(cx, funScript, options, undefValue,
-                                        nullptr, maybeScript, maybeScript)) {
+  JS::InstantiateOptions instantiateOptions(options);
+  if (funScript &&
+      !UpdateDebugMetadata(cx, funScript, instantiateOptions, undefValue,
+                           nullptr, maybeScript, maybeScript)) {
     return false;
   }
 
@@ -2070,6 +1958,7 @@ bool js::CanReuseScriptForClone(JS::Realm* realm, HandleFunction fun,
 
 static inline JSFunction* NewFunctionClone(JSContext* cx, HandleFunction fun,
                                            HandleObject proto) {
+  MOZ_ASSERT(cx->realm() == fun->realm());
   MOZ_ASSERT(proto);
 
   const JSClass* clasp = fun->getClass();
@@ -2105,19 +1994,8 @@ static inline JSFunction* NewFunctionClone(JSContext* cx, HandleFunction fun,
   clone->setArgCount(fun->nargs());
   clone->setFlags(flags);
 
-  JSAtom* atom = fun->displayAtom();
-  if (atom) {
-    cx->markAtom(atom);
-  }
-  clone->initAtom(atom);
-
-  if (allocKind == gc::AllocKind::FUNCTION_EXTENDED) {
-    MOZ_ASSERT(fun->isExtended());
-    MOZ_ASSERT(fun->compartment() == cx->compartment());
-    for (unsigned i = 0; i < FunctionExtended::NUM_EXTENDED_SLOTS; i++) {
-      clone->initExtendedSlot(i, fun->getExtendedSlot(i));
-    }
-  }
+  // Note: |clone| and |fun| are same-zone so we don't need to call markAtom.
+  clone->initAtom(fun->displayAtom());
 
   return clone;
 }
@@ -2147,6 +2025,16 @@ JSFunction* js::CloneFunctionReuseScript(JSContext* cx, HandleFunction fun,
     clone->initEnvironment(enclosingEnv);
   }
 
+#ifdef DEBUG
+  // Assert extended slots don't need to be copied.
+  if (fun->isExtended()) {
+    for (unsigned i = 0; i < FunctionExtended::NUM_EXTENDED_SLOTS; i++) {
+      MOZ_ASSERT(fun->getExtendedSlot(i).isUndefined());
+      MOZ_ASSERT(clone->getExtendedSlot(i).isUndefined());
+    }
+  }
+#endif
+
   return clone;
 }
 
@@ -2165,6 +2053,11 @@ JSFunction* js::CloneAsmJSModuleFunction(JSContext* cx, HandleFunction fun) {
   MOZ_ASSERT(fun->native() == InstantiateAsmJS);
   MOZ_ASSERT(!fun->hasJitInfo());
   clone->initNative(InstantiateAsmJS, nullptr);
+
+  JSObject* moduleObj =
+      &fun->getExtendedSlot(FunctionExtended::ASMJS_MODULE_SLOT).toObject();
+  clone->initExtendedSlot(FunctionExtended::ASMJS_MODULE_SLOT,
+                          ObjectValue(*moduleObj));
 
   return clone;
 }
@@ -2338,6 +2231,11 @@ void js::ReportIncompatibleMethod(JSContext* cx, const CallArgs& args,
                  !thisv.toObject().staticPrototype() ||
                  thisv.toObject().staticPrototype()->getClass() != clasp);
       break;
+#  ifdef ENABLE_RECORD_TUPLE
+    case ValueType::ExtendedPrimitive:
+      MOZ_CRASH("ExtendedPrimitive is not supported yet");
+      break;
+#  endif
     case ValueType::String:
       MOZ_ASSERT(clasp != &StringObject::class_);
       break;

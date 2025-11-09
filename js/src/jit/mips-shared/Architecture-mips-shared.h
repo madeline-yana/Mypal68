@@ -7,6 +7,7 @@
 
 #include "mozilla/MathAlgorithms.h"
 
+#include <algorithm>
 #include <limits.h>
 #include <stdint.h>
 
@@ -181,7 +182,7 @@ class Registers {
       (1 << Registers::t8) |                           // t8 = scratch
       (1 << Registers::t9) |                           // t9 = scratch
       (1 << Registers::k0) | (1 << Registers::k1) | (1 << Registers::gp) |
-      (1 << Registers::sp) | (1 << Registers::ra);
+      (1 << Registers::sp) | (1 << Registers::ra) | (1 << Registers::fp);
 
   // Registers returned from a JS -> JS call.
   static const SetType JSCallMask;
@@ -269,6 +270,10 @@ class FloatRegistersMIPSShared {
   typedef uint64_t SetType;
 #endif
 };
+
+static const uint32_t SpillSlotSize =
+    std::max(sizeof(Registers::RegisterContent),
+             sizeof(FloatRegistersMIPSShared::RegisterContent));
 
 template <typename T>
 class TypedRegisterSet;

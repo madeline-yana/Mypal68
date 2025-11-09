@@ -19,6 +19,7 @@
 #include "vm/HelperThreads.h"
 #include "vm/Realm.h"
 
+#include "gc/Marking-inl.h"
 #include "vm/GeckoProfiler-inl.h"
 #include "vm/JSContext-inl.h"
 
@@ -86,15 +87,15 @@ void PreventGCDuringInteractiveDebug() { TlsContext.get()->suppressGC++; }
 
 #endif
 
-void js::ReleaseAllJITCode(JSFreeOp* fop) {
-  js::CancelOffThreadIonCompile(fop->runtime());
+void js::ReleaseAllJITCode(JS::GCContext* gcx) {
+  js::CancelOffThreadIonCompile(gcx->runtime());
 
-  for (ZonesIter zone(fop->runtime(), SkipAtoms); !zone.done(); zone.next()) {
+  for (ZonesIter zone(gcx->runtime(), SkipAtoms); !zone.done(); zone.next()) {
     zone->setPreservingCode(false);
-    zone->discardJitCode(fop);
+    zone->discardJitCode(gcx);
   }
 
-  for (RealmsIter realm(fop->runtime()); !realm.done(); realm.next()) {
+  for (RealmsIter realm(gcx->runtime()); !realm.done(); realm.next()) {
     if (jit::JitRealm* jitRealm = realm->jitRealm()) {
       jitRealm->discardStubs();
     }
@@ -263,12 +264,17 @@ JS_PUBLIC_API void JS::SkipZoneForGC(JSContext* cx, Zone* zone) {
   zone->unscheduleGC();
 }
 
+static inline void CheckGCOptions(JS::GCOptions options) {
+  MOZ_ASSERT(options == JS::GCOptions::Normal ||
+             options == JS::GCOptions::Shrink ||
+             options == JS::GCOptions::Shutdown);
+}
+
 JS_PUBLIC_API void JS::NonIncrementalGC(JSContext* cx, JS::GCOptions options,
                                         GCReason reason) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  MOZ_ASSERT(options == JS::GCOptions::Normal ||
-             options == JS::GCOptions::Shrink);
+  CheckGCOptions(options);
 
   cx->runtime()->gc.gc(options, reason);
 
@@ -279,8 +285,7 @@ JS_PUBLIC_API void JS::StartIncrementalGC(JSContext* cx, JS::GCOptions options,
                                           GCReason reason, int64_t millis) {
   AssertHeapIsIdle();
   CHECK_THREAD(cx);
-  MOZ_ASSERT(options == JS::GCOptions::Normal ||
-             options == JS::GCOptions::Shrink);
+  CheckGCOptions(options);
 
   cx->runtime()->gc.startGC(options, reason, millis);
 }
@@ -510,6 +515,31 @@ static bool GCSliceCountGetter(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
+#ifdef ENABLE_TESTS
+static bool GCCompartmentCount(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  size_t count = 0;
+  for (ZonesIter zone(cx->runtime(), WithAtoms); !zone.done(); zone.next()) {
+    count += zone->compartments().length();
+  }
+
+  args.rval().setNumber(double(count));
+  return true;
+}
+
+static bool GCLastStartReason(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  const char* reason = ExplainGCReason(cx->runtime()->gc.lastStartReason());
+  RootedString str(cx, JS_NewStringCopyZ(cx, reason));
+  if (!str) {
+    return false;
+  }
+
+  args.rval().setString(str);
+  return true;
+}
+#endif
+
 static bool ZoneGCBytesGetter(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   args.rval().setNumber(double(cx->zone()->gcHeapSize.bytes()));
@@ -577,7 +607,12 @@ JSObject* NewMemoryInfoObject(JSContext* cx) {
                  {"gcNumber", GCNumberGetter},
                  {"majorGCCount", MajorGCCountGetter},
                  {"minorGCCount", MinorGCCountGetter},
-                 {"sliceCount", GCSliceCountGetter}};
+                 {"sliceCount", GCSliceCountGetter},
+#ifdef ENABLE_TESTS
+                 {"compartmentCount", GCCompartmentCount},
+                 {"lastStartReason", GCLastStartReason}
+#endif
+};
 
   for (auto pair : getters) {
     JSNative getter = pair.getter;
@@ -672,12 +707,10 @@ JS_PUBLIC_API void js::gc::FinalizeDeadNurseryObject(JSContext* cx,
 
   MOZ_ASSERT(obj);
   MOZ_ASSERT(IsInsideNursery(obj));
-  mozilla::DebugOnly<JSObject*> prior(obj);
-  MOZ_ASSERT(IsAboutToBeFinalizedUnbarriered(&prior));
-  MOZ_ASSERT(obj == prior);
+  MOZ_ASSERT(!IsForwarded(obj));
 
   const JSClass* jsClass = JS::GetClass(obj);
-  jsClass->doFinalize(cx->defaultFreeOp(), obj);
+  jsClass->doFinalize(cx->gcContext(), obj);
 }
 
 JS_PUBLIC_API void js::gc::SetPerformanceHint(JSContext* cx,

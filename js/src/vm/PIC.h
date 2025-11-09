@@ -194,7 +194,7 @@ struct ForOfPIC {
     bool tryOptimizeArrayIteratorNext(JSContext* cx, bool* optimized);
 
     void trace(JSTracer* trc);
-    void finalize(JSFreeOp* fop, JSObject* obj);
+    void finalize(JS::GCContext* gcx, JSObject* obj);
 
    private:
     // Check if the global array-related objects have not been messed with
@@ -217,7 +217,7 @@ struct ForOfPIC {
     // Erase the stub chain.
     void eraseChain(JSContext* cx);
 
-    void freeAllStubs(JSFreeOp* fop);
+    void freeAllStubs(JS::GCContext* gcx);
   };
 
   static NativeObject* createForOfPICObject(JSContext* cx,

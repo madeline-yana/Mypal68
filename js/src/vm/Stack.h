@@ -82,7 +82,6 @@ class Instance;
 // InterpreterActivation) is a local var of js::Interpret.
 
 enum MaybeCheckAliasing { CHECK_ALIASING = true, DONT_CHECK_ALIASING = false };
-enum MaybeCheckTDZ { CheckTDZ = true, DontCheckTDZ = false };
 
 }  // namespace js
 
@@ -209,7 +208,6 @@ class AbstractFramePtr {
   inline Value& thisArgument() const;
 
   inline bool isConstructing() const;
-  inline Value newTarget() const;
 
   inline bool debuggerNeedsCheckPrimitiveReturn() const;
 
@@ -218,6 +216,8 @@ class AbstractFramePtr {
 
   inline bool saveGeneratorSlots(JSContext* cx, unsigned nslots,
                                  ArrayObject* dest) const;
+
+  inline bool hasCachedSavedFrame() const;
 
   inline unsigned numActualArgs() const;
   inline unsigned numFormalArgs() const;
@@ -362,8 +362,7 @@ class InterpreterFrame {
 
   /* Used for eval, module or global frames. */
   void initExecuteFrame(JSContext* cx, HandleScript script,
-                        AbstractFramePtr prev, HandleValue newTargetValue,
-                        HandleObject envChain);
+                        AbstractFramePtr prev, HandleObject envChain);
 
  public:
   /*
@@ -604,20 +603,11 @@ class InterpreterFrame {
   /*
    * New Target
    *
-   * Only function frames have a meaningful newTarget. An eval frame in a
-   * function will have a copy of the newTarget of the enclosing function
-   * frame.
+   * Only non-arrow function frames have a meaningful newTarget.
    */
   Value newTarget() const {
-    if (isEvalFrame()) {
-      return ((Value*)this)[-1];
-    }
-
     MOZ_ASSERT(isFunctionFrame());
-
-    if (callee().isArrow()) {
-      return callee().getExtendedSlot(FunctionExtended::ARROW_NEWTARGET_SLOT);
-    }
+    MOZ_ASSERT(!callee().isArrow());
 
     if (isConstructing()) {
       unsigned pushedArgs = std::max(numFormalArgs(), numActualArgs());
@@ -829,7 +819,6 @@ class InterpreterStack {
 
   // For execution of eval, module or global code.
   InterpreterFrame* pushExecuteFrame(JSContext* cx, HandleScript script,
-                                     HandleValue newTargetValue,
                                      HandleObject envChain,
                                      AbstractFramePtr evalInFrame);
 

@@ -8,14 +8,15 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/intl/Collator.h"
+#include "mozilla/intl/Locale.h"
 #include "mozilla/Span.h"
 
 #include "builtin/Array.h"
 #include "builtin/intl/CommonFunctions.h"
+#include "builtin/intl/FormatBuffer.h"
 #include "builtin/intl/LanguageTag.h"
-#include "builtin/intl/ScopedICUObject.h"
 #include "builtin/intl/SharedIntlData.h"
-#include "gc/FreeOp.h"
+#include "gc/GCContext.h"
 #include "js/CharacterEncoding.h"
 #include "js/PropertySpec.h"
 #include "js/StableStringChars.h"
@@ -33,7 +34,6 @@ using namespace js;
 
 using JS::AutoStableStringChars;
 
-using js::intl::IcuLocale;
 using js::intl::ReportInternalError;
 using js::intl::SharedIntlData;
 using js::intl::StringsAreEqual;
@@ -47,7 +47,6 @@ const JSClassOps CollatorObject::classOps_ = {
     nullptr,                   // mayResolve
     CollatorObject::finalize,  // finalize
     nullptr,                   // call
-    nullptr,                   // hasInstance
     nullptr,                   // construct
     nullptr,                   // trace
 };
@@ -138,11 +137,11 @@ bool js::intl_Collator(JSContext* cx, unsigned argc, Value* vp) {
   return Collator(cx, args);
 }
 
-void js::CollatorObject::finalize(JSFreeOp* fop, JSObject* obj) {
-  MOZ_ASSERT(fop->onMainThread());
+void js::CollatorObject::finalize(JS::GCContext* gcx, JSObject* obj) {
+  MOZ_ASSERT(gcx->onMainThread());
 
   if (mozilla::intl::Collator* coll = obj->as<CollatorObject>().getCollator()) {
-    intl::RemoveICUCellMemory(fop, obj, CollatorObject::EstimatedMemoryUse);
+    intl::RemoveICUCellMemory(gcx, obj, CollatorObject::EstimatedMemoryUse);
     delete coll;
   }
 }
@@ -159,7 +158,7 @@ bool js::intl_availableCollations(JSContext* cx, unsigned argc, Value* vp) {
   auto keywords =
       mozilla::intl::Collator::GetBcp47KeywordValuesForLocale(locale.get());
   if (keywords.isErr()) {
-    ReportInternalError(cx);
+    ReportInternalError(cx, keywords.unwrapErr());
     return false;
   }
 
@@ -239,9 +238,12 @@ static mozilla::intl::Collator* NewIntlCollator(
     }
     if (StringEqualsLiteral(usage, "search")) {
       // ICU expects search as a Unicode locale extension on locale.
-      intl::LanguageTag tag(cx);
-      if (!intl::LanguageTagParser::parse(
-              cx, mozilla::MakeStringSpan(locale.get()), tag)) {
+      mozilla::intl::Locale tag;
+      if (mozilla::intl::LocaleParser::TryParse(
+              mozilla::MakeStringSpan(locale.get()), tag)
+              .isErr()) {
+        JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                  JSMSG_INVALID_LANGUAGE_TAG, locale.get());
         return nullptr;
       }
 
@@ -259,7 +261,13 @@ static mozilla::intl::Collator* NewIntlCollator(
         return nullptr;
       }
 
-      locale = tag.toStringZ(cx);
+      intl::FormatBuffer<char> buffer(cx);
+      if (auto result = tag.ToString(buffer); result.isErr()) {
+        intl::ReportInternalError(cx, result.unwrapErr());
+        return nullptr;
+      }
+
+      locale = buffer.extractStringZ();
       if (!locale) {
         return nullptr;
       }
@@ -324,7 +332,7 @@ static mozilla::intl::Collator* NewIntlCollator(
     }
   }
 
-  auto collResult = Collator::TryCreate(IcuLocale(locale.get()));
+  auto collResult = Collator::TryCreate(locale.get());
   if (collResult.isErr()) {
     ReportInternalError(cx, collResult.unwrapErr());
     return nullptr;
@@ -338,6 +346,24 @@ static mozilla::intl::Collator* NewIntlCollator(
   }
 
   return coll.release();
+}
+
+static mozilla::intl::Collator* GetOrCreateCollator(
+    JSContext* cx, Handle<CollatorObject*> collator) {
+  // Obtain a cached mozilla::intl::Collator object.
+  mozilla::intl::Collator* coll = collator->getCollator();
+  if (coll) {
+    return coll;
+  }
+
+  coll = NewIntlCollator(cx, collator);
+  if (!coll) {
+    return nullptr;
+  }
+  collator->setCollator(coll);
+
+  intl::AddICUCellMemory(collator, CollatorObject::EstimatedMemoryUse);
+  return coll;
 }
 
 static bool intl_CompareStrings(JSContext* cx, mozilla::intl::Collator* coll,
@@ -378,16 +404,9 @@ bool js::intl_CompareStrings(JSContext* cx, unsigned argc, Value* vp) {
   Rooted<CollatorObject*> collator(cx,
                                    &args[0].toObject().as<CollatorObject>());
 
-  // Obtain a cached mozilla::intl::Collator object.
-  mozilla::intl::Collator* coll = collator->getCollator();
+  mozilla::intl::Collator* coll = GetOrCreateCollator(cx, collator);
   if (!coll) {
-    coll = NewIntlCollator(cx, collator);
-    if (!coll) {
-      return false;
-    }
-    collator->setCollator(coll);
-
-    intl::AddICUCellMemory(collator, CollatorObject::EstimatedMemoryUse);
+    return false;
   }
 
   // Use the UCollator to actually compare the strings.

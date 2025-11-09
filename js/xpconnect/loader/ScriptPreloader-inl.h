@@ -77,13 +77,11 @@ class HashElemIter {
 
   T& hash_;
   Matcher<ElemType>* matcher_;
-  Maybe<Iterator> iter_;
+  Iterator iter_;
 
  public:
   explicit HashElemIter(T& hash, Matcher<ElemType>* matcher = nullptr)
-      : hash_(hash), matcher_(matcher) {
-    iter_.emplace(std::move(hash.Iter()));
-  }
+      : hash_(hash), matcher_(matcher), iter_(hash.Iter()) {}
 
   class Elem {
     friend class HashElemIter<T>;
@@ -95,7 +93,7 @@ class HashElemIter {
       skipNonMatching();
     }
 
-    Iterator& iter() { return iter_.iter_.ref(); }
+    Iterator& iter() { return iter_.iter_; }
 
     void skipNonMatching() {
       if (iter_.matcher_) {
@@ -141,7 +139,7 @@ class HashElemIter {
     }
   };
 
-  Elem begin() { return Elem(*this, iter_->Done()); }
+  Elem begin() { return Elem(*this, iter_.Done()); }
 
   Elem end() { return Elem(*this, true); }
 };

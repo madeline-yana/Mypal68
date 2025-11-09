@@ -25,6 +25,7 @@
 #include "wasm/WasmCompile.h"
 #include "wasm/WasmCompileArgs.h"
 #include "wasm/WasmModuleTypes.h"
+#include "wasm/WasmProcess.h"
 #include "wasm/WasmTypeDef.h"
 
 namespace js {
@@ -58,9 +59,7 @@ struct ModuleEnvironment {
   Uint32Vector funcImportGlobalDataOffsets;
 
   GlobalDescVector globals;
-#ifdef ENABLE_WASM_EXCEPTIONS
   TagDescVector tags;
-#endif
   TableDescVector tables;
   Uint32Vector asmJSSigToTableIndex;
   ImportVector imports;
@@ -91,15 +90,15 @@ struct ModuleEnvironment {
 #define WASM_FEATURE(NAME, SHORT_NAME, ...) \
   bool SHORT_NAME##Enabled() const { return features.SHORT_NAME; }
 #ifdef ENABLE_WASM_SIMD
-  JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
+  JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE, WASM_FEATURE)
 #else
-  JS_FOR_WASM_FEATURES(WASM_FEATURE)
+  JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
 #endif
 #undef WASM_FEATURE
   Shareable sharedMemoryEnabled() const { return features.sharedMemory; }
   bool hugeMemoryEnabled() const {
-    return !isAsmJS() && features.hugeMemory && usesMemory() &&
-           memory->indexType() == IndexType::I32;
+    return !isAsmJS() && usesMemory() &&
+           IsHugeMemoryEnabled(memory->indexType());
   }
 #ifdef ENABLE_WASM_SIMD_WORMHOLE
   bool simdWormholeEnabled() const { return features.simdWormhole; }

@@ -7,6 +7,7 @@
 
 #include "jit/BaselineFrame.h"
 
+#include "jit/TrialInlining.h"
 #include "vm/JSContext.h"
 #include "vm/Realm.h"
 

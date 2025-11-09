@@ -12,7 +12,6 @@
 #include "vm/BytecodeUtil.h"
 #include "wasm/WasmBuiltins.h"
 #include "wasm/WasmCodegenTypes.h"
-#include "wasm/WasmTlsData.h"
 
 namespace js {
 namespace jit {
@@ -239,6 +238,9 @@ class MacroAssemblerARM : public Assembler {
   void ma_adc(Register src, Register dest, SBit s = LeaveCC,
               Condition c = Always);
   void ma_adc(Register src1, Register src2, Register dest, SBit s = LeaveCC,
+              Condition c = Always);
+  void ma_adc(Register src1, Imm32 op, Register dest,
+              AutoRegisterScope& scratch, SBit s = LeaveCC,
               Condition c = Always);
 
   // Add:
@@ -1149,12 +1151,28 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM {
   }
 
   void load64(const Address& address, Register64 dest) {
-    load32(LowWord(address), dest.low);
-    load32(HighWord(address), dest.high);
+    bool highBeforeLow = address.base == dest.low;
+    if (highBeforeLow) {
+      load32(HighWord(address), dest.high);
+      load32(LowWord(address), dest.low);
+    } else {
+      load32(LowWord(address), dest.low);
+      load32(HighWord(address), dest.high);
+    }
   }
   void load64(const BaseIndex& address, Register64 dest) {
-    load32(LowWord(address), dest.low);
-    load32(HighWord(address), dest.high);
+    // If you run into this, relax your register allocation constraints.
+    MOZ_RELEASE_ASSERT(
+        !((address.base == dest.low || address.base == dest.high) &&
+          (address.index == dest.low || address.index == dest.high)));
+    bool highBeforeLow = address.base == dest.low || address.index == dest.low;
+    if (highBeforeLow) {
+      load32(HighWord(address), dest.high);
+      load32(LowWord(address), dest.low);
+    } else {
+      load32(LowWord(address), dest.low);
+      load32(HighWord(address), dest.high);
+    }
   }
 
   template <typename S>
@@ -1366,17 +1384,6 @@ class MacroAssemblerARMCompat : public MacroAssemblerARM {
                    Condition cc = Always) {
     as_vmov(VFPRegister(dest).singleOverlay(), VFPRegister(src).singleOverlay(),
             cc);
-  }
-
-  void loadWasmGlobalPtr(uint32_t globalDataOffset, Register dest) {
-    loadPtr(Address(WasmTlsReg,
-                    offsetof(wasm::TlsData, globalArea) + globalDataOffset),
-            dest);
-  }
-  void loadWasmPinnedRegsFromTls() {
-    ScratchRegisterScope scratch(asMasm());
-    ma_ldr(Address(WasmTlsReg, offsetof(wasm::TlsData, memoryBase)), HeapReg,
-           scratch);
   }
 
   // Instrumentation for entering and leaving the profiler.

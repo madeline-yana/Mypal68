@@ -8,6 +8,7 @@
 #include "js/Date.h"
 #include "js/Value.h"
 #include "vm/JSObject.h"
+#include "vm/NativeObject.h"
 
 namespace js {
 

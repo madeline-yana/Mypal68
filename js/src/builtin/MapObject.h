@@ -141,7 +141,7 @@ class MapObject : public NativeObject {
       OrderedHashMap<Value, Value, UnbarrieredHashPolicy, ZoneAllocPolicy>;
   friend class OrderedHashTableRef<MapObject>;
 
-  static void sweepAfterMinorGC(JSFreeOp* fop, MapObject* mapobj);
+  static void sweepAfterMinorGC(JS::GCContext* gcx, MapObject* mapobj);
 
   size_t sizeOfData(mozilla::MallocSizeOf mallocSizeOf);
 
@@ -150,6 +150,9 @@ class MapObject : public NativeObject {
   }
 
   ValueMap* getData() { return maybePtrFromReservedSlot<ValueMap>(DataSlot); }
+
+  [[nodiscard]] static bool get(JSContext* cx, unsigned argc, Value* vp);
+  [[nodiscard]] static bool set(JSContext* cx, unsigned argc, Value* vp);
 
  private:
   static const ClassSpec classSpec_;
@@ -164,7 +167,7 @@ class MapObject : public NativeObject {
   static ValueMap& extract(HandleObject o);
   static ValueMap& extract(const CallArgs& args);
   static void trace(JSTracer* trc, JSObject* obj);
-  static void finalize(JSFreeOp* fop, JSObject* obj);
+  static void finalize(JS::GCContext* gcx, JSObject* obj);
   [[nodiscard]] static bool construct(JSContext* cx, unsigned argc, Value* vp);
 
   static bool is(HandleValue v);
@@ -176,11 +179,9 @@ class MapObject : public NativeObject {
   [[nodiscard]] static bool size_impl(JSContext* cx, const CallArgs& args);
   [[nodiscard]] static bool size(JSContext* cx, unsigned argc, Value* vp);
   [[nodiscard]] static bool get_impl(JSContext* cx, const CallArgs& args);
-  [[nodiscard]] static bool get(JSContext* cx, unsigned argc, Value* vp);
   [[nodiscard]] static bool has_impl(JSContext* cx, const CallArgs& args);
   [[nodiscard]] static bool has(JSContext* cx, unsigned argc, Value* vp);
   [[nodiscard]] static bool set_impl(JSContext* cx, const CallArgs& args);
-  [[nodiscard]] static bool set(JSContext* cx, unsigned argc, Value* vp);
   [[nodiscard]] static bool delete_impl(JSContext* cx, const CallArgs& args);
   [[nodiscard]] static bool delete_(JSContext* cx, unsigned argc, Value* vp);
   [[nodiscard]] static bool keys_impl(JSContext* cx, const CallArgs& args);
@@ -211,7 +212,7 @@ class MapIteratorObject : public NativeObject {
   static MapIteratorObject* create(JSContext* cx, HandleObject mapobj,
                                    ValueMap* data,
                                    MapObject::IteratorKind kind);
-  static void finalize(JSFreeOp* fop, JSObject* obj);
+  static void finalize(JS::GCContext* gcx, JSObject* obj);
   static size_t objectMoved(JSObject* obj, JSObject* old);
 
   void init(MapObject* mapObj, MapObject::IteratorKind kind) {
@@ -259,6 +260,8 @@ class SetObject : public NativeObject {
   // interfaces, etc.)
   static SetObject* create(JSContext* cx, HandleObject proto = nullptr);
   static uint32_t size(JSContext* cx, HandleObject obj);
+  [[nodiscard]] static bool add(JSContext* cx, unsigned argc, Value* vp);
+  [[nodiscard]] static bool has(JSContext* cx, unsigned argc, Value* vp);
   [[nodiscard]] static bool has(JSContext* cx, HandleObject obj,
                                 HandleValue key, bool* rval);
   [[nodiscard]] static bool clear(JSContext* cx, HandleObject obj);
@@ -271,7 +274,7 @@ class SetObject : public NativeObject {
       OrderedHashSet<Value, UnbarrieredHashPolicy, ZoneAllocPolicy>;
   friend class OrderedHashTableRef<SetObject>;
 
-  static void sweepAfterMinorGC(JSFreeOp* fop, SetObject* setobj);
+  static void sweepAfterMinorGC(JS::GCContext* gcx, SetObject* setobj);
 
   size_t sizeOfData(mozilla::MallocSizeOf mallocSizeOf);
 
@@ -294,7 +297,7 @@ class SetObject : public NativeObject {
   static ValueSet& extract(HandleObject o);
   static ValueSet& extract(const CallArgs& args);
   static void trace(JSTracer* trc, JSObject* obj);
-  static void finalize(JSFreeOp* fop, JSObject* obj);
+  static void finalize(JS::GCContext* gcx, JSObject* obj);
   static bool construct(JSContext* cx, unsigned argc, Value* vp);
 
   static bool is(HandleValue v);
@@ -308,9 +311,7 @@ class SetObject : public NativeObject {
   [[nodiscard]] static bool size_impl(JSContext* cx, const CallArgs& args);
   [[nodiscard]] static bool size(JSContext* cx, unsigned argc, Value* vp);
   [[nodiscard]] static bool has_impl(JSContext* cx, const CallArgs& args);
-  [[nodiscard]] static bool has(JSContext* cx, unsigned argc, Value* vp);
   [[nodiscard]] static bool add_impl(JSContext* cx, const CallArgs& args);
-  [[nodiscard]] static bool add(JSContext* cx, unsigned argc, Value* vp);
   [[nodiscard]] static bool delete_impl(JSContext* cx, const CallArgs& args);
   [[nodiscard]] static bool delete_(JSContext* cx, unsigned argc, Value* vp);
   [[nodiscard]] static bool values_impl(JSContext* cx, const CallArgs& args);
@@ -339,7 +340,7 @@ class SetIteratorObject : public NativeObject {
   static SetIteratorObject* create(JSContext* cx, HandleObject setobj,
                                    ValueSet* data,
                                    SetObject::IteratorKind kind);
-  static void finalize(JSFreeOp* fop, JSObject* obj);
+  static void finalize(JS::GCContext* gcx, JSObject* obj);
   static size_t objectMoved(JSObject* obj, JSObject* old);
 
   void init(SetObject* setObj, SetObject::IteratorKind kind) {

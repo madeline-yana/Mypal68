@@ -34,23 +34,26 @@ namespace jit {
   _(SetElemSuper)                        \
   _(StrictSetPropSuper)                  \
   _(StrictSetElemSuper)                  \
-  /* Environments (bug 1366470) */       \
-  _(PushVarEnv)                          \
   /* Compound assignment */              \
   _(GetBoundName)                        \
   /* Generators / Async (bug 1317690) */ \
   _(IsGenClosing)                        \
   _(Resume)                              \
-  /* try-finally */                      \
-  _(Finally)                             \
-  _(Gosub)                               \
-  _(Retsub)                              \
   /* Misc */                             \
   _(DelName)                             \
   _(SetIntrinsic)                        \
   /* Private Fields */                   \
-  _(InitLockedElem)                      \
   _(GetAliasedDebugVar)                  \
+  /* Non-syntactic scope */              \
+  _(NonSyntacticGlobalThis)              \
+  /* Records and Tuples */               \
+  IF_RECORD_TUPLE(_(InitRecord))         \
+  IF_RECORD_TUPLE(_(AddRecordProperty))  \
+  IF_RECORD_TUPLE(_(AddRecordSpread))    \
+  IF_RECORD_TUPLE(_(FinishRecord))       \
+  IF_RECORD_TUPLE(_(InitTuple))          \
+  IF_RECORD_TUPLE(_(AddTupleElement))    \
+  IF_RECORD_TUPLE(_(FinishTuple))        \
   // === !! WARNING WARNING WARNING !! ===
   // Do you really want to sacrifice performance by not implementing this
   // operation in the optimizing compiler?
@@ -301,6 +304,8 @@ class MOZ_STACK_CLASS WarpBuilder : public WarpBuilderShared {
 
   bool usesEnvironmentChain() const;
   MDefinition* walkEnvironmentChain(uint32_t numHops);
+
+  void buildCreateThis(CallInfo& callInfo);
 
   [[nodiscard]] bool transpileCall(BytecodeLocation loc,
                                    const WarpCacheIR* cacheIRSnapshot,

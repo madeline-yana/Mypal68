@@ -183,7 +183,7 @@ bool checkFinalizeStatus() {
   return true;
 }
 
-static void FinalizeCallback(JSFreeOp* fop, JSFinalizeStatus status,
+static void FinalizeCallback(JS::GCContext* gcx, JSFinalizeStatus status,
                              void* data) {
   if (FinalizeCalls < BufSize) {
     StatusBuffer[FinalizeCalls] = status;

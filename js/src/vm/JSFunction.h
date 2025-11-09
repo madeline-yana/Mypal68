@@ -801,10 +801,6 @@ class FunctionExtended : public JSFunction {
 
   static const uint32_t NUM_EXTENDED_SLOTS = 2;
 
-  // Arrow functions store their lexical new.target in the first extended
-  // slot.
-  static const uint32_t ARROW_NEWTARGET_SLOT = 0;
-
   static const uint32_t METHOD_HOMEOBJECT_SLOT = 0;
 
   // Stores the length for bound functions, so the .length property doesn't need
@@ -813,11 +809,11 @@ class FunctionExtended : public JSFunction {
 
   // Exported asm.js/wasm functions store their WasmInstanceObject in the
   // first slot.
-  static const uint32_t WASM_INSTANCE_SLOT = 0;
+  static const uint32_t WASM_INSTANCE_OBJ_SLOT = 0;
 
-  // wasm/asm.js exported functions store the wasm::TlsData pointer of their
+  // wasm/asm.js exported functions store the wasm::Instance pointer of their
   // instance.
-  static const uint32_t WASM_TLSDATA_SLOT = 1;
+  static const uint32_t WASM_INSTANCE_SLOT = 1;
 
   // asm.js module functions store their WasmModuleObject in the first slot.
   static const uint32_t ASMJS_MODULE_SLOT = 0;
@@ -828,9 +824,6 @@ class FunctionExtended : public JSFunction {
   static inline size_t offsetOfExtendedSlot(uint32_t which) {
     MOZ_ASSERT(which < NUM_EXTENDED_SLOTS);
     return getFixedSlotOffset(FirstExtendedSlot + which);
-  }
-  static inline size_t offsetOfArrowNewTargetSlot() {
-    return offsetOfExtendedSlot(ARROW_NEWTARGET_SLOT);
   }
   static inline size_t offsetOfMethodHomeObjectSlot() {
     return offsetOfExtendedSlot(METHOD_HOMEOBJECT_SLOT);
@@ -882,12 +875,6 @@ inline const js::Value& JSFunction::getExtendedSlot(uint32_t which) const {
 namespace js {
 
 JSString* FunctionToString(JSContext* cx, HandleFunction fun, bool isToSource);
-
-template <XDRMode mode>
-XDRResult XDRInterpretedFunction(XDRState<mode>* xdr,
-                                 HandleScope enclosingScope,
-                                 HandleScriptSourceObject sourceObject,
-                                 MutableHandleFunction objp);
 
 /*
  * Report an error that call.thisv is not compatible with the specified class,

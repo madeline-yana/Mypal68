@@ -46,10 +46,6 @@ void CompilerFrameInfo::sync(StackValue* val) {
     case StackValue::ThisSlot:
       masm.pushValue(addressOfThis());
       break;
-    case StackValue::EvalNewTargetSlot:
-      MOZ_ASSERT(script->isForEval());
-      masm.pushValue(addressOfEvalNewTarget());
-      break;
     case StackValue::Register:
       masm.pushValue(val->reg());
       break;
@@ -100,9 +96,6 @@ void CompilerFrameInfo::popValue(ValueOperand dest) {
       break;
     case StackValue::ThisSlot:
       masm.loadValue(addressOfThis(), dest);
-      break;
-    case StackValue::EvalNewTargetSlot:
-      masm.loadValue(addressOfEvalNewTarget(), dest);
       break;
     case StackValue::Stack:
       masm.popValue(dest);
@@ -192,11 +185,6 @@ void CompilerFrameInfo::storeStackValue(int32_t depth, const Address& dest,
       break;
     case StackValue::ThisSlot:
       masm.loadValue(addressOfThis(), scratch);
-      masm.storeValue(scratch, dest);
-      break;
-    case StackValue::EvalNewTargetSlot:
-      MOZ_ASSERT(script->isForEval());
-      masm.loadValue(addressOfEvalNewTarget(), scratch);
       masm.storeValue(scratch, dest);
       break;
     case StackValue::Stack:

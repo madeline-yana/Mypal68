@@ -309,7 +309,7 @@ class alignas(uintptr_t) BaselineScript final : public TrailingArray {
                              size_t debugTrapEntries, size_t resumeEntries,
                              size_t traceLoggerToggleOffsetEntries);
 
-  static void Destroy(JSFreeOp* fop, BaselineScript* script);
+  static void Destroy(JS::GCContext* gcx, BaselineScript* script);
 
   void trace(JSTracer* trc);
 
@@ -348,7 +348,7 @@ class alignas(uintptr_t) BaselineScript final : public TrailingArray {
                                                RetAddrEntry::Kind kind);
   const RetAddrEntry& prologueRetAddrEntry(RetAddrEntry::Kind kind);
   const RetAddrEntry& retAddrEntryFromReturnOffset(CodeOffset returnOffset);
-  const RetAddrEntry& retAddrEntryFromReturnAddress(uint8_t* returnAddr);
+  const RetAddrEntry& retAddrEntryFromReturnAddress(const uint8_t* returnAddr);
 
   uint8_t* nativeCodeForOSREntry(uint32_t pcOffset);
 
@@ -393,8 +393,6 @@ class alignas(uintptr_t) BaselineScript final : public TrailingArray {
     return offsetof(BaselineScript, resumeEntriesOffset_);
   }
 
-  static void preWriteBarrier(Zone* zone, BaselineScript* script);
-
   bool hasPendingIonCompileTask() const { return !!pendingIonCompileTask_; }
 
   js::jit::IonCompileTask* pendingIonCompileTask() {
@@ -431,7 +429,7 @@ bool CanBaselineInterpretScript(JSScript* script);
 bool BaselineCompileFromBaselineInterpreter(JSContext* cx, BaselineFrame* frame,
                                             uint8_t** res);
 
-void FinishDiscardBaselineScript(JSFreeOp* fop, JSScript* script);
+void FinishDiscardBaselineScript(JS::GCContext* gcx, JSScript* script);
 
 void AddSizeOfBaselineData(JSScript* script, mozilla::MallocSizeOf mallocSizeOf,
                            size_t* data);

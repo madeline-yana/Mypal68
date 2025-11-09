@@ -20,7 +20,6 @@ BEGIN_TEST(testResolveRecursion) {
       nullptr,     // mayResolve
       nullptr,     // finalize
       nullptr,     // call
-      nullptr,     // hasInstance
       nullptr,     // construct
       nullptr,     // trace
   };
@@ -77,9 +76,9 @@ bool doResolve(JS::HandleObject obj, JS::HandleId id, bool* resolvedp) {
   AutoIncrCounters incr(this);
   CHECK(obj == obj1 || obj == obj2);
 
-  CHECK(JSID_IS_STRING(id));
+  CHECK(id.isString());
 
-  JSLinearString* str = JS_EnsureLinearString(cx, JSID_TO_STRING(id));
+  JSLinearString* str = JS_EnsureLinearString(cx, id.toString());
   CHECK(str);
   JS::RootedValue v(cx);
   if (JS_LinearStringEqualsLiteral(str, "x")) {
@@ -161,7 +160,6 @@ const JSClass* getGlobalClass() override {
       nullptr,                   // mayResolve
       nullptr,                   // finalize
       nullptr,                   // call
-      nullptr,                   // hasInstance
       nullptr,                   // construct
       JS_GlobalObjectTraceHook,  // trace
   };

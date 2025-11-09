@@ -17,6 +17,7 @@ UNIFIED_SOURCES += [
     "testArrayBufferWithUserOwnedContents.cpp",
     "testAtomicOperations.cpp",
     "testAtomizeUtf8NonAsciiLatin1CodePoint.cpp",
+    "testAtomizeWithoutActiveZone.cpp",
     "testBigInt.cpp",
     "testBoundFunction.cpp",
     "testBug604087.cpp",
@@ -81,6 +82,7 @@ UNIFIED_SOURCES += [
     "testNullRoot.cpp",
     "testNumberToString.cpp",
     "testObjectEmulatingUndefined.cpp",
+    "testObjectSwap.cpp",
     "testOOM.cpp",
     "testParseJSON.cpp",
     "testParserAtom.cpp",
@@ -91,7 +93,7 @@ UNIFIED_SOURCES += [
     "testProfileStrings.cpp",
     "testPromise.cpp",
     "testPropCache.cpp",
-    "testReadableStream.cpp",
+    "testRecordTupleToSource.cpp",
     "testRegExp.cpp",
     "testResolveRecursion.cpp",
     "tests.cpp",
@@ -125,7 +127,6 @@ UNIFIED_SOURCES += [
     "testWasmLEB128.cpp",
     "testWeakMap.cpp",
     "testWindowNonConfigurable.cpp",
-    "testXDR.cpp",
 ]
 
 SOURCES += [
@@ -156,6 +157,11 @@ if not CONFIG["JS_CODEGEN_NONE"]:
         "testJitRegisterSet.cpp",
         "testJitRValueAlloc.cpp",
         "testsJit.cpp",
+    ]
+
+if not CONFIG["MOZ_DOM_STREAMS"]:
+    UNIFIED_SOURCES += [
+        "testReadableStream.cpp",
     ]
 
 if CONFIG["NIGHTLY_BUILD"]:

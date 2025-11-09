@@ -217,9 +217,9 @@ void JitRuntime::generateEnterJIT(JSContext* cx, MacroAssembler& masm) {
   {
     // Handle Interpreter -> Baseline OSR.
     AllocatableGeneralRegisterSet regs(GeneralRegisterSet::All());
+    MOZ_ASSERT(!regs.has(r11));
     regs.take(JSReturnOperand);
     regs.takeUnchecked(OsrFrameReg);
-    regs.take(r11);
     regs.take(ReturnReg);
 
     const Address slot_numStackValues(r11,
@@ -481,9 +481,7 @@ void JitRuntime::generateArgumentsRectifier(MacroAssembler& masm,
     ScratchRegisterScope scratch(masm);
     masm.ma_and(Imm32(CalleeTokenMask), r1, r6, scratch);
   }
-  masm.ma_ldr(DTRAddr(r6, DtrOffImm(JSFunction::offsetOfFlagsAndArgCount())),
-              r6);
-  masm.ma_lsr(Imm32(JSFunction::ArgCountShift), r6, r6);
+  masm.loadFunctionArgCount(r6, r6);
 
   masm.ma_sub(r6, r8, r2);
 
@@ -889,7 +887,7 @@ bool JitRuntime::generateVMWrapper(JSContext* cx, MacroAssembler& masm,
 
   // Test for failure.
   switch (f.failType()) {
-    case Type_Object:
+    case Type_Cell:
       masm.branchTestPtr(Assembler::Zero, r0, r0, masm.failureLabel());
       break;
     case Type_Bool:
@@ -924,12 +922,7 @@ bool JitRuntime::generateVMWrapper(JSContext* cx, MacroAssembler& masm,
       break;
 
     case Type_Double:
-      if (JitOptions.supportsFloatingPoint) {
-        masm.loadDouble(Address(sp, 0), ReturnDoubleReg);
-      } else {
-        masm.assumeUnreachable(
-            "Unable to load into float reg, with no FP support.");
-      }
+      masm.loadDouble(Address(sp, 0), ReturnDoubleReg);
       masm.freeStack(sizeof(double));
       break;
 
@@ -978,14 +971,9 @@ uint32_t JitRuntime::generatePreBarrier(JSContext* cx, MacroAssembler& masm,
   masm.pop(temp1);
 
   LiveRegisterSet save;
-  if (JitOptions.supportsFloatingPoint) {
-    save.set() =
-        RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
-                    FloatRegisterSet(FloatRegisters::VolatileDoubleMask));
-  } else {
-    save.set() = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
-                             FloatRegisterSet());
-  }
+  save.set() =
+      RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
+                  FloatRegisterSet(FloatRegisters::VolatileDoubleMask));
   masm.PushRegsInMask(save);
 
   masm.movePtr(ImmPtr(cx->runtime()), r0);

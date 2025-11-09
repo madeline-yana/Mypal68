@@ -132,8 +132,8 @@ void AbstractGeneratorObject::trace(JSTracer* trc) {
 }
 
 bool AbstractGeneratorObject::suspend(JSContext* cx, HandleObject obj,
-                                      AbstractFramePtr frame, jsbytecode* pc,
-                                      unsigned nvalues) {
+                                      AbstractFramePtr frame,
+                                      const jsbytecode* pc, unsigned nvalues) {
   MOZ_ASSERT(JSOp(*pc) == JSOp::InitialYield || JSOp(*pc) == JSOp::Yield ||
              JSOp(*pc) == JSOp::Await);
 
@@ -253,7 +253,7 @@ bool js::GeneratorThrowOrReturn(JSContext* cx, AbstractFramePtr frame,
                                 GeneratorResumeKind resumeKind) {
   MOZ_ASSERT(genObj->isRunning());
   if (resumeKind == GeneratorResumeKind::Throw) {
-    cx->setPendingExceptionAndCaptureStack(arg);
+    cx->setPendingException(arg, ShouldCaptureStack::Maybe);
   } else {
     MOZ_ASSERT(resumeKind == GeneratorResumeKind::Return);
 
@@ -341,7 +341,6 @@ const JSClassOps GeneratorObject::classOps_ = {
     nullptr,                                   // mayResolve
     nullptr,                                   // finalize
     nullptr,                                   // call
-    nullptr,                                   // hasInstance
     nullptr,                                   // construct
     CallTraceMethod<AbstractGeneratorObject>,  // trace
 };

@@ -400,7 +400,7 @@ class RecoverWriter {
   uint32_t instructionsWritten_;
 
  public:
-  SnapshotOffset startRecover(uint32_t instructionCount, bool resumeAfter);
+  SnapshotOffset startRecover(uint32_t instructionCount);
 
   void writeInstruction(const MNode* rp);
 
@@ -494,10 +494,6 @@ class RecoverReader {
   // Number of instruction read.
   uint32_t numInstructionsRead_;
 
-  // True if we need to resume after the Resume Point instruction of the
-  // innermost frame.
-  bool resumeAfter_;
-
   // Space is reserved as part of the RecoverReader to avoid allocations of
   // data which is needed to decode the current instruction.
   RInstructionStorage rawData_;
@@ -523,8 +519,6 @@ class RecoverReader {
   const RInstruction* instruction() const {
     return reinterpret_cast<const RInstruction*>(rawData_.addr());
   }
-
-  bool resumeAfter() const { return resumeAfter_; }
 };
 
 }  // namespace jit

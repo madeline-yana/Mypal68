@@ -42,6 +42,9 @@
 #include "builtin/SelfHostingDefines.h"
 #include "builtin/String.h"
 #include "builtin/Symbol.h"
+#ifdef ENABLE_RECORD_TUPLE
+#  include "builtin/TupleObject.h"
+#endif
 #include "builtin/WeakMapObject.h"
 #include "frontend/BytecodeCompilation.h"  // CompileGlobalScriptToStencil
 #include "frontend/CompilationStencil.h"   // js::frontend::CompilationStencil
@@ -56,14 +59,17 @@
 #include "js/Date.h"
 #include "js/ErrorReport.h"  // JS::PrintError
 #include "js/Exception.h"
+#include "js/experimental/JSStencil.h"  // RefPtrTraits<JS::Stencil>
 #include "js/experimental/TypedData.h"  // JS_GetArrayBufferViewType
 #include "js/friend/ErrorMessages.h"    // js::GetErrorMessage, JSMSG_*
+#include "js/HashTable.h"
 #include "js/Modules.h"                 // JS::GetModulePrivate
 #include "js/PropertyAndElement.h"  // JS_DefineProperty, JS_DefinePropertyById
 #include "js/PropertySpec.h"
 #include "js/ScalarType.h"  // js::Scalar::Type
 #include "js/SourceText.h"  // JS::SourceText
 #include "js/StableStringChars.h"
+#include "js/TracingAPI.h"
 #include "js/Transcoding.h"
 #include "js/Warnings.h"  // JS::{,Set}WarningReporter
 #include "js/Wrapper.h"
@@ -113,14 +119,16 @@
 using namespace js;
 using namespace js::selfhosted;
 
-using JS::AutoCheckCannotGC;
-using JS::AutoStableStringChars;
 using JS::CompileOptions;
 using mozilla::Maybe;
 
 static void selfHosting_WarningReporter(JSContext* cx, JSErrorReport* report) {
   MOZ_ASSERT(report->isWarning());
 
+  js::selfHosting_ErrorReporter(report);
+}
+
+void js::selfHosting_ErrorReporter(JSErrorReport* report) {
   JS::PrintError(stderr, report, true);
 }
 
@@ -133,6 +141,31 @@ static bool intrinsic_ToObject(JSContext* cx, unsigned argc, Value* vp) {
   args.rval().setObject(*obj);
   return true;
 }
+
+#ifdef ENABLE_RECORD_TUPLE
+
+bool intrinsic_ThisTupleValue(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  MOZ_ASSERT(args.length() == 1);
+  mozilla::Maybe<TupleType&> result = js::ThisTupleValue(cx, args[0]);
+  if (!result) {
+    return false;
+  }
+  args.rval().setExtendedPrimitive(*result);
+  return true;
+}
+
+bool intrinsic_TupleLength(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  MOZ_ASSERT(args.length() == 1);
+  mozilla::Maybe<TupleType&> result = js::ThisTupleValue(cx, args[0]);
+  if (!result) {
+    return false;
+  }
+  args.rval().setInt32((*result).getDenseInitializedLength());
+  return true;
+}
+#endif
 
 static bool intrinsic_IsObject(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
@@ -158,6 +191,23 @@ static bool intrinsic_IsArray(JSContext* cx, unsigned argc, Value* vp) {
   }
   return true;
 }
+
+#ifdef ENABLE_RECORD_TUPLE
+// returns true for TupleTypes and TupleObjects
+bool js::IsTupleUnchecked(JSContext* cx, const CallArgs& args) {
+  args.rval().setBoolean(IsTuple(args.get(0)));
+  return true;
+}
+
+/* Identical to Tuple.prototype.isTuple, but with an
+ * added check that args.length() is 1
+ */
+bool js::intrinsic_IsTuple(JSContext* cx, unsigned argc, JS::Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  MOZ_ASSERT(args.length() == 1);
+  return js::IsTupleUnchecked(cx, args);
+}
+#endif
 
 static bool intrinsic_IsCrossRealmArrayConstructor(JSContext* cx, unsigned argc,
                                                    Value* vp) {
@@ -440,7 +490,7 @@ static bool intrinsic_CreateModuleSyntaxError(JSContext* cx, unsigned argc,
   RootedValue error(cx);
   if (!JS::CreateError(cx, JSEXN_SYNTAXERR, nullptr, filename,
                        args[1].toInt32(), args[2].toInt32(), nullptr, message,
-                       &error)) {
+                       JS::NothingHandleValue, &error)) {
     return false;
   }
 
@@ -1092,6 +1142,21 @@ static bool intrinsic_GetTypedArrayKind(JSContext* cx, unsigned argc,
   args.rval().setInt32(static_cast<int32_t>(type));
   return true;
 }
+
+#ifdef ENABLE_CHANGE_ARRAY_BY_COPY
+static bool intrinsic_GetTypedArrayConstructorFromKind(JSContext* cx,
+                                                       unsigned argc,
+                                                       Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  MOZ_ASSERT(args.length() == 1);
+  MOZ_ASSERT(args[0].isInt32());
+
+  int32_t arrayKind = args[0].toInt32();
+  Scalar::Type type = static_cast<Scalar::Type>(arrayKind);
+  args.rval().setObject(*js::GetTypedArrayConstructorFromKind(cx, type));
+  return true;
+}
+#endif
 
 static bool intrinsic_IsTypedArrayConstructor(JSContext* cx, unsigned argc,
                                               Value* vp) {
@@ -1909,7 +1974,9 @@ static bool intrinsic_ModuleTopLevelCapabilityResolve(JSContext* cx,
   CallArgs args = CallArgsFromVp(argc, vp);
   MOZ_ASSERT(args.length() == 1);
   RootedModuleObject module(cx, &args[0].toObject().as<ModuleObject>());
-  ModuleObject::topLevelCapabilityResolve(cx, module);
+  if (!ModuleObject::topLevelCapabilityResolve(cx, module)) {
+    return false;
+  }
   args.rval().setUndefined();
   return true;
 }
@@ -1920,7 +1987,9 @@ static bool intrinsic_ModuleTopLevelCapabilityReject(JSContext* cx,
   MOZ_ASSERT(args.length() == 2);
   RootedModuleObject module(cx, &args[0].toObject().as<ModuleObject>());
   HandleValue error = args[1];
-  ModuleObject::topLevelCapabilityReject(cx, module, error);
+  if (!ModuleObject::topLevelCapabilityReject(cx, module, error)) {
+    return false;
+  }
   args.rval().setUndefined();
   return true;
 }
@@ -2154,6 +2223,11 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("GetOwnPropertyDescriptorToArray", GetOwnPropertyDescriptorToArray, 2,
           0),
     JS_FN("GetStringDataProperty", intrinsic_GetStringDataProperty, 2, 0),
+#ifdef ENABLE_CHANGE_ARRAY_BY_COPY
+    JS_FN("GetTypedArrayConstructorFromKind",
+          intrinsic_GetTypedArrayConstructorFromKind, 1, 0),
+#endif
+
     JS_FN("GetTypedArrayKind", intrinsic_GetTypedArrayKind, 1, 0),
     JS_INLINABLE_FN("GuardToArrayBuffer",
                     intrinsic_GuardToBuiltin<ArrayBufferObject>, 1, 0,
@@ -2232,6 +2306,9 @@ static const JSFunctionSpec intrinsic_functions[] = {
                     IsRegExpObject),
     JS_INLINABLE_FN("IsSuspendedGenerator", intrinsic_IsSuspendedGenerator, 1,
                     0, IntrinsicIsSuspendedGenerator),
+#ifdef ENABLE_RECORD_TUPLE
+    JS_FN("IsTuple", intrinsic_IsTuple, 1, 0),
+#endif
     JS_INLINABLE_FN("IsTypedArray",
                     intrinsic_IsInstanceOfBuiltin<TypedArrayObject>, 1, 0,
                     IntrinsicIsTypedArray),
@@ -2303,6 +2380,9 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("ThisNumberValueForToLocaleString", ThisNumberValueForToLocaleString,
           0, 0),
     JS_FN("ThisTimeValue", intrinsic_ThisTimeValue, 1, 0),
+#ifdef ENABLE_RECORD_TUPLE
+    JS_FN("ThisTupleValue", intrinsic_ThisTupleValue, 1, 0),
+#endif
     JS_FN("ThrowAggregateError", intrinsic_ThrowAggregateError, 4, 0),
     JS_FN("ThrowArgTypeNotObject", intrinsic_ThrowArgTypeNotObject, 2, 0),
     JS_FN("ThrowInternalError", intrinsic_ThrowInternalError, 4, 0),
@@ -2315,6 +2395,9 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_INLINABLE_FN("ToObject", intrinsic_ToObject, 1, 0, IntrinsicToObject),
     JS_FN("ToPropertyKey", intrinsic_ToPropertyKey, 1, 0),
     JS_FN("ToSource", intrinsic_ToSource, 1, 0),
+#ifdef ENABLE_RECORD_TUPLE
+    JS_FN("TupleLength", intrinsic_TupleLength, 1, 0),
+#endif
     JS_FN("TypedArrayBitwiseSlice", intrinsic_TypedArrayBitwiseSlice, 4, 0),
     JS_FN("TypedArrayBuffer", intrinsic_TypedArrayBuffer, 1, 0),
     JS_INLINABLE_FN("TypedArrayByteOffset", intrinsic_TypedArrayByteOffset, 1,
@@ -2432,13 +2515,19 @@ static const JSFunctionSpec intrinsic_functions[] = {
 #endif  // JS_HAS_INTL_API
 
     // Standard builtins used by self-hosting.
+    JS_FN("new_List", intrinsic_newList, 0, 0),
     JS_INLINABLE_FN("std_Array", array_construct, 1, 0, Array),
+    JS_FN("std_Array_includes", array_includes, 1, 0),
+    JS_FN("std_Array_indexOf", array_indexOf, 1, 0),
+    JS_FN("std_Array_lastIndexOf", array_lastIndexOf, 1, 0),
     JS_INLINABLE_FN("std_Array_pop", array_pop, 0, 0, ArrayPop),
     JS_INLINABLE_FN("std_Array_push", array_push, 1, 0, ArrayPush),
     JS_FN("std_BigInt_valueOf", BigIntObject::valueOf, 0, 0),
     JS_FN("std_Date_now", date_now, 0, 0),
     JS_FN("std_Function_apply", fun_apply, 2, 0),
     JS_FN("std_Map_entries", MapObject::entries, 0, 0),
+    JS_FN("std_Map_get", MapObject::get, 1, 0),
+    JS_FN("std_Map_set", MapObject::set, 2, 0),
     JS_INLINABLE_FN("std_Math_abs", math_abs, 1, 0, MathAbs),
     JS_INLINABLE_FN("std_Math_floor", math_floor, 1, 0, MathFloor),
     JS_INLINABLE_FN("std_Math_max", math_max, 2, 0, MathMax),
@@ -2454,6 +2543,8 @@ static const JSFunctionSpec intrinsic_functions[] = {
                     ReflectGetPrototypeOf),
     JS_FN("std_Reflect_isExtensible", Reflect_isExtensible, 1, 0),
     JS_FN("std_Reflect_ownKeys", Reflect_ownKeys, 1, 0),
+    JS_FN("std_Set_add", SetObject::add, 1, 0),
+    JS_FN("std_Set_has", SetObject::has, 1, 0),
     JS_FN("std_Set_values", SetObject::values, 0, 0),
     JS_INLINABLE_FN("std_String_charCodeAt", str_charCodeAt, 1, 0,
                     StringCharCodeAt),
@@ -2465,11 +2556,15 @@ static const JSFunctionSpec intrinsic_functions[] = {
     JS_FN("std_String_includes", str_includes, 1, 0),
     JS_FN("std_String_indexOf", str_indexOf, 1, 0),
     JS_FN("std_String_startsWith", str_startsWith, 1, 0),
+#ifdef ENABLE_RECORD_TUPLE
+    JS_FN("std_Tuple_unchecked", tuple_construct, 1, 0),
+#endif
     JS_FN("std_TypedArray_buffer", js::TypedArray_bufferGetter, 1, 0),
 
     JS_FS_END};
 
 #ifdef DEBUG
+
 static void CheckSelfHostedIntrinsics() {
   // The `intrinsic_functions` list must be sorted so that we can use
   // mozilla::BinarySearch to do lookups on demand.
@@ -2482,6 +2577,38 @@ static void CheckSelfHostedIntrinsics() {
     }
   }
 }
+
+class CheckTenuredTracer : public JS::CallbackTracer {
+  HashSet<gc::Cell*, DefaultHasher<gc::Cell*>, SystemAllocPolicy> visited;
+  Vector<JS::GCCellPtr, 0, SystemAllocPolicy> stack;
+
+ public:
+  explicit CheckTenuredTracer(JSRuntime* rt) : JS::CallbackTracer(rt) {}
+  void check() {
+    while (!stack.empty()) {
+      JS::TraceChildren(this, stack.popCopy());
+    }
+  }
+  void onChild(JS::GCCellPtr thing) override {
+    gc::Cell* cell = thing.asCell();
+    MOZ_RELEASE_ASSERT(cell->isTenured(), "Expected tenured cell");
+    if (!visited.has(cell)) {
+      if (!visited.put(cell) || !stack.append(thing)) {
+        // Ignore OOM. This can happen during fuzzing.
+        return;
+      }
+    }
+  }
+};
+
+static void CheckSelfHostingDataIsTenured(JSRuntime* rt) {
+  // Check everything is tenured as we don't trace it when collecting the
+  // nursery.
+  CheckTenuredTracer trc(rt);
+  rt->traceSelfHostingStencil(&trc);
+  trc.check();
+}
+
 #endif
 
 const JSFunctionSpec* js::FindIntrinsicSpec(js::PropertyName* name) {
@@ -2571,12 +2698,6 @@ class MOZ_STACK_CLASS AutoSelfHostingErrorReporter {
 [[nodiscard]] static bool InitSelfHostingFromStencil(
     JSContext* cx, frontend::CompilationAtomCache& atomCache,
     const frontend::CompilationStencil& stencil) {
-  // We must instantiate the atoms since they are shared between runtimes and
-  // must be frozen during this startup.
-  if (!stencil.instantiateSelfHostedForRuntime(cx, atomCache)) {
-    return false;
-  }
-
   // Build the JSAtom -> ScriptIndexRange mapping and save on the runtime.
   {
     auto& scriptMap = cx->runtime()->selfHostScriptMap.ref();
@@ -2633,13 +2754,15 @@ class MOZ_STACK_CLASS AutoSelfHostingErrorReporter {
 #ifdef DEBUG
   // Check that the list of intrinsics is well-formed.
   CheckSelfHostedIntrinsics();
+  CheckSelfHostingDataIsTenured(cx->runtime());
 #endif
 
   return true;
 }
 
-bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
-                                JS::SelfHostedWriter xdrWriter) {
+bool JSRuntime::initSelfHostingStencil(JSContext* cx,
+                                       JS::SelfHostedCache xdrCache,
+                                       JS::SelfHostedWriter xdrWriter) {
   if (parentRuntime) {
     MOZ_RELEASE_ASSERT(
         parentRuntime->hasInitializedSelfHosting(),
@@ -2666,7 +2789,6 @@ bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
 
   // Try initializing from Stencil XDR.
   bool decodeOk = false;
-  Rooted<frontend::CompilationGCOutput> output(cx);
   if (xdrCache.Length() > 0) {
     // Allow the VM to directly use bytecode from the XDR buffer without
     // copying it. The buffer must outlive all runtimes (including workers).
@@ -2682,7 +2804,7 @@ bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
       return false;
     }
 
-    UniquePtr<frontend::CompilationStencil> stencil(
+    RefPtr<frontend::CompilationStencil> stencil(
         cx->new_<frontend::CompilationStencil>(input->source));
     if (!stencil) {
       return false;
@@ -2692,13 +2814,12 @@ bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
     }
 
     if (decodeOk) {
-      if (!InitSelfHostingFromStencil(cx, input->atomCache, *stencil)) {
-        return false;
-      }
+      MOZ_ASSERT(input->atomCache.empty());
+
+      MOZ_ASSERT(!hasSelfHostStencil());
 
       // Move it to the runtime.
-      cx->runtime()->selfHostStencilInput_ = input.release();
-      cx->runtime()->selfHostStencil_ = stencil.release();
+      setSelfHostingStencil(&input, std::move(stencil));
 
       return true;
     }
@@ -2728,8 +2849,9 @@ bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
   if (!input) {
     return false;
   }
-  auto stencil = frontend::CompileGlobalScriptToStencil(cx, *input, srcBuf,
-                                                        ScopeKind::Global);
+  RefPtr<frontend::CompilationStencil> stencil =
+      frontend::CompileGlobalScriptToStencil(cx, *input, srcBuf,
+                                             ScopeKind::Global);
   if (!stencil) {
     return false;
   }
@@ -2746,23 +2868,46 @@ bool JSRuntime::initSelfHosting(JSContext* cx, JS::SelfHostedCache xdrCache,
     }
   }
 
-  if (!InitSelfHostingFromStencil(cx, input->atomCache, *stencil)) {
-    return false;
-  }
+  MOZ_ASSERT(input->atomCache.empty());
 
   MOZ_ASSERT(!hasSelfHostStencil());
 
   // Move it to the runtime.
-  cx->runtime()->selfHostStencilInput_ = input.release();
-  cx->runtime()->selfHostStencil_ = stencil.release();
+  setSelfHostingStencil(&input, std::move(stencil));
 
   return true;
+}
+
+void JSRuntime::setSelfHostingStencil(
+    MutableHandle<UniquePtr<frontend::CompilationInput>> input,
+    RefPtr<frontend::CompilationStencil>&& stencil) {
+  MOZ_ASSERT(!selfHostStencilInput_);
+  MOZ_ASSERT(!selfHostStencil_);
+
+  selfHostStencilInput_ = input.release();
+  selfHostStencil_ = stencil.forget().take();
+
+#ifdef DEBUG
+  CheckSelfHostingDataIsTenured(this);
+#endif
+}
+
+bool JSRuntime::initSelfHostingFromStencil(JSContext* cx) {
+  return InitSelfHostingFromStencil(
+      cx, cx->runtime()->selfHostStencilInput_->atomCache,
+      *cx->runtime()->selfHostStencil_);
 }
 
 void JSRuntime::finishSelfHosting() {
   if (!parentRuntime) {
     js_delete(selfHostStencilInput_.ref());
-    js_delete(selfHostStencil_.ref());
+    if (selfHostStencil_) {
+      // delete selfHostStencil_ by decrementing the ref-count of the last
+      // instance.
+      RefPtr<frontend::CompilationStencil> stencil;
+      *getter_AddRefs(stencil) = selfHostStencil_;
+      MOZ_ASSERT(stencil->refCount == 1);
+    }
   }
 
   selfHostStencilInput_ = nullptr;
@@ -2821,7 +2966,9 @@ ScriptSourceObject* GlobalObject::getOrCreateSelfHostingScriptSourceObject(
     return nullptr;
   }
 
-  if (!ScriptSourceObject::initFromOptions(cx, sourceObject, options)) {
+  JS::InstantiateOptions instantiateOptions(options);
+  if (!ScriptSourceObject::initFromOptions(cx, sourceObject,
+                                           instantiateOptions)) {
     return nullptr;
   }
 

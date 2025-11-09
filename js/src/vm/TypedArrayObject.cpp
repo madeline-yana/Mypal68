@@ -153,7 +153,7 @@ void TypedArrayObject::assertZeroLengthArrayData() const {
 }
 #endif
 
-void TypedArrayObject::finalize(JSFreeOp* fop, JSObject* obj) {
+void TypedArrayObject::finalize(JS::GCContext* gcx, JSObject* obj) {
   MOZ_ASSERT(!IsInsideNursery(obj));
   TypedArrayObject* curObj = &obj->as<TypedArrayObject>();
 
@@ -173,7 +173,7 @@ void TypedArrayObject::finalize(JSFreeOp* fop, JSObject* obj) {
   // Free the data slot pointer if it does not point into the old JSObject.
   if (!curObj->hasInlineElements()) {
     size_t nbytes = RoundUp(curObj->byteLength(), sizeof(Value));
-    fop->free_(obj, curObj->elements(), nbytes, MemoryUse::TypedArrayElements);
+    gcx->free_(obj, curObj->elements(), nbytes, MemoryUse::TypedArrayElements);
   }
 }
 
@@ -1033,6 +1033,20 @@ JS_FOR_EACH_TYPED_ARRAY(CREATE_TYPE_FOR_TYPED_ARRAY)
 
 } /* anonymous namespace */
 
+#ifdef ENABLE_CHANGE_ARRAY_BY_COPY
+JSObject* js::GetTypedArrayConstructorFromKind(JSContext* cx,
+                                               Scalar::Type type) {
+#  define TYPED_ARRAY_CONSTRUCTOR(_, T, N)                          \
+    if (type == Scalar::N) {                                        \
+      return N##Array::createConstructor(cx, N##Array::protoKey()); \
+    }
+  JS_FOR_EACH_TYPED_ARRAY(TYPED_ARRAY_CONSTRUCTOR)
+#  undef TYPED_ARRAY_CONSTRUCTOR
+
+  MOZ_CRASH("Unsupported TypedArray type");
+}
+#endif
+
 TypedArrayObject* js::NewTypedArrayWithTemplateAndLength(
     JSContext* cx, HandleObject templateObj, int32_t len) {
   MOZ_ASSERT(templateObj->is<TypedArrayObject>());
@@ -1156,7 +1170,7 @@ static JSObject* GetBufferSpeciesConstructor(
     if (GetOwnPropertyPure(cx, proto, NameToId(cx->names().constructor), &ctor,
                            &found) &&
         ctor.isObject() && &ctor.toObject() == defaultCtor) {
-      jsid speciesId = SYMBOL_TO_JSID(cx->wellKnownSymbols().species);
+      jsid speciesId = PropertyKey::Symbol(cx->wellKnownSymbols().species);
       JSFunction* getter;
       if (GetOwnGetterPure(cx, defaultCtor, speciesId, &getter) && getter &&
           IsArrayBufferSpecies(cx, getter)) {
@@ -1371,7 +1385,7 @@ template <typename T>
 
   // Step 5.
   RootedValue callee(cx);
-  RootedId iteratorId(cx, SYMBOL_TO_JSID(cx->wellKnownSymbols().iterator));
+  RootedId iteratorId(cx, PropertyKey::Symbol(cx->wellKnownSymbols().iterator));
   if (!GetProperty(cx, other, other, iteratorId, &callee)) {
     return nullptr;
   }
@@ -1987,6 +2001,26 @@ bool TypedArrayObject::copyWithin(JSContext* cx, unsigned argc, Value* vp) {
     JS_SELF_HOSTED_FN("at", "TypedArrayAt", 1, 0),
     JS_FS_END};
 
+#ifdef ENABLE_CHANGE_ARRAY_BY_COPY
+const JSFunctionSpec changeArrayByCopyProtoFunctions[] = {
+    JS_SELF_HOSTED_FN("toReversed", "TypedArrayToReversed", 0, 0),
+    JS_SELF_HOSTED_FN("toSorted", "TypedArrayToSorted", 1, 0),
+    JS_SELF_HOSTED_FN("with", "TypedArrayWith", 2, 0),
+    JS_SELF_HOSTED_FN("toSpliced", "TypedArrayToSpliced", 3, 0),
+
+    JS_FS_END};
+
+static bool TypedArrayProtoFinish(JSContext* cx, JS::HandleObject ctor,
+                                  JS::HandleObject proto) {
+  if (cx->options().changeArrayByCopy()) {
+    if (!js::DefineFunctions(cx, proto, changeArrayByCopyProtoFunctions)) {
+      return false;
+    }
+  }
+  return true;
+}
+#endif
+
 /* static */ const JSFunctionSpec TypedArrayObject::staticFunctions[] = {
     JS_SELF_HOSTED_FN("from", "TypedArrayStaticFrom", 3, 0),
     JS_SELF_HOSTED_FN("of", "TypedArrayStaticOf", 0, 0), JS_FS_END};
@@ -2007,7 +2041,11 @@ static const ClassSpec TypedArrayObjectSharedTypedArrayPrototypeClassSpec = {
     TypedArrayObject::staticProperties,
     TypedArrayObject::protoFunctions,
     TypedArrayObject::protoAccessors,
+#ifdef ENABLE_CHANGE_ARRAY_BY_COPY
+    TypedArrayProtoFinish,
+#else
     nullptr,
+#endif
     ClassSpec::DontDefineConstructor};
 
 /* static */ const JSClass TypedArrayObject::sharedTypedArrayPrototypeClass = {
@@ -2232,7 +2270,6 @@ static const JSClassOps TypedArrayClassOps = {
     nullptr,                       // mayResolve
     TypedArrayObject::finalize,    // finalize
     nullptr,                       // call
-    nullptr,                       // hasInstance
     nullptr,                       // construct
     ArrayBufferViewObject::trace,  // trace
 };

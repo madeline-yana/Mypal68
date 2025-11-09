@@ -281,8 +281,8 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
       value("f32", 0),
       value("f32", 0),
     ),
@@ -332,8 +332,8 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
       value("f32", 0),
       value("f32", 0),
     ),
@@ -383,8 +383,8 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
       value("f32", 1),
       value("f32", 1),
     ),
@@ -434,8 +434,8 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
       value("f32", 1),
       value("f32", 0),
     ),
@@ -457,34 +457,13 @@ assert_return(
 
 // ./test/core/simd/simd_f32x4.wast:100
 assert_return(
-  () =>
-    invoke($0, `f32x4.min`, [
-      f32x4([0, 0, 0, 0]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
+  () => invoke($0, `f32x4.min`, [f32x4([0, 0, 0, 0]), f32x4([-0, -0, -0, -0])]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -748,34 +727,13 @@ assert_return(
 
 // ./test/core/simd/simd_f32x4.wast:145
 assert_return(
-  () =>
-    invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-      f32x4([0, 0, 0, 0]),
-    ]),
+  () => invoke($0, `f32x4.min`, [f32x4([-0, -0, -0, -0]), f32x4([0, 0, 0, 0])]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -783,50 +741,13 @@ assert_return(
 // ./test/core/simd/simd_f32x4.wast:148
 assert_return(
   () =>
-    invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
+    invoke($0, `f32x4.min`, [f32x4([-0, -0, -0, -0]), f32x4([-0, -0, -0, -0])]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -835,24 +756,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         0.000000000000000000000000000000000000000000001,
         0.000000000000000000000000000000000000000000001,
@@ -862,10 +766,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -874,24 +778,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         -0.000000000000000000000000000000000000000000001,
         -0.000000000000000000000000000000000000000000001,
@@ -913,24 +800,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         0.000000000000000000000000000000000000011754944,
         0.000000000000000000000000000000000000011754944,
@@ -940,10 +810,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -952,24 +822,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         -0.000000000000000000000000000000000000011754944,
         -0.000000000000000000000000000000000000011754944,
@@ -991,32 +844,15 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([0.5, 0.5, 0.5, 0.5]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -1025,24 +861,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([-0.5, -0.5, -0.5, -0.5]),
     ]),
   [
@@ -1057,34 +876,13 @@ assert_return(
 
 // ./test/core/simd/simd_f32x4.wast:169
 assert_return(
-  () =>
-    invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-      f32x4([1, 1, 1, 1]),
-    ]),
+  () => invoke($0, `f32x4.min`, [f32x4([-0, -0, -0, -0]), f32x4([1, 1, 1, 1])]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -1092,27 +890,7 @@ assert_return(
 // ./test/core/simd/simd_f32x4.wast:172
 assert_return(
   () =>
-    invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-      f32x4([-1, -1, -1, -1]),
-    ]),
+    invoke($0, `f32x4.min`, [f32x4([-0, -0, -0, -0]), f32x4([-1, -1, -1, -1])]),
   [
     new F32x4Pattern(
       value("f32", -1),
@@ -1127,32 +905,15 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([6.2831855, 6.2831855, 6.2831855, 6.2831855]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -1161,24 +922,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([-6.2831855, -6.2831855, -6.2831855, -6.2831855]),
     ]),
   [
@@ -1195,24 +939,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         340282350000000000000000000000000000000,
         340282350000000000000000000000000000000,
@@ -1222,10 +949,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -1234,24 +961,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         -340282350000000000000000000000000000000,
         -340282350000000000000000000000000000000,
@@ -1273,32 +983,15 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([Infinity, Infinity, Infinity, Infinity]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -1307,24 +1000,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([-Infinity, -Infinity, -Infinity, -Infinity]),
     ]),
   [
@@ -1369,31 +1045,14 @@ assert_return(
         0.000000000000000000000000000000000000000000001,
         0.000000000000000000000000000000000000000000001,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -1768,24 +1427,7 @@ assert_return(
         -0.000000000000000000000000000000000000000000001,
         -0.000000000000000000000000000000000000000000001,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -2167,31 +1809,14 @@ assert_return(
         0.000000000000000000000000000000000000011754944,
         0.000000000000000000000000000000000000011754944,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -2566,24 +2191,7 @@ assert_return(
         -0.000000000000000000000000000000000000011754944,
         -0.000000000000000000000000000000000000011754944,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -2952,31 +2560,14 @@ assert_return(
   () =>
     invoke($0, `f32x4.min`, [
       f32x4([0.5, 0.5, 0.5, 0.5]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -3268,24 +2859,7 @@ assert_return(
   () =>
     invoke($0, `f32x4.min`, [
       f32x4([-0.5, -0.5, -0.5, -0.5]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -3580,34 +3154,13 @@ assert_return(
 
 // ./test/core/simd/simd_f32x4.wast:484
 assert_return(
-  () =>
-    invoke($0, `f32x4.min`, [
-      f32x4([1, 1, 1, 1]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
+  () => invoke($0, `f32x4.min`, [f32x4([1, 1, 1, 1]), f32x4([-0, -0, -0, -0])]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -3885,27 +3438,7 @@ assert_return(
 // ./test/core/simd/simd_f32x4.wast:532
 assert_return(
   () =>
-    invoke($0, `f32x4.min`, [
-      f32x4([-1, -1, -1, -1]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
+    invoke($0, `f32x4.min`, [f32x4([-1, -1, -1, -1]), f32x4([-0, -0, -0, -0])]),
   [
     new F32x4Pattern(
       value("f32", -1),
@@ -4199,31 +3732,14 @@ assert_return(
   () =>
     invoke($0, `f32x4.min`, [
       f32x4([6.2831855, 6.2831855, 6.2831855, 6.2831855]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -4518,24 +4034,7 @@ assert_return(
   () =>
     invoke($0, `f32x4.min`, [
       f32x4([-6.2831855, -6.2831855, -6.2831855, -6.2831855]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -4847,31 +4346,14 @@ assert_return(
         340282350000000000000000000000000000000,
         340282350000000000000000000000000000000,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -5246,24 +4728,7 @@ assert_return(
         -340282350000000000000000000000000000000,
         -340282350000000000000000000000000000000,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -5635,31 +5100,14 @@ assert_return(
   () =>
     invoke($0, `f32x4.min`, [
       f32x4([Infinity, Infinity, Infinity, Infinity]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -5954,24 +5402,7 @@ assert_return(
   () =>
     invoke($0, `f32x4.min`, [
       f32x4([-Infinity, -Infinity, -Infinity, -Infinity]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -6902,10 +6333,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -6932,31 +6363,14 @@ assert_return(
         0xc0,
         0x7f,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -6992,10 +6406,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7031,10 +6445,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7070,10 +6484,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7109,10 +6523,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7143,10 +6557,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7177,10 +6591,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7211,10 +6625,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7245,10 +6659,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7279,10 +6693,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7313,10 +6727,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7352,10 +6766,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7391,10 +6805,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7425,10 +6839,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7459,10 +6873,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7510,10 +6924,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7561,10 +6975,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7612,10 +7026,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -7663,10 +7077,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -7697,10 +7111,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7727,31 +7141,14 @@ assert_return(
         0xc0,
         0xff,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7787,10 +7184,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7826,10 +7223,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7865,10 +7262,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7904,10 +7301,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7938,10 +7335,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -7972,10 +7369,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8006,10 +7403,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8040,10 +7437,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8074,10 +7471,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8108,10 +7505,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8147,10 +7544,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8186,10 +7583,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8220,10 +7617,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8254,10 +7651,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8305,10 +7702,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8356,10 +7753,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -8407,10 +7804,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8458,10 +7855,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8492,10 +7889,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8522,31 +7919,14 @@ assert_return(
         0xa0,
         0x7f,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8582,10 +7962,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8621,10 +8001,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8660,10 +8040,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8699,10 +8079,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8733,10 +8113,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8767,10 +8147,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8801,10 +8181,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8835,10 +8215,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8869,10 +8249,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8903,10 +8283,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8942,10 +8322,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -8981,10 +8361,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9015,10 +8395,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9049,10 +8429,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9100,10 +8480,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9151,10 +8531,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9202,10 +8582,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9253,10 +8633,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9287,10 +8667,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9317,31 +8697,14 @@ assert_return(
         0xa0,
         0xff,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9377,10 +8740,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9416,10 +8779,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9455,10 +8818,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9494,10 +8857,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9528,10 +8891,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9562,10 +8925,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9596,10 +8959,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9630,10 +8993,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9664,10 +9027,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9698,10 +9061,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9737,10 +9100,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9776,10 +9139,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9810,10 +9173,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9844,10 +9207,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9895,10 +9258,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9946,10 +9309,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -9997,10 +9360,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -10048,10 +9411,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -10071,28 +9434,7 @@ assert_return(
 
 // ./test/core/simd/simd_f32x4.wast:1183
 assert_return(
-  () =>
-    invoke($0, `f32x4.max`, [
-      f32x4([0, 0, 0, 0]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
+  () => invoke($0, `f32x4.max`, [f32x4([0, 0, 0, 0]), f32x4([-0, -0, -0, -0])]),
   [
     new F32x4Pattern(
       value("f32", 0),
@@ -10362,28 +9704,7 @@ assert_return(
 
 // ./test/core/simd/simd_f32x4.wast:1228
 assert_return(
-  () =>
-    invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-      f32x4([0, 0, 0, 0]),
-    ]),
+  () => invoke($0, `f32x4.max`, [f32x4([-0, -0, -0, -0]), f32x4([0, 0, 0, 0])]),
   [
     new F32x4Pattern(
       value("f32", 0),
@@ -10397,50 +9718,13 @@ assert_return(
 // ./test/core/simd/simd_f32x4.wast:1231
 assert_return(
   () =>
-    invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
+    invoke($0, `f32x4.max`, [f32x4([-0, -0, -0, -0]), f32x4([-0, -0, -0, -0])]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -10449,24 +9733,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         0.000000000000000000000000000000000000000000001,
         0.000000000000000000000000000000000000000000001,
@@ -10488,24 +9755,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         -0.000000000000000000000000000000000000000000001,
         -0.000000000000000000000000000000000000000000001,
@@ -10515,10 +9765,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -10527,24 +9777,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         0.000000000000000000000000000000000000011754944,
         0.000000000000000000000000000000000000011754944,
@@ -10566,24 +9799,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         -0.000000000000000000000000000000000000011754944,
         -0.000000000000000000000000000000000000011754944,
@@ -10593,10 +9809,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -10605,24 +9821,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([0.5, 0.5, 0.5, 0.5]),
     ]),
   [
@@ -10639,60 +9838,22 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([-0.5, -0.5, -0.5, -0.5]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
 
 // ./test/core/simd/simd_f32x4.wast:1252
 assert_return(
-  () =>
-    invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-      f32x4([1, 1, 1, 1]),
-    ]),
+  () => invoke($0, `f32x4.max`, [f32x4([-0, -0, -0, -0]), f32x4([1, 1, 1, 1])]),
   [
     new F32x4Pattern(
       value("f32", 1),
@@ -10706,33 +9867,13 @@ assert_return(
 // ./test/core/simd/simd_f32x4.wast:1255
 assert_return(
   () =>
-    invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-      f32x4([-1, -1, -1, -1]),
-    ]),
+    invoke($0, `f32x4.max`, [f32x4([-0, -0, -0, -0]), f32x4([-1, -1, -1, -1])]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -10741,24 +9882,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([6.2831855, 6.2831855, 6.2831855, 6.2831855]),
     ]),
   [
@@ -10775,32 +9899,15 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([-6.2831855, -6.2831855, -6.2831855, -6.2831855]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -10809,24 +9916,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         340282350000000000000000000000000000000,
         340282350000000000000000000000000000000,
@@ -10848,24 +9938,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([
         -340282350000000000000000000000000000000,
         -340282350000000000000000000000000000000,
@@ -10875,10 +9948,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -10887,24 +9960,7 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([Infinity, Infinity, Infinity, Infinity]),
     ]),
   [
@@ -10921,32 +9977,15 @@ assert_return(
 assert_return(
   () =>
     invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
       f32x4([-Infinity, -Infinity, -Infinity, -Infinity]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -10983,24 +10022,7 @@ assert_return(
         0.000000000000000000000000000000000000000000001,
         0.000000000000000000000000000000000000000000001,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -11382,31 +10404,14 @@ assert_return(
         -0.000000000000000000000000000000000000000000001,
         -0.000000000000000000000000000000000000000000001,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -11781,24 +10786,7 @@ assert_return(
         0.000000000000000000000000000000000000011754944,
         0.000000000000000000000000000000000000011754944,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -12180,31 +11168,14 @@ assert_return(
         -0.000000000000000000000000000000000000011754944,
         -0.000000000000000000000000000000000000011754944,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -12566,24 +11537,7 @@ assert_return(
   () =>
     invoke($0, `f32x4.max`, [
       f32x4([0.5, 0.5, 0.5, 0.5]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -12882,31 +11836,14 @@ assert_return(
   () =>
     invoke($0, `f32x4.max`, [
       f32x4([-0.5, -0.5, -0.5, -0.5]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -13194,28 +12131,7 @@ assert_return(
 
 // ./test/core/simd/simd_f32x4.wast:1567
 assert_return(
-  () =>
-    invoke($0, `f32x4.max`, [
-      f32x4([1, 1, 1, 1]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
+  () => invoke($0, `f32x4.max`, [f32x4([1, 1, 1, 1]), f32x4([-0, -0, -0, -0])]),
   [
     new F32x4Pattern(
       value("f32", 1),
@@ -13499,33 +12415,13 @@ assert_return(
 // ./test/core/simd/simd_f32x4.wast:1615
 assert_return(
   () =>
-    invoke($0, `f32x4.max`, [
-      f32x4([-1, -1, -1, -1]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
+    invoke($0, `f32x4.max`, [f32x4([-1, -1, -1, -1]), f32x4([-0, -0, -0, -0])]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -13813,24 +12709,7 @@ assert_return(
   () =>
     invoke($0, `f32x4.max`, [
       f32x4([6.2831855, 6.2831855, 6.2831855, 6.2831855]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -14132,31 +13011,14 @@ assert_return(
   () =>
     invoke($0, `f32x4.max`, [
       f32x4([-6.2831855, -6.2831855, -6.2831855, -6.2831855]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -14461,24 +13323,7 @@ assert_return(
         340282350000000000000000000000000000000,
         340282350000000000000000000000000000000,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -14860,31 +13705,14 @@ assert_return(
         -340282350000000000000000000000000000000,
         -340282350000000000000000000000000000000,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -15249,24 +14077,7 @@ assert_return(
   () =>
     invoke($0, `f32x4.max`, [
       f32x4([Infinity, Infinity, Infinity, Infinity]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
@@ -15568,31 +14379,14 @@ assert_return(
   () =>
     invoke($0, `f32x4.max`, [
       f32x4([-Infinity, -Infinity, -Infinity, -Infinity]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
@@ -16516,10 +15310,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16546,31 +15340,14 @@ assert_return(
         0xc0,
         0x7f,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16606,10 +15383,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16645,10 +15422,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16684,10 +15461,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16723,10 +15500,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16757,10 +15534,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16791,10 +15568,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16825,10 +15602,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16859,10 +15636,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16893,10 +15670,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16927,10 +15704,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -16966,10 +15743,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17005,10 +15782,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17039,10 +15816,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17073,10 +15850,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17124,10 +15901,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17175,10 +15952,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17226,10 +16003,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -17277,10 +16054,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -17311,10 +16088,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17341,31 +16118,14 @@ assert_return(
         0xc0,
         0xff,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17401,10 +16161,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17440,10 +16200,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17479,10 +16239,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17518,10 +16278,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17552,10 +16312,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17586,10 +16346,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17620,10 +16380,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17654,10 +16414,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17688,10 +16448,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17722,10 +16482,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17761,10 +16521,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17800,10 +16560,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17834,10 +16594,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17868,10 +16628,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17919,10 +16679,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -17970,10 +16730,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
-      `f32_canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
+      `canonical_nan`,
     ),
   ],
 );
@@ -18021,10 +16781,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18072,10 +16832,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18106,10 +16866,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18136,31 +16896,14 @@ assert_return(
         0xa0,
         0x7f,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18196,10 +16939,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18235,10 +16978,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18274,10 +17017,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18313,10 +17056,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18347,10 +17090,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18381,10 +17124,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18415,10 +17158,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18449,10 +17192,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18483,10 +17226,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18517,10 +17260,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18556,10 +17299,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18595,10 +17338,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18629,10 +17372,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18663,10 +17406,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18714,10 +17457,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18765,10 +17508,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18816,10 +17559,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18867,10 +17610,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18901,10 +17644,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18931,31 +17674,14 @@ assert_return(
         0xa0,
         0xff,
       ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
+      f32x4([-0, -0, -0, -0]),
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -18991,10 +17717,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19030,10 +17756,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19069,10 +17795,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19108,10 +17834,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19142,10 +17868,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19176,10 +17902,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19210,10 +17936,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19244,10 +17970,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19278,10 +18004,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19312,10 +18038,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19351,10 +18077,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19390,10 +18116,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19424,10 +18150,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19458,10 +18184,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19509,10 +18235,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19560,10 +18286,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19611,10 +18337,10 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
@@ -19662,140 +18388,43 @@ assert_return(
     ]),
   [
     new F32x4Pattern(
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
-      `f32_arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
+      `arithmetic_nan`,
     ),
   ],
 );
 
 // ./test/core/simd/simd_f32x4.wast:2265
 assert_return(
-  () =>
-    invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-      ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
+  () => invoke($0, `f32x4.min`, [f32x4([0, 0, -0, 0]), f32x4([0, -0, 0, -0])]),
   [
     new F32x4Pattern(
       value("f32", 0),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
 
 // ./test/core/simd/simd_f32x4.wast:2268
 assert_return(
-  () =>
-    invoke($0, `f32x4.min`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-      f32x4([0, 0, 0, 0]),
-    ]),
+  () => invoke($0, `f32x4.min`, [f32x4([-0, -0, -0, -0]), f32x4([0, 0, 0, 0])]),
   [
     new F32x4Pattern(
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
-      bytes("f32", [0x0, 0x0, 0x0, 0x80]),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
+      value("f32", -0),
     ),
   ],
 );
 
 // ./test/core/simd/simd_f32x4.wast:2271
 assert_return(
-  () =>
-    invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-      ]),
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
+  () => invoke($0, `f32x4.max`, [f32x4([0, 0, -0, 0]), f32x4([0, -0, 0, -0])]),
   [
     new F32x4Pattern(
       value("f32", 0),
@@ -19808,28 +18437,7 @@ assert_return(
 
 // ./test/core/simd/simd_f32x4.wast:2274
 assert_return(
-  () =>
-    invoke($0, `f32x4.max`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-      f32x4([0, 0, 0, 0]),
-    ]),
+  () => invoke($0, `f32x4.max`, [f32x4([-0, -0, -0, -0]), f32x4([0, 0, 0, 0])]),
   [
     new F32x4Pattern(
       value("f32", 0),
@@ -19851,37 +18459,14 @@ assert_return(() => invoke($0, `f32x4.abs`, [f32x4([0, 0, 0, 0])]), [
 ]);
 
 // ./test/core/simd/simd_f32x4.wast:2281
-assert_return(
-  () =>
-    invoke($0, `f32x4.abs`, [
-      bytes("v128", [
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-        0x0,
-        0x0,
-        0x0,
-        0x80,
-      ]),
-    ]),
-  [
-    new F32x4Pattern(
-      value("f32", 0),
-      value("f32", 0),
-      value("f32", 0),
-      value("f32", 0),
-    ),
-  ],
-);
+assert_return(() => invoke($0, `f32x4.abs`, [f32x4([-0, -0, -0, -0])]), [
+  new F32x4Pattern(
+    value("f32", 0),
+    value("f32", 0),
+    value("f32", 0),
+    value("f32", 0),
+  ),
+]);
 
 // ./test/core/simd/simd_f32x4.wast:2283
 assert_return(

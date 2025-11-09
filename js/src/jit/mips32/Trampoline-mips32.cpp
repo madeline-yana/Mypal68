@@ -452,9 +452,7 @@ void JitRuntime::generateArgumentsRectifier(MacroAssembler& masm,
 
   masm.mov(calleeTokenReg, numArgsReg);
   masm.andPtr(Imm32(CalleeTokenMask), numArgsReg);
-  masm.load32(Address(numArgsReg, JSFunction::offsetOfFlagsAndArgCount()),
-              numArgsReg);
-  masm.rshift32(Imm32(JSFunction::ArgCountShift), numArgsReg);
+  masm.loadFunctionArgCount(numArgsReg, numArgsReg);
 
   masm.as_subu(t1, numArgsReg, s3);
 
@@ -866,7 +864,7 @@ bool JitRuntime::generateVMWrapper(JSContext* cx, MacroAssembler& masm,
 
   // Test for failure.
   switch (f.failType()) {
-    case Type_Object:
+    case Type_Cell:
       masm.branchTestPtr(Assembler::Zero, v0, v0, masm.failureLabel());
       break;
     case Type_Bool:
@@ -906,12 +904,7 @@ bool JitRuntime::generateVMWrapper(JSContext* cx, MacroAssembler& masm,
       break;
 
     case Type_Double:
-      if (JitOptions.supportsFloatingPoint) {
-        masm.as_ldc1(ReturnDoubleReg, StackPointer, 0);
-      } else {
-        masm.assumeUnreachable(
-            "Unable to load into float reg, with no FP support.");
-      }
+      masm.as_ldc1(ReturnDoubleReg, StackPointer, 0);
       masm.freeStack(sizeof(double));
       break;
 
@@ -953,13 +946,8 @@ uint32_t JitRuntime::generatePreBarrier(JSContext* cx, MacroAssembler& masm,
   masm.pop(temp1);
 
   LiveRegisterSet save;
-  if (JitOptions.supportsFloatingPoint) {
-    save.set() = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
-                             FloatRegisterSet(FloatRegisters::VolatileMask));
-  } else {
-    save.set() = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
-                             FloatRegisterSet());
-  }
+  save.set() = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
+                           FloatRegisterSet(FloatRegisters::VolatileMask));
   save.add(ra);
   masm.PushRegsInMask(save);
 

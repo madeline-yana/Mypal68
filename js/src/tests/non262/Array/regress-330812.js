@@ -1,4 +1,4 @@
-// |reftest| slow-if(xulRuntime.XPCOMABI.match(/x86_64|aarch64|ppc64|ppc64le|s390x/)||Android) -- No test results
+// |reftest| slow-if(xulRuntime.XPCOMABI.match(/x86_64|aarch64|ppc64|ppc64le|s390x|mips64|loongarch64/)||Android) -- No test results
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */

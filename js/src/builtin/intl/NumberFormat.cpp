@@ -9,7 +9,11 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Casting.h"
 #include "mozilla/FloatingPoint.h"
+#include "mozilla/intl/Locale.h"
+#include "mozilla/intl/MeasureUnit.h"
+#include "mozilla/intl/MeasureUnitGenerated.h"
 #include "mozilla/intl/NumberFormat.h"
+#include "mozilla/intl/NumberingSystem.h"
 #include "mozilla/intl/NumberRangeFormat.h"
 #include "mozilla/Span.h"
 #include "mozilla/TextUtils.h"
@@ -27,25 +31,16 @@
 #include "builtin/Array.h"
 #include "builtin/intl/CommonFunctions.h"
 #include "builtin/intl/DecimalNumber.h"
+#include "builtin/intl/FormatBuffer.h"
 #include "builtin/intl/LanguageTag.h"
-#include "builtin/intl/MeasureUnitGenerated.h"
 #include "builtin/intl/RelativeTimeFormat.h"
-#include "builtin/intl/ScopedICUObject.h"
 #include "ds/Sort.h"
-#include "gc/FreeOp.h"
+#include "gc/GCContext.h"
 #include "js/CharacterEncoding.h"
 #include "js/PropertySpec.h"
 #include "js/RootingAPI.h"
 #include "js/TypeDecls.h"
 #include "js/Vector.h"
-#include "unicode/udata.h"
-#include "unicode/ufieldpositer.h"
-#include "unicode/uformattedvalue.h"
-#include "unicode/unum.h"
-#include "unicode/unumberformatter.h"
-#include "unicode/unumsys.h"
-#include "unicode/ures.h"
-#include "unicode/utypes.h"
 #include "util/Text.h"
 #include "vm/BigIntType.h"
 #include "vm/GlobalObject.h"
@@ -62,15 +57,9 @@
 using namespace js;
 
 using mozilla::AssertedCast;
-using mozilla::IsFinite;
-using mozilla::IsNaN;
-using mozilla::IsNegative;
-using mozilla::SpecificNaN;
 
-using js::intl::CallICU;
 using js::intl::DateTimeFormatOptions;
 using js::intl::FieldType;
-using js::intl::IcuLocale;
 
 const JSClassOps NumberFormatObject::classOps_ = {
     nullptr,                       // addProperty
@@ -81,7 +70,6 @@ const JSClassOps NumberFormatObject::classOps_ = {
     nullptr,                       // mayResolve
     NumberFormatObject::finalize,  // finalize
     nullptr,                       // call
-    nullptr,                       // hasInstance
     nullptr,                       // construct
     nullptr,                       // trace
 };
@@ -112,11 +100,9 @@ static const JSFunctionSpec numberFormat_methods[] = {
                       0),
     JS_SELF_HOSTED_FN("formatToParts", "Intl_NumberFormat_formatToParts", 1, 0),
 #ifdef NIGHTLY_BUILD
-#  ifdef MOZ_INTL_HAS_NUMBER_RANGE_FORMAT
     JS_SELF_HOSTED_FN("formatRange", "Intl_NumberFormat_formatRange", 2, 0),
     JS_SELF_HOSTED_FN("formatRangeToParts",
                       "Intl_NumberFormat_formatRangeToParts", 2, 0),
-#  endif
 #endif
     JS_FN(js_toSource_str, numberFormat_toSource, 0, 0),
     JS_FS_END,
@@ -187,8 +173,8 @@ bool js::intl_NumberFormat(JSContext* cx, unsigned argc, Value* vp) {
   return NumberFormat(cx, args, true);
 }
 
-void js::NumberFormatObject::finalize(JSFreeOp* fop, JSObject* obj) {
-  MOZ_ASSERT(fop->onMainThread());
+void js::NumberFormatObject::finalize(JS::GCContext* gcx, JSObject* obj) {
+  MOZ_ASSERT(gcx->onMainThread());
 
   auto* numberFormat = &obj->as<NumberFormatObject>();
   mozilla::intl::NumberFormat* nf = numberFormat->getNumberFormatter();
@@ -196,14 +182,14 @@ void js::NumberFormatObject::finalize(JSFreeOp* fop, JSObject* obj) {
       numberFormat->getNumberRangeFormatter();
 
   if (nf) {
-    intl::RemoveICUCellMemory(fop, obj, NumberFormatObject::EstimatedMemoryUse);
+    intl::RemoveICUCellMemory(gcx, obj, NumberFormatObject::EstimatedMemoryUse);
     // This was allocated using `new` in mozilla::intl::NumberFormat, so we
     // delete here.
     delete nf;
   }
 
   if (nrf) {
-    intl::RemoveICUCellMemory(fop, obj, EstimatedRangeFormatterMemoryUse);
+    intl::RemoveICUCellMemory(gcx, obj, EstimatedRangeFormatterMemoryUse);
     // This was allocated using `new` in mozilla::intl::NumberRangeFormat, so we
     // delete here.
     delete nrf;
@@ -220,22 +206,20 @@ bool js::intl_numberingSystem(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  UErrorCode status = U_ZERO_ERROR;
-  UNumberingSystem* numbers = unumsys_open(IcuLocale(locale.get()), &status);
-  if (U_FAILURE(status)) {
-    intl::ReportInternalError(cx);
+  auto numberingSystem =
+      mozilla::intl::NumberingSystem::TryCreate(locale.get());
+  if (numberingSystem.isErr()) {
+    intl::ReportInternalError(cx, numberingSystem.unwrapErr());
     return false;
   }
 
-  ScopedICUObject<UNumberingSystem, unumsys_close> toClose(numbers);
-
-  const char* name = unumsys_getName(numbers);
-  if (!name) {
-    intl::ReportInternalError(cx);
+  auto name = numberingSystem.inspect()->GetName();
+  if (name.isErr()) {
+    intl::ReportInternalError(cx, name.unwrapErr());
     return false;
   }
 
-  JSString* jsname = NewStringCopyZ<CanGC>(cx, name);
+  JSString* jsname = NewStringCopy<CanGC>(cx, name.unwrap());
   if (!jsname) {
     return false;
   }
@@ -245,14 +229,6 @@ bool js::intl_numberingSystem(JSContext* cx, unsigned argc, Value* vp) {
 }
 
 #if DEBUG || MOZ_SYSTEM_ICU
-class UResourceBundleDeleter {
- public:
-  void operator()(UResourceBundle* aPtr) { ures_close(aPtr); }
-};
-
-using UniqueUResourceBundle =
-    mozilla::UniquePtr<UResourceBundle, UResourceBundleDeleter>;
-
 bool js::intl_availableMeasurementUnits(JSContext* cx, unsigned argc,
                                         Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
@@ -263,61 +239,28 @@ bool js::intl_availableMeasurementUnits(JSContext* cx, unsigned argc,
     return false;
   }
 
-  // Lookup the available measurement units in the resource boundle of the root
-  // locale.
-
-  static const char packageName[] =
-      U_ICUDATA_NAME U_TREE_SEPARATOR_STRING "unit";
-  static const char rootLocale[] = "";
-
-  UErrorCode status = U_ZERO_ERROR;
-  UResourceBundle* rawRes = ures_open(packageName, rootLocale, &status);
-  if (U_FAILURE(status)) {
-    intl::ReportInternalError(cx);
+  auto units = mozilla::intl::MeasureUnit::GetAvailable();
+  if (units.isErr()) {
+    intl::ReportInternalError(cx, units.unwrapErr());
     return false;
   }
-  UniqueUResourceBundle res(rawRes);
-
-  UResourceBundle* rawUnits =
-      ures_getByKey(res.get(), "units", nullptr, &status);
-  if (U_FAILURE(status)) {
-    intl::ReportInternalError(cx);
-    return false;
-  }
-  UniqueUResourceBundle units(rawUnits);
 
   RootedAtom unitAtom(cx);
-
-  int32_t unitsSize = ures_getSize(units.get());
-  for (int32_t i = 0; i < unitsSize; i++) {
-    UResourceBundle* rawType =
-        ures_getByIndex(units.get(), i, nullptr, &status);
-    if (U_FAILURE(status)) {
+  for (auto unit : units.unwrap()) {
+    if (unit.isErr()) {
       intl::ReportInternalError(cx);
       return false;
     }
-    UniqueUResourceBundle type(rawType);
+    auto unitIdentifier = unit.unwrap();
 
-    int32_t typeSize = ures_getSize(type.get());
-    for (int32_t j = 0; j < typeSize; j++) {
-      UResourceBundle* rawSubtype =
-          ures_getByIndex(type.get(), j, nullptr, &status);
-      if (U_FAILURE(status)) {
-        intl::ReportInternalError(cx);
-        return false;
-      }
-      UniqueUResourceBundle subtype(rawSubtype);
+    unitAtom = Atomize(cx, unitIdentifier.data(), unitIdentifier.size());
+    if (!unitAtom) {
+      return false;
+    }
 
-      const char* unitIdentifier = ures_getKey(subtype.get());
-
-      unitAtom = Atomize(cx, unitIdentifier, strlen(unitIdentifier));
-      if (!unitAtom) {
-        return false;
-      }
-      if (!DefineDataProperty(cx, measurementUnits, unitAtom->asPropertyName(),
-                              TrueHandleValue)) {
-        return false;
-      }
+    if (!DefineDataProperty(cx, measurementUnits, unitAtom->asPropertyName(),
+                            TrueHandleValue)) {
+      return false;
     }
   }
 
@@ -328,7 +271,7 @@ bool js::intl_availableMeasurementUnits(JSContext* cx, unsigned argc,
 
 static constexpr size_t MaxUnitLength() {
   size_t length = 0;
-  for (const auto& unit : simpleMeasureUnits) {
+  for (const auto& unit : mozilla::intl::simpleMeasureUnits) {
     length = std::max(length, std::char_traits<char>::length(unit.name));
   }
   return length * 2 + std::char_traits<char>::length("-per-");
@@ -342,14 +285,14 @@ static UniqueChars NumberFormatLocale(JSContext* cx, HandleObject internals) {
 
   // ICU expects numberingSystem as a Unicode locale extensions on locale.
 
-  intl::LanguageTag tag(cx);
+  mozilla::intl::Locale tag;
   {
-    JSLinearString* locale = value.toString()->ensureLinear(cx);
+    RootedLinearString locale(cx, value.toString()->ensureLinear(cx));
     if (!locale) {
       return nullptr;
     }
 
-    if (!intl::LanguageTagParser::parse(cx, locale, tag)) {
+    if (!intl::ParseLocale(cx, locale, tag)) {
       return nullptr;
     }
   }
@@ -380,7 +323,12 @@ static UniqueChars NumberFormatLocale(JSContext* cx, HandleObject internals) {
     return nullptr;
   }
 
-  return tag.toStringZ(cx);
+  intl::FormatBuffer<char> buffer(cx);
+  if (auto result = tag.ToString(buffer); result.isErr()) {
+    intl::ReportInternalError(cx, result.unwrapErr());
+    return nullptr;
+  }
+  return buffer.extractStringZ();
 }
 
 struct NumberFormatOptions : public mozilla::intl::NumberRangeFormatOptions {
@@ -821,8 +769,46 @@ static Formatter* NewNumberFormat(JSContext* cx,
     return result.unwrap().release();
   }
 
-  intl::ReportInternalError(cx);
+  intl::ReportInternalError(cx, result.unwrapErr());
   return nullptr;
+}
+
+static mozilla::intl::NumberFormat* GetOrCreateNumberFormat(
+    JSContext* cx, Handle<NumberFormatObject*> numberFormat) {
+  // Obtain a cached mozilla::intl::NumberFormat object.
+  mozilla::intl::NumberFormat* nf = numberFormat->getNumberFormatter();
+  if (nf) {
+    return nf;
+  }
+
+  nf = NewNumberFormat<mozilla::intl::NumberFormat>(cx, numberFormat);
+  if (!nf) {
+    return nullptr;
+  }
+  numberFormat->setNumberFormatter(nf);
+
+  intl::AddICUCellMemory(numberFormat, NumberFormatObject::EstimatedMemoryUse);
+  return nf;
+}
+
+static mozilla::intl::NumberRangeFormat* GetOrCreateNumberRangeFormat(
+    JSContext* cx, Handle<NumberFormatObject*> numberFormat) {
+  // Obtain a cached mozilla::intl::NumberRangeFormat object.
+  mozilla::intl::NumberRangeFormat* nrf =
+      numberFormat->getNumberRangeFormatter();
+  if (nrf) {
+    return nrf;
+  }
+
+  nrf = NewNumberFormat<mozilla::intl::NumberRangeFormat>(cx, numberFormat);
+  if (!nrf) {
+    return nullptr;
+  }
+  numberFormat->setNumberRangeFormatter(nrf);
+
+  intl::AddICUCellMemory(numberFormat,
+                         NumberFormatObject::EstimatedRangeFormatterMemoryUse);
+  return nrf;
 }
 
 static FieldType GetFieldTypeForNumberPartType(
@@ -999,13 +985,9 @@ static bool ToIntlMathematicalValue(JSContext* cx, MutableHandleValue value,
   // See also "intl/icu/source/i18n/decContext.h".
   constexpr int32_t maximumExponent = 999'999'999;
 
-  // When formatting a number range, ICU inserts the integer digits of the
-  // second number into the middle of the result string. This leads to calling
-  // memmove for each digit, which causes tremendous slowdowns. Therefore we
-  // additionally limit the maximum positive exponent.
-  //
-  // Filed at <https://unicode-org.atlassian.net/browse/ICU-21684>.
-  constexpr int32_t maximumPositiveExponent = 99'999;
+  // We further limit the maximum positive exponent to avoid spending multiple
+  // seconds or even minutes in ICU when formatting large numbers.
+  constexpr int32_t maximumPositiveExponent = 9'999'999;
 
   // Compute the maximum BigInt digit length from the maximum positive exponent.
   //
@@ -1014,8 +996,8 @@ static bool ToIntlMathematicalValue(JSContext* cx, MutableHandleValue value,
   //   |maximumPositiveExponent| * Log_DigitBase(10)
   // = |maximumPositiveExponent| * Log2(10) / Log2(2 ** BigInt::DigitBits)
   // = |maximumPositiveExponent| * Log2(10) / BigInt::DigitBits
-  // = 332189.4875606413... / BigInt::DigitBits
-  constexpr size_t maximumBigIntLength = 332189.4875606413 / BigInt::DigitBits;
+  // = 33219277.626945525... / BigInt::DigitBits
+  constexpr size_t maximumBigIntLength = 33219277.626945525 / BigInt::DigitBits;
 
   if (!value.isString()) {
     if (!ToNumeric(cx, value)) {
@@ -1173,17 +1155,9 @@ bool js::intl_FormatNumber(JSContext* cx, unsigned argc, Value* vp) {
   }
 #endif
 
-  // Obtain a cached mozilla::intl::NumberFormat object.
-  mozilla::intl::NumberFormat* nf = numberFormat->getNumberFormatter();
+  mozilla::intl::NumberFormat* nf = GetOrCreateNumberFormat(cx, numberFormat);
   if (!nf) {
-    nf = NewNumberFormat<mozilla::intl::NumberFormat>(cx, numberFormat);
-    if (!nf) {
-      return false;
-    }
-    numberFormat->setNumberFormatter(nf);
-
-    intl::AddICUCellMemory(numberFormat,
-                           NumberFormatObject::EstimatedMemoryUse);
+    return false;
   }
 
   // Actually format the number
@@ -1251,7 +1225,7 @@ bool js::intl_FormatNumber(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   if (result.isErr()) {
-    intl::ReportInternalError(cx);
+    intl::ReportInternalError(cx, result.unwrapErr());
     return false;
   }
 
@@ -1269,7 +1243,6 @@ bool js::intl_FormatNumber(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
-#ifdef MOZ_INTL_HAS_NUMBER_RANGE_FORMAT
 static JSLinearString* ToLinearString(JSContext* cx, HandleValue val) {
   // Special case to preserve negative zero.
   if (val.isDouble() && mozilla::IsNegativeZero(val.toDouble())) {
@@ -1481,10 +1454,8 @@ static bool ValidateNumberRange(JSContext* cx, MutableHandleValue start,
 
   return true;
 }
-#endif
 
 bool js::intl_FormatNumberRange(JSContext* cx, unsigned argc, Value* vp) {
-#ifdef MOZ_INTL_HAS_NUMBER_RANGE_FORMAT
   CallArgs args = CallArgsFromVp(argc, vp);
   MOZ_ASSERT(args.length() == 4);
   MOZ_ASSERT(args[0].isObject());
@@ -1513,18 +1484,10 @@ bool js::intl_FormatNumberRange(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  // Obtain a cached mozilla::intl::NumberFormat object.
   using NumberRangeFormat = mozilla::intl::NumberRangeFormat;
-  NumberRangeFormat* nf = numberFormat->getNumberRangeFormatter();
+  NumberRangeFormat* nf = GetOrCreateNumberRangeFormat(cx, numberFormat);
   if (!nf) {
-    nf = NewNumberFormat<NumberRangeFormat>(cx, numberFormat);
-    if (!nf) {
-      return false;
-    }
-    numberFormat->setNumberRangeFormatter(nf);
-
-    intl::AddICUCellMemory(
-        numberFormat, NumberFormatObject::EstimatedRangeFormatterMemoryUse);
+    return false;
   }
 
   auto valueRepresentableAsDouble = [](const Value& val, double* num) {
@@ -1594,7 +1557,7 @@ bool js::intl_FormatNumberRange(JSContext* cx, unsigned argc, Value* vp) {
   }
 
   if (result.isErr()) {
-    intl::ReportInternalError(cx);
+    intl::ReportInternalError(cx, result.unwrapErr());
     return false;
   }
 
@@ -1610,7 +1573,4 @@ bool js::intl_FormatNumberRange(JSContext* cx, unsigned argc, Value* vp) {
 
   args.rval().setString(str);
   return true;
-#else
-  MOZ_CRASH("ICU draft API not enabled");
-#endif
 }
