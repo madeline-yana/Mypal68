@@ -27,9 +27,9 @@
 #include "mozilla/WeakPtr.h"
 #include "nsThreadUtils.h"
 #include "mozilla/gfx/2D.h"
-#include "nsDataHashtable.h"
 #include "mozilla/EnumeratedArray.h"
 #include "mozilla/UniquePtr.h"
+#include "nsTHashMap.h"
 
 #ifdef XP_WIN
 struct ID3D10Texture2D;
@@ -846,7 +846,7 @@ class SourceSurfaceImage final : public Image {
  private:
   gfx::IntSize mSize;
   RefPtr<gfx::SourceSurface> mSourceSurface;
-  nsDataHashtable<nsUint32HashKey, RefPtr<TextureClient>> mTextureClients;
+  nsTHashMap<uint32_t, RefPtr<TextureClient>> mTextureClients;
   TextureFlags mTextureFlags;
 };
 

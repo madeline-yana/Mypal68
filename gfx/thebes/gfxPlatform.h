@@ -6,17 +6,14 @@
 #define GFX_PLATFORM_H
 
 #include "mozilla/FontPropertyTypes.h"
-#include "mozilla/Logging.h"
 #include "mozilla/gfx/Types.h"
+#include "mozilla/intl/UnicodeScriptCodes.h"
 #include "nsTArray.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
-#include "nsUnicodeScriptCodes.h"
 
 #include "gfxTypes.h"
-#include "gfxBlur.h"
 #include "gfxSkipChars.h"
-#include "nsRect.h"
 
 #include "qcms.h"
 
@@ -24,6 +21,7 @@
 #include "GfxInfoCollector.h"
 
 #include "mozilla/layers/CompositorTypes.h"
+#include "mozilla/layers/LayersTypes.h"
 #include "mozilla/layers/MemoryPressureObserver.h"
 
 class gfxASurface;
@@ -43,6 +41,7 @@ typedef struct FT_LibraryRec_* FT_Library;
 
 namespace mozilla {
 class FontFamilyList;
+class LogModule;
 namespace layers {
 class FrameStats;
 }
@@ -160,7 +159,7 @@ class gfxPlatform : public mozilla::layers::MemoryPressureListener {
   typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::gfx::IntSize IntSize;
   typedef mozilla::gfx::SourceSurface SourceSurface;
-  typedef mozilla::unicode::Script Script;
+  typedef mozilla::intl::Script Script;
 
   /**
    * Return a pointer to the current active platform.

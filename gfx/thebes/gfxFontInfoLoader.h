@@ -9,12 +9,11 @@
 #include "nsIObserver.h"
 #include "nsITimer.h"
 #include "nsIThread.h"
-#include "nsRefPtrHashtable.h"
 #include "nsString.h"
-#include "gfxFont.h"
+#include "gfxFontEntry.h"
 #include "mozilla/Atomics.h"
 #include "mozilla/TimeStamp.h"
-#include "nsISupportsImpl.h"
+#include "nsISupports.h"
 
 // data retrieved for a given face
 
@@ -121,10 +120,10 @@ class FontInfoData {
   bool mLoadCmaps;
 
   // face name ==> per-face data
-  nsDataHashtable<nsCStringHashKey, FontFaceData> mFontFaceData;
+  nsTHashMap<nsCStringHashKey, FontFaceData> mFontFaceData;
 
   // canonical family name ==> array of localized family names
-  nsDataHashtable<nsCStringHashKey, nsTArray<nsCString> > mOtherFamilyNames;
+  nsTHashMap<nsCStringHashKey, nsTArray<nsCString> > mOtherFamilyNames;
 };
 
 // gfxFontInfoLoader - helper class for loading font info on async thread

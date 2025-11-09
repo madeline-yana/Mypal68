@@ -20,6 +20,7 @@
 #include "mozilla/Telemetry.h"
 #include "mozilla/TextEventDispatcher.h"
 #include "mozilla/TextEvents.h"
+#include "mozilla/ToString.h"
 #include "mozilla/WindowsVersion.h"
 #include "nsWindow.h"
 #include "nsPrintfCString.h"
@@ -207,9 +208,9 @@ static nsCString GetGUIDNameStr(REFGUID aGUID) {
 }
 
 static nsCString GetGUIDNameStrWithTable(REFGUID aGUID) {
-#define RETURN_GUID_NAME(aNamedGUID)        \
-  if (IsEqualGUID(aGUID, aNamedGUID)) {     \
-    return NS_LITERAL_CSTRING(#aNamedGUID); \
+#define RETURN_GUID_NAME(aNamedGUID)      \
+  if (IsEqualGUID(aGUID, aNamedGUID)) {   \
+    return nsLiteralCString(#aNamedGUID); \
   }
 
   RETURN_GUID_NAME(GUID_PROP_INPUTSCOPE)
@@ -456,7 +457,7 @@ static const char* GetTextRunTypeName(TsRunType aRunType) {
 static nsCString GetColorName(const TF_DA_COLOR& aColor) {
   switch (aColor.type) {
     case TF_CT_NONE:
-      return NS_LITERAL_CSTRING("TF_CT_NONE");
+      return "TF_CT_NONE"_ns;
     case TF_CT_SYSCOLOR:
       return nsPrintfCString("TF_CT_SYSCOLOR, nIndex:0x%08X",
                              static_cast<int32_t>(aColor.nIndex));
@@ -473,15 +474,15 @@ static nsCString GetColorName(const TF_DA_COLOR& aColor) {
 static nsCString GetLineStyleName(TF_DA_LINESTYLE aLineStyle) {
   switch (aLineStyle) {
     case TF_LS_NONE:
-      return NS_LITERAL_CSTRING("TF_LS_NONE");
+      return "TF_LS_NONE"_ns;
     case TF_LS_SOLID:
-      return NS_LITERAL_CSTRING("TF_LS_SOLID");
+      return "TF_LS_SOLID"_ns;
     case TF_LS_DOT:
-      return NS_LITERAL_CSTRING("TF_LS_DOT");
+      return "TF_LS_DOT"_ns;
     case TF_LS_DASH:
-      return NS_LITERAL_CSTRING("TF_LS_DASH");
+      return "TF_LS_DASH"_ns;
     case TF_LS_SQUIGGLE:
-      return NS_LITERAL_CSTRING("TF_LS_SQUIGGLE");
+      return "TF_LS_SQUIGGLE"_ns;
     default: {
       return nsPrintfCString("Unknown(%08X)", static_cast<int32_t>(aLineStyle));
     }
@@ -491,19 +492,19 @@ static nsCString GetLineStyleName(TF_DA_LINESTYLE aLineStyle) {
 static nsCString GetClauseAttrName(TF_DA_ATTR_INFO aAttr) {
   switch (aAttr) {
     case TF_ATTR_INPUT:
-      return NS_LITERAL_CSTRING("TF_ATTR_INPUT");
+      return "TF_ATTR_INPUT"_ns;
     case TF_ATTR_TARGET_CONVERTED:
-      return NS_LITERAL_CSTRING("TF_ATTR_TARGET_CONVERTED");
+      return "TF_ATTR_TARGET_CONVERTED"_ns;
     case TF_ATTR_CONVERTED:
-      return NS_LITERAL_CSTRING("TF_ATTR_CONVERTED");
+      return "TF_ATTR_CONVERTED"_ns;
     case TF_ATTR_TARGET_NOTCONVERTED:
-      return NS_LITERAL_CSTRING("TF_ATTR_TARGET_NOTCONVERTED");
+      return "TF_ATTR_TARGET_NOTCONVERTED"_ns;
     case TF_ATTR_INPUT_ERROR:
-      return NS_LITERAL_CSTRING("TF_ATTR_INPUT_ERROR");
+      return "TF_ATTR_INPUT_ERROR"_ns;
     case TF_ATTR_FIXEDCONVERTED:
-      return NS_LITERAL_CSTRING("TF_ATTR_FIXEDCONVERTED");
+      return "TF_ATTR_FIXEDCONVERTED"_ns;
     case TF_ATTR_OTHER:
-      return NS_LITERAL_CSTRING("TF_ATTR_OTHER");
+      return "TF_ATTR_OTHER"_ns;
     default: {
       return nsPrintfCString("Unknown(%08X)", static_cast<int32_t>(aAttr));
     }
@@ -547,7 +548,7 @@ static const char* GetMouseButtonName(int16_t aButton) {
 
 static nsCString GetMouseButtonsName(int16_t aButtons) {
   if (!aButtons) {
-    return NS_LITERAL_CSTRING("no buttons");
+    return "no buttons"_ns;
   }
   nsCString names;
   if (aButtons & MouseButtonsFlag::ePrimaryFlag) {
@@ -574,7 +575,7 @@ static nsCString GetMouseButtonsName(int16_t aButtons) {
 
 static nsCString GetModifiersName(Modifiers aModifiers) {
   if (aModifiers == MODIFIER_NONE) {
-    return NS_LITERAL_CSTRING("no modifiers");
+    return "no modifiers"_ns;
   }
   nsCString names;
   if (aModifiers & MODIFIER_ALT) {
@@ -667,76 +668,6 @@ class GetEscapedUTF8String final : public NS_ConvertUTF16toUTF8 {
     ReplaceSubstring("\r", "\\r");
     ReplaceSubstring("\n", "\\n");
     ReplaceSubstring("\t", "\\t");
-  }
-};
-
-class GetIMEStateString : public nsAutoCString {
- public:
-  explicit GetIMEStateString(const IMEState& aIMEState) {
-    AppendLiteral("{ mEnabled=");
-    switch (aIMEState.mEnabled) {
-      case IMEState::DISABLED:
-        AppendLiteral("DISABLED");
-        break;
-      case IMEState::ENABLED:
-        AppendLiteral("ENABLED");
-        break;
-      case IMEState::PASSWORD:
-        AppendLiteral("PASSWORD");
-        break;
-      case IMEState::PLUGIN:
-        AppendLiteral("PLUGIN");
-        break;
-      case IMEState::UNKNOWN:
-        AppendLiteral("UNKNOWN");
-        break;
-      default:
-        AppendPrintf("Unknown value (%d)", aIMEState.mEnabled);
-        break;
-    }
-    AppendLiteral(", mOpen=");
-    switch (aIMEState.mOpen) {
-      case IMEState::OPEN_STATE_NOT_SUPPORTED:
-        AppendLiteral("OPEN_STATE_NOT_SUPPORTED or DONT_CHANGE_OPEN_STATE");
-        break;
-      case IMEState::OPEN:
-        AppendLiteral("OPEN");
-        break;
-      case IMEState::CLOSED:
-        AppendLiteral("CLOSED");
-        break;
-      default:
-        AppendPrintf("Unknown value (%d)", aIMEState.mOpen);
-        break;
-    }
-    AppendLiteral(" }");
-  }
-};
-
-class GetInputContextString : public nsAutoCString {
- public:
-  explicit GetInputContextString(const InputContext& aInputContext) {
-    AppendPrintf("{ mIMEState=%s, ",
-                 GetIMEStateString(aInputContext.mIMEState).get());
-    AppendLiteral("mOrigin=");
-    switch (aInputContext.mOrigin) {
-      case InputContext::ORIGIN_MAIN:
-        AppendLiteral("ORIGIN_MAIN");
-        break;
-      case InputContext::ORIGIN_CONTENT:
-        AppendLiteral("ORIGIN_CONTENT");
-        break;
-      default:
-        AppendPrintf("Unknown value (%d)", aInputContext.mOrigin);
-        break;
-    }
-    AppendPrintf(
-        ", mHTMLInputType=\"%s\", mHTMLInputInputmode=\"%s\", "
-        "mActionHint=\"%s\", mMayBeIMEUnaware=%s }",
-        NS_ConvertUTF16toUTF8(aInputContext.mHTMLInputType).get(),
-        NS_ConvertUTF16toUTF8(aInputContext.mHTMLInputInputmode).get(),
-        NS_ConvertUTF16toUTF8(aInputContext.mActionHint).get(),
-        GetBoolName(aInputContext.mMayBeIMEUnaware));
   }
 };
 
@@ -1190,8 +1121,7 @@ class TSFStaticSink final : public ITfInputProcessorProfileActivationSink {
     EnsureInitActiveTIPKeyboard();
     // FYI: Name of packaged ATOK includes the release year like "ATOK 2015".
     //      Name of ATOK Passport (subscription) equals "ATOK".
-    return StringBeginsWith(mActiveTIPKeyboardDescription,
-                            NS_LITERAL_STRING("ATOK ")) ||
+    return StringBeginsWith(mActiveTIPKeyboardDescription, u"ATOK "_ns) ||
            mActiveTIPKeyboardDescription.EqualsLiteral("ATOK");
   }
 
@@ -5770,7 +5700,7 @@ nsresult TSFTextStore::OnFocusChange(bool aGotFocus,
            "aFocusedWidget=0x%p, aContext=%s), "
            "sThreadMgr=0x%p, sEnabledTextStore=0x%p",
            GetBoolName(aGotFocus), aFocusedWidget,
-           GetInputContextString(aContext).get(), sThreadMgr.get(),
+           mozilla::ToString(aContext).c_str(), sThreadMgr.get(),
            sEnabledTextStore.get()));
 
   if (NS_WARN_IF(!IsInTSFMode())) {
@@ -5993,20 +5923,12 @@ nsresult TSFTextStore::OnTextChangeInternal(
 
   MOZ_LOG(sTextStoreLog, LogLevel::Debug,
           ("0x%p   TSFTextStore::OnTextChangeInternal(aIMENotification={ "
-           "mMessage=0x%08X, mTextChangeData={ mStartOffset=%lu, "
-           "mRemovedEndOffset=%lu, mAddedEndOffset=%lu, "
-           "mCausedOnlyByComposition=%s, "
-           "mIncludingChangesDuringComposition=%s, "
-           "mIncludingChangesWithoutComposition=%s }), "
+           "mMessage=0x%08X, mTextChangeData=%s }), "
            "mDestroyed=%s, mSink=0x%p, mSinkMask=%s, "
            "mComposition.IsComposing()=%s",
-           this, aIMENotification.mMessage, textChangeData.mStartOffset,
-           textChangeData.mRemovedEndOffset, textChangeData.mAddedEndOffset,
-           GetBoolName(textChangeData.mCausedOnlyByComposition),
-           GetBoolName(textChangeData.mIncludingChangesDuringComposition),
-           GetBoolName(textChangeData.mIncludingChangesWithoutComposition),
-           GetBoolName(mDestroyed), mSink.get(),
-           GetSinkMaskNameStr(mSinkMask).get(),
+           this, aIMENotification.mMessage,
+           mozilla::ToString(textChangeData).c_str(), GetBoolName(mDestroyed),
+           mSink.get(), GetSinkMaskNameStr(mSinkMask).get(),
            GetBoolName(mComposition.IsComposing())));
 
   if (mDestroyed) {
@@ -6093,18 +6015,10 @@ nsresult TSFTextStore::OnSelectionChangeInternal(
       aIMENotification.mSelectionChangeData;
   MOZ_LOG(sTextStoreLog, LogLevel::Debug,
           ("0x%p   TSFTextStore::OnSelectionChangeInternal("
-           "aIMENotification={ mSelectionChangeData={ mOffset=%lu, "
-           "Length()=%lu, mReversed=%s, mWritingMode=%s, "
-           "mCausedByComposition=%s, mCausedBySelectionEvent=%s, "
-           "mOccurredDuringComposition=%s } }), mDestroyed=%s, "
+           "aIMENotification={ mSelectionChangeData=%s }), mDestroyed=%s, "
            "mSink=0x%p, mSinkMask=%s, mIsRecordingActionsWithoutLock=%s, "
            "mComposition.IsComposing()=%s",
-           this, selectionChangeData.mOffset, selectionChangeData.Length(),
-           GetBoolName(selectionChangeData.mReversed),
-           GetWritingModeName(selectionChangeData.GetWritingMode()).get(),
-           GetBoolName(selectionChangeData.mCausedByComposition),
-           GetBoolName(selectionChangeData.mCausedBySelectionEvent),
-           GetBoolName(selectionChangeData.mOccurredDuringComposition),
+           this, mozilla::ToString(selectionChangeData).c_str(),
            GetBoolName(mDestroyed), mSink.get(),
            GetSinkMaskNameStr(mSinkMask).get(),
            GetBoolName(mIsRecordingActionsWithoutLock),
@@ -6700,7 +6614,7 @@ void TSFTextStore::SetInputContext(nsWindowBase* aWidget,
           ("TSFTextStore::SetInputContext(aWidget=%p, "
            "aContext=%s, aAction.mFocusChange=%s), "
            "sEnabledTextStore(0x%p)={ mWidget=0x%p }, ThinksHavingFocus()=%s",
-           aWidget, GetInputContextString(aContext).get(),
+           aWidget, mozilla::ToString(aContext).c_str(),
            GetFocusChangeName(aAction.mFocusChange), sEnabledTextStore.get(),
            sEnabledTextStore ? sEnabledTextStore->mWidget.get() : nullptr,
            GetBoolName(ThinksHavingFocus())));

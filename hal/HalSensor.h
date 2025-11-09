@@ -18,7 +18,6 @@ namespace hal {
 enum SensorType {
   SENSOR_ORIENTATION = 0,
   SENSOR_ACCELERATION = 1,
-  SENSOR_PROXIMITY = 2,
   SENSOR_LINEAR_ACCELERATION = 3,
   SENSOR_GYROSCOPE = 4,
   SENSOR_LIGHT = 5,
@@ -38,7 +37,7 @@ typedef Observer<SensorAccuracy> ISensorAccuracyObserver;
 }  // namespace hal
 }  // namespace mozilla
 
-#include "ipc/IPCMessageUtils.h"
+#include "ipc/EnumSerializer.h"
 
 namespace IPC {
 /**

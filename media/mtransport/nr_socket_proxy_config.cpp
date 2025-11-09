@@ -22,7 +22,7 @@ NrSocketProxyConfig::NrSocketProxyConfig(
 NrSocketProxyConfig::NrSocketProxyConfig(NrSocketProxyConfig&& aOrig)
     : mPrivate(std::move(aOrig.mPrivate)) {}
 
-NrSocketProxyConfig::~NrSocketProxyConfig() {}
+NrSocketProxyConfig::~NrSocketProxyConfig() = default;
 
 const net::WebrtcProxyConfig& NrSocketProxyConfig::GetConfig() const {
   return mPrivate->mProxyConfig;

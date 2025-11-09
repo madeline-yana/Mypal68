@@ -97,10 +97,6 @@ function releaseActor(actor: String) {
   }
 }
 
-function sendPacket(packet: Object) {
-  return devToolsClient.request(packet);
-}
-
 // Get a copy of the current targets.
 function getTargetsMap(): { string: Target } {
   return Object.assign({}, targets);
@@ -548,7 +544,6 @@ const clientCommands = {
   registerSourceActor,
   fetchThreads,
   getMainThread,
-  sendPacket,
   setSkipPausing,
   setEventListenerBreakpoints,
   getEventListenerBreakpointTypes,

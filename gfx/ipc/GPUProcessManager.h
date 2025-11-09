@@ -18,6 +18,7 @@
 #ifdef MOZ_BUILD_WEBRENDER
 #  include "mozilla/webrender/WebRenderTypes.h"
 #endif
+#include "nsIObserver.h"
 #include "nsThreadUtils.h"
 class nsBaseWidget;
 
@@ -36,6 +37,7 @@ class PVideoBridgeParent;
 class RemoteCompositorSession;
 class InProcessCompositorSession;
 class UiCompositorControllerChild;
+class LayerManager;
 }  // namespace layers
 namespace widget {
 class CompositorWidget;

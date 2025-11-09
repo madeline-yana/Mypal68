@@ -161,14 +161,14 @@ function ensureThrows(func) {
  * Fake a PAC to prompt a channel replacement.
  */
 var PACSystemSettings = {
-  QueryInterface: ChromeUtils.generateQI([Ci.nsISystemProxySettings]),
+  QueryInterface: ChromeUtils.generateQI(["nsISystemProxySettings"]),
 
   // Replace this URI for each test to avoid caching. We want to ensure that
   // each test gets a completely fresh setup.
   mainThreadOnly: true,
   PACURI: null,
   getProxyForURI: function getProxyForURI(aURI) {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+    throw Components.Exception("", Cr.NS_ERROR_NOT_IMPLEMENTED);
   },
 };
 

@@ -296,20 +296,20 @@ void gfxFontCache::DestroyFont(gfxFont* aFont) {
 void gfxFontCache::WordCacheExpirationTimerCallback(nsITimer* aTimer,
                                                     void* aCache) {
   gfxFontCache* cache = static_cast<gfxFontCache*>(aCache);
-  for (auto it = cache->mFonts.Iter(); !it.Done(); it.Next()) {
-    it.Get()->mFont->AgeCachedWords();
+  for (const auto& entry : cache->mFonts) {
+    entry.mFont->AgeCachedWords();
   }
 }
 
 void gfxFontCache::FlushShapedWordCaches() {
-  for (auto it = mFonts.Iter(); !it.Done(); it.Next()) {
-    it.Get()->mFont->ClearCachedWords();
+  for (const auto& entry : mFonts) {
+    entry.mFont->ClearCachedWords();
   }
 }
 
 void gfxFontCache::NotifyGlyphsChanged() {
-  for (auto it = mFonts.Iter(); !it.Done(); it.Next()) {
-    it.Get()->mFont->NotifyGlyphsChanged();
+  for (const auto& entry : mFonts) {
+    entry.mFont->NotifyGlyphsChanged();
   }
 }
 
@@ -318,8 +318,8 @@ void gfxFontCache::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
   // TODO: add the overhead of the expiration tracker (generation arrays)
 
   aSizes->mFontInstances += mFonts.ShallowSizeOfExcludingThis(aMallocSizeOf);
-  for (auto iter = mFonts.ConstIter(); !iter.Done(); iter.Next()) {
-    iter.Get()->mFont->AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
+  for (const auto& entry : mFonts) {
+    entry.mFont->AddSizeOfExcludingThis(aMallocSizeOf, aSizes);
   }
 }
 
@@ -458,18 +458,18 @@ void gfxFontShaper::MergeFontFeatures(
     return;
   }
 
-  nsDataHashtable<nsUint32HashKey, uint32_t> mergedFeatures;
+  nsTHashMap<nsUint32HashKey, uint32_t> mergedFeatures;
 
   // Ligature features are enabled by default in the generic shaper,
   // so we explicitly turn them off if necessary (for letter-spacing)
   if (aDisableLigatures) {
-    mergedFeatures.Put(HB_TAG('l', 'i', 'g', 'a'), 0);
-    mergedFeatures.Put(HB_TAG('c', 'l', 'i', 'g'), 0);
+    mergedFeatures.InsertOrUpdate(HB_TAG('l', 'i', 'g', 'a'), 0);
+    mergedFeatures.InsertOrUpdate(HB_TAG('c', 'l', 'i', 'g'), 0);
   }
 
   // add feature values from font
   for (const gfxFontFeature& feature : aFontFeatures) {
-    mergedFeatures.Put(feature.mTag, feature.mValue);
+    mergedFeatures.InsertOrUpdate(feature.mTag, feature.mValue);
   }
 
   // font-variant-caps - handled here due to the need for fallback handling
@@ -480,33 +480,33 @@ void gfxFontShaper::MergeFontFeatures(
       break;
 
     case NS_FONT_VARIANT_CAPS_ALLSMALL:
-      mergedFeatures.Put(HB_TAG('c', '2', 's', 'c'), 1);
+      mergedFeatures.InsertOrUpdate(HB_TAG('c', '2', 's', 'c'), 1);
       // fall through to the small-caps case
       [[fallthrough]];
 
     case NS_FONT_VARIANT_CAPS_SMALLCAPS:
-      mergedFeatures.Put(HB_TAG('s', 'm', 'c', 'p'), 1);
+      mergedFeatures.InsertOrUpdate(HB_TAG('s', 'm', 'c', 'p'), 1);
       break;
 
     case NS_FONT_VARIANT_CAPS_ALLPETITE:
-      mergedFeatures.Put(aAddSmallCaps ? HB_TAG('c', '2', 's', 'c')
-                                       : HB_TAG('c', '2', 'p', 'c'),
-                         1);
+      mergedFeatures.InsertOrUpdate(aAddSmallCaps ? HB_TAG('c', '2', 's', 'c')
+                                                  : HB_TAG('c', '2', 'p', 'c'),
+                                    1);
       // fall through to the petite-caps case
       [[fallthrough]];
 
     case NS_FONT_VARIANT_CAPS_PETITECAPS:
-      mergedFeatures.Put(aAddSmallCaps ? HB_TAG('s', 'm', 'c', 'p')
-                                       : HB_TAG('p', 'c', 'a', 'p'),
-                         1);
+      mergedFeatures.InsertOrUpdate(aAddSmallCaps ? HB_TAG('s', 'm', 'c', 'p')
+                                                  : HB_TAG('p', 'c', 'a', 'p'),
+                                    1);
       break;
 
     case NS_FONT_VARIANT_CAPS_TITLING:
-      mergedFeatures.Put(HB_TAG('t', 'i', 't', 'l'), 1);
+      mergedFeatures.InsertOrUpdate(HB_TAG('t', 'i', 't', 'l'), 1);
       break;
 
     case NS_FONT_VARIANT_CAPS_UNICASE:
-      mergedFeatures.Put(HB_TAG('u', 'n', 'i', 'c'), 1);
+      mergedFeatures.InsertOrUpdate(HB_TAG('u', 'n', 'i', 'c'), 1);
       break;
 
     default:
@@ -519,10 +519,10 @@ void gfxFontShaper::MergeFontFeatures(
     case NS_FONT_VARIANT_POSITION_NORMAL:
       break;
     case NS_FONT_VARIANT_POSITION_SUPER:
-      mergedFeatures.Put(HB_TAG('s', 'u', 'p', 's'), 1);
+      mergedFeatures.InsertOrUpdate(HB_TAG('s', 'u', 'p', 's'), 1);
       break;
     case NS_FONT_VARIANT_POSITION_SUB:
-      mergedFeatures.Put(HB_TAG('s', 'u', 'b', 's'), 1);
+      mergedFeatures.InsertOrUpdate(HB_TAG('s', 'u', 'b', 's'), 1);
       break;
     default:
       MOZ_ASSERT_UNREACHABLE("Unexpected variantSubSuper");
@@ -540,13 +540,13 @@ void gfxFontShaper::MergeFontFeatures(
     }
 
     for (const gfxFontFeature& feature : featureList) {
-      mergedFeatures.Put(feature.mTag, feature.mValue);
+      mergedFeatures.InsertOrUpdate(feature.mTag, feature.mValue);
     }
   }
 
   // add feature values from style rules
   for (const gfxFontFeature& feature : styleRuleFeatures) {
-    mergedFeatures.Put(feature.mTag, feature.mValue);
+    mergedFeatures.InsertOrUpdate(feature.mTag, feature.mValue);
   }
 
   if (mergedFeatures.Count() != 0) {
@@ -577,8 +577,9 @@ void gfxShapedText::SetupClusterBoundaries(uint32_t aOffset,
     }
   }
 
+  const char16_t kIdeographicSpace = 0x3000;
   while (!iter.AtEnd()) {
-    if (*iter == char16_t(' ')) {
+    if (*iter == char16_t(' ') || *iter == kIdeographicSpace) {
       glyphs->SetIsSpace();
     }
     // advance iter to the next cluster-start (or end of text)
@@ -811,8 +812,8 @@ gfxFont::~gfxFont() {
   mFontEntry->NotifyFontDestroyed(this);
 
   if (mGlyphChangeObservers) {
-    for (auto it = mGlyphChangeObservers->Iter(); !it.Done(); it.Next()) {
-      it.Get()->GetKey()->ForgetFont();
+    for (const auto& key : *mGlyphChangeObservers) {
+      key->ForgetFont();
     }
   }
 }
@@ -955,9 +956,9 @@ static void CollectLookupsByFeature(hb_face_t* aFace, hb_tag_t aTableTag,
 
 static void CollectLookupsByLanguage(
     hb_face_t* aFace, hb_tag_t aTableTag,
-    const nsTHashtable<nsUint32HashKey>& aSpecificFeatures,
-    hb_set_t* aOtherLookups, hb_set_t* aSpecificFeatureLookups,
-    uint32_t aScriptIndex, uint32_t aLangIndex) {
+    const nsTHashSet<uint32_t>& aSpecificFeatures, hb_set_t* aOtherLookups,
+    hb_set_t* aSpecificFeatureLookups, uint32_t aScriptIndex,
+    uint32_t aLangIndex) {
   uint32_t reqFeatureIndex;
   if (hb_ot_layout_language_get_required_feature_index(
           aFace, aTableTag, aScriptIndex, aLangIndex, &reqFeatureIndex)) {
@@ -985,7 +986,7 @@ static void CollectLookupsByLanguage(
                                              &featureTag);
 
       // collect lookups
-      hb_set_t* lookups = aSpecificFeatures.GetEntry(featureTag)
+      hb_set_t* lookups = aSpecificFeatures.Contains(featureTag)
                               ? aSpecificFeatureLookups
                               : aOtherLookups;
       CollectLookupsByFeature(aFace, aTableTag, featureIndex, lookups);
@@ -997,7 +998,7 @@ static void CollectLookupsByLanguage(
 static bool HasLookupRuleWithGlyphByScript(
     hb_face_t* aFace, hb_tag_t aTableTag, hb_tag_t aScriptTag,
     uint32_t aScriptIndex, uint16_t aGlyph,
-    const nsTHashtable<nsUint32HashKey>& aDefaultFeatures,
+    const nsTHashSet<uint32_t>& aDefaultFeatures,
     bool& aHasDefaultFeatureWithGlyph) {
   uint32_t numLangs, lang;
   hb_set_t* defaultFeatureLookups = hb_set_create();
@@ -1060,9 +1061,9 @@ static void HasLookupRuleWithGlyph(hb_face_t* aFace, hb_tag_t aTableTag,
   uint32_t numScripts, numLangs, script, lang;
   hb_set_t* otherLookups = hb_set_create();
   hb_set_t* specificFeatureLookups = hb_set_create();
-  nsTHashtable<nsUint32HashKey> specificFeature;
+  nsTHashSet<uint32_t> specificFeature(1);
 
-  specificFeature.PutEntry(aSpecificFeature);
+  specificFeature.Insert(aSpecificFeature);
 
   numScripts =
       hb_ot_layout_table_get_script_tags(aFace, aTableTag, 0, nullptr, nullptr);
@@ -1111,10 +1112,10 @@ static void HasLookupRuleWithGlyph(hb_face_t* aFace, hb_tag_t aTableTag,
   hb_set_destroy(otherLookups);
 }
 
-nsDataHashtable<nsUint32HashKey, Script>* gfxFont::sScriptTagToCode = nullptr;
-nsTHashtable<nsUint32HashKey>* gfxFont::sDefaultFeatures = nullptr;
+nsTHashMap<nsUint32HashKey, intl::Script>* gfxFont::sScriptTagToCode = nullptr;
+nsTHashSet<uint32_t>* gfxFont::sDefaultFeatures = nullptr;
 
-static inline bool HasSubstitution(uint32_t* aBitVector, Script aScript) {
+static inline bool HasSubstitution(uint32_t* aBitVector, intl::Script aScript) {
   return (aBitVector[static_cast<uint32_t>(aScript) >> 5] &
           (1 << (static_cast<uint32_t>(aScript) & 0x1f))) != 0;
 }
@@ -1164,15 +1165,16 @@ void gfxFont::CheckForFeaturesInvolvingSpace() {
   if (hb_ot_layout_has_substitution(face)) {
     // set up the script ==> code hashtable if needed
     if (!sScriptTagToCode) {
-      sScriptTagToCode = new nsDataHashtable<nsUint32HashKey, Script>(
+      sScriptTagToCode = new nsTHashMap<nsUint32HashKey, Script>(
           size_t(Script::NUM_SCRIPT_CODES));
-      sScriptTagToCode->Put(HB_TAG('D', 'F', 'L', 'T'), Script::COMMON);
+      sScriptTagToCode->InsertOrUpdate(HB_TAG('D', 'F', 'L', 'T'),
+                                       Script::COMMON);
       // Ensure that we don't try to look at script codes beyond what the
       // current version of ICU (at runtime -- in case of system ICU)
       // knows about.
-      Script scriptCount =
-          Script(std::min<int>(u_getIntPropertyMaxValue(UCHAR_SCRIPT) + 1,
-                               int(Script::NUM_SCRIPT_CODES)));
+      Script scriptCount = Script(
+          std::min<int>(intl::UnicodeProperties::GetMaxNumberOfScripts() + 1,
+                        int(Script::NUM_SCRIPT_CODES)));
       for (Script s = Script::ARABIC; s < scriptCount;
            s = Script(static_cast<int>(s) + 1)) {
         hb_script_t script = hb_script_t(GetScriptTagForCode(s));
@@ -1182,14 +1184,14 @@ void gfxFont::CheckForFeaturesInvolvingSpace() {
                                             &scriptCount, scriptTags, nullptr,
                                             nullptr);
         for (unsigned int i = 0; i < scriptCount; i++) {
-          sScriptTagToCode->Put(scriptTags[i], s);
+          sScriptTagToCode->InsertOrUpdate(scriptTags[i], s);
         }
       }
 
       uint32_t numDefaultFeatures = ArrayLength(defaultFeatures);
-      sDefaultFeatures = new nsTHashtable<nsUint32HashKey>(numDefaultFeatures);
+      sDefaultFeatures = new nsTHashSet<uint32_t>(numDefaultFeatures);
       for (uint32_t i = 0; i < numDefaultFeatures; i++) {
-        sDefaultFeatures->PutEntry(defaultFeatures[i]);
+        sDefaultFeatures->Insert(defaultFeatures[i]);
       }
     }
 
@@ -2745,8 +2747,8 @@ void gfxFont::NotifyGlyphsChanged() {
   }
 
   if (mGlyphChangeObservers) {
-    for (auto it = mGlyphChangeObservers->Iter(); !it.Done(); it.Next()) {
-      it.Get()->GetKey()->NotifyGlyphsChanged();
+    for (const auto& key : *mGlyphChangeObservers) {
+      key->NotifyGlyphsChanged();
     }
   }
 }
@@ -4016,17 +4018,16 @@ void gfxFont::AddSizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
 
 void gfxFont::AddGlyphChangeObserver(GlyphChangeObserver* aObserver) {
   if (!mGlyphChangeObservers) {
-    mGlyphChangeObservers =
-        MakeUnique<nsTHashtable<nsPtrHashKey<GlyphChangeObserver>>>();
+    mGlyphChangeObservers = MakeUnique<nsTHashSet<GlyphChangeObserver*>>();
   }
-  mGlyphChangeObservers->PutEntry(aObserver);
+  mGlyphChangeObservers->Insert(aObserver);
 }
 
 void gfxFont::RemoveGlyphChangeObserver(GlyphChangeObserver* aObserver) {
   NS_ASSERTION(mGlyphChangeObservers, "No observers registered");
   NS_ASSERTION(mGlyphChangeObservers->Contains(aObserver),
                "Observer not registered");
-  mGlyphChangeObservers->RemoveEntry(aObserver);
+  mGlyphChangeObservers->Remove(aObserver);
 }
 
 #define DEFAULT_PIXEL_FONT_SIZE 16.0f

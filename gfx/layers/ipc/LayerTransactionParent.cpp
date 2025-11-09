@@ -950,12 +950,13 @@ bool LayerTransactionParent::BindLayerToHandle(RefPtr<Layer> aLayer,
   if (!aHandle || !aLayer) {
     return false;
   }
-  if (auto entry = mLayerMap.LookupForAdd(aHandle.Value())) {
-    return false;
-  } else {
-    entry.OrInsert([&aLayer]() { return aLayer; });
-  }
-  return true;
+  return mLayerMap.WithEntryHandle(aHandle.Value(), [&](auto&& entry) {
+    if (entry) {
+      return false;
+    }
+    entry.Insert(std::move(aLayer));
+    return true;
+  });
 }
 
 Layer* LayerTransactionParent::AsLayer(const LayerHandle& aHandle) {

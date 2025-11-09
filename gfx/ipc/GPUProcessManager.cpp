@@ -17,6 +17,7 @@
 #include "mozilla/RemoteDecoderManagerParent.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/gfx/gfxVars.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/layers/APZCTreeManagerChild.h"
 #include "mozilla/layers/CompositorBridgeParent.h"
 #include "mozilla/layers/CompositorManagerChild.h"

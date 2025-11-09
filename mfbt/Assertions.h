@@ -226,7 +226,7 @@ MOZ_NoReturn(int aLine) {
  * builds, and it's hard to print to stderr safely when memory might have been
  * corrupted.
  */
-#ifndef DEBUG
+#if !(defined(DEBUG) || defined(FUZZING))
 #  define MOZ_CRASH(...)                                \
     do {                                                \
       MOZ_CRASH_ANNOTATE("MOZ_CRASH(" __VA_ARGS__ ")"); \
@@ -255,7 +255,7 @@ MOZ_NoReturn(int aLine) {
  */
 static MOZ_ALWAYS_INLINE_EVEN_DEBUG MOZ_COLD MOZ_NORETURN void MOZ_Crash(
     const char* aFilename, int aLine, const char* aReason) {
-#ifdef DEBUG
+#if defined(DEBUG) || defined(FUZZING)
   MOZ_ReportCrash(aReason, aFilename, aLine);
 #endif
   MOZ_CRASH_ANNOTATE(aReason);
@@ -426,12 +426,11 @@ struct AssertionConditionType {
     } while (false)
 #endif /* DEBUG */
 
-#if defined(NIGHTLY_BUILD) || defined(MOZ_DEV_EDITION) || defined(DEBUG)
+#if defined(MOZ_DIAGNOSTIC_ASSERT_ENABLED)
 #  define MOZ_DIAGNOSTIC_ASSERT(...)                                    \
     MOZ_ASSERT_GLUE(                                                    \
         MOZ_PASTE_PREFIX_AND_ARG_COUNT(MOZ_ASSERT_HELPER, __VA_ARGS__), \
         ("MOZ_DIAGNOSTIC_ASSERT", __VA_ARGS__))
-#  define MOZ_DIAGNOSTIC_ASSERT_ENABLED 1
 #else
 #  define MOZ_DIAGNOSTIC_ASSERT(...) \
     do {                             \
@@ -614,5 +613,16 @@ struct AssertionConditionType {
 
 #undef MOZ_DUMP_ASSERTION_STACK
 #undef MOZ_CRASH_CRASHREPORT
+
+/*
+ * This is only used by Array and nsTArray classes, therefore it is not
+ * required when included from C code.
+ */
+#ifdef __cplusplus
+namespace mozilla::detail {
+MFBT_API MOZ_NORETURN MOZ_COLD void InvalidArrayIndex_CRASH(size_t aIndex,
+                                                            size_t aLength);
+}  // namespace mozilla::detail
+#endif  // __cplusplus
 
 #endif /* mozilla_Assertions_h */

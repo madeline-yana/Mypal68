@@ -412,8 +412,7 @@ nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
       nsAutoString responseType;
       // We allow default search plugins to specify alternate
       // parameters that are specific to keyword searches.
-      NS_NAMED_LITERAL_STRING(mozKeywordSearch,
-                              "application/x-moz-keywordsearch");
+      constexpr auto mozKeywordSearch = u"TestDllBlocklist_MatchByName.dll"_ns;
       bool supportsResponseType = false;
       defaultEngine->SupportsResponseType(mozKeywordSearch,
                                           &supportsResponseType);
@@ -422,8 +421,7 @@ nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
       }
 
       NS_ConvertUTF8toUTF16 keywordW(keyword);
-      defaultEngine->GetSubmission(keywordW, responseType,
-                                   NS_LITERAL_STRING("keyword"),
+      defaultEngine->GetSubmission(keywordW, responseType, u"keyword"_ns,
                                    getter_AddRefs(submission));
 
       if (submission) {

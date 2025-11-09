@@ -1409,7 +1409,7 @@ static void SetUserTimeAndStartupIDForActivatedWindow(GtkWidget* aWindow) {
   // If we used the startup ID, that already contains the focus timestamp;
   // we don't want to reuse the timestamp next time we raise the window
   GTKToolkit->SetFocusTimestamp(0);
-  GTKToolkit->SetDesktopStartupID(EmptyCString());
+  GTKToolkit->SetDesktopStartupID(""_ns);
 }
 
 /* static */
@@ -3337,7 +3337,7 @@ gboolean nsWindow::OnTouchEvent(GdkEventTouch* aEvent) {
   event.mTime = aEvent->time;
 
   if (aEvent->type == GDK_TOUCH_BEGIN || aEvent->type == GDK_TOUCH_UPDATE) {
-    mTouches.Put(aEvent->sequence, std::move(touch));
+    mTouches.InsertOrUpdate(aEvent->sequence, std::move(touch));
     // add all touch points to event object
     for (auto iter = mTouches.Iter(); !iter.Done(); iter.Next()) {
       event.mTouches.AppendElement(new dom::Touch(*iter.UserData()));
@@ -4801,7 +4801,7 @@ void nsWindow::SetUrgencyHint(GtkWidget* top_window, bool state) {
   gdk_window_set_urgency_hint(gtk_widget_get_window(top_window), state);
 }
 
-void nsWindow::SetDefaultIcon(void) { SetIcon(NS_LITERAL_STRING("default")); }
+void nsWindow::SetDefaultIcon(void) { SetIcon(u"default"_ns); }
 
 gint nsWindow::ConvertBorderStyles(nsBorderStyle aStyle) {
   gint w = 0;

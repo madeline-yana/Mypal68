@@ -25,6 +25,7 @@
 #include "mozilla/StaticPtr.h"
 
 #include "nsDocShell.h"
+#include "nsDocShellLoadState.h"
 #include "nsGlobalWindowOuter.h"
 #include "nsContentUtils.h"
 #include "nsScriptError.h"
@@ -59,12 +60,12 @@ extern mozilla::LazyLogModule gUserInteractionPRLog;
 
 static LazyLogModule gBrowsingContextLog("BrowsingContext");
 
-typedef nsDataHashtable<nsUint64HashKey, BrowsingContext*> BrowsingContextMap;
+typedef nsTHashMap<nsUint64HashKey, BrowsingContext*> BrowsingContextMap;
 
 static StaticAutoPtr<BrowsingContextMap> sBrowsingContexts;
 
 static void Register(BrowsingContext* aBrowsingContext) {
-  sBrowsingContexts->Put(aBrowsingContext->Id(), aBrowsingContext);
+  sBrowsingContexts->InsertOrUpdate(aBrowsingContext->Id(), aBrowsingContext);
 
   aBrowsingContext->Group()->Register(aBrowsingContext);
 }

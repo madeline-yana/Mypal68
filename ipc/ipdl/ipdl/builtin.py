@@ -40,6 +40,8 @@ Types = (
 )
 
 
+# XXX(Bug 1677487) Can we restrict including ByteBuf.h, FileDescriptor.h,
+# MozPromise.h and Shmem.h to those protocols that really use them?
 HeaderIncludes = (
     "mozilla/Attributes.h",
     "IPCMessageStart.h",
@@ -47,10 +49,13 @@ HeaderIncludes = (
     "nsString.h",
     "nsTArray.h",
     "nsTHashtable.h",
+    "mozilla/MozPromise.h",
     "mozilla/OperatorNewExtensions.h",
     "mozilla/UniquePtr.h",
+    "mozilla/ipc/ByteBuf.h",
+    "mozilla/ipc/Endpoint.h",
     "mozilla/ipc/FileDescriptor.h",
-    "mozilla/ipc/ProtocolUtils.h",
+    "mozilla/ipc/ProtocolUtilsFwd.h",
     "mozilla/ipc/Shmem.h",
 )
 
@@ -58,5 +63,9 @@ CppIncludes = (
     "ipc/IPCMessageUtils.h",
     "nsIFile.h",
     "GeckoProfiler.h",
+    "mozilla/ipc/Endpoint.h",
+    "mozilla/ipc/ProtocolMessageUtils.h",
+    "mozilla/ipc/ProtocolUtils.h",
+    "mozilla/ipc/ShmemMessageUtils.h",
     "mozilla/ipc/TaintingIPCUtils.h",
 )

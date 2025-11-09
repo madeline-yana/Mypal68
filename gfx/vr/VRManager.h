@@ -8,7 +8,7 @@
 #include "nsRefPtrHashtable.h"
 #include "nsTArray.h"
 #include "nsTHashtable.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "mozilla/TimeStamp.h"
 #include "gfxVR.h"
 

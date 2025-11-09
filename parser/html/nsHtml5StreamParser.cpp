@@ -126,7 +126,6 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsHtml5StreamParser)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsHtml5StreamParser)
   tmp->DropTimer();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mObserver)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mRequest)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mOwner)
   tmp->mExecutorFlusher = nullptr;
@@ -136,7 +135,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsHtml5StreamParser)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsHtml5StreamParser)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mObserver)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRequest)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOwner)
   // hack: count the strongly owned edge wrapped in the runnable
@@ -288,7 +286,6 @@ nsHtml5StreamParser::~nsHtml5StreamParser() {
     MOZ_ASSERT(!mFlushTimer, "Flush timer was not dropped before dtor!");
   }
   mRequest = nullptr;
-  mObserver = nullptr;
   mUnicodeDecoder = nullptr;
   mSniffingBuffer = nullptr;
   mMetaScanner = nullptr;
@@ -896,11 +893,7 @@ nsresult nsHtml5StreamParser::WriteStreamBytes(
   auto src = aFromSegment;
   for (;;) {
     auto dst = mLastBuffer->TailAsSpan(READ_BUFFER_SIZE);
-    uint32_t result;
-    size_t read;
-    size_t written;
-    bool hadErrors;
-    Tie(result, read, written, hadErrors) =
+    auto [result, read, written, hadErrors] =
         mUnicodeDecoder->DecodeToUTF16(src, dst, false);
     if (!mDecodingLocalFileAsUTF8) {
       OnNewContent(dst.To(written));
@@ -925,7 +918,7 @@ nsresult nsHtml5StreamParser::WriteStreamBytes(
         MarkAsBroken(NS_ERROR_OUT_OF_MEMORY);
         return NS_ERROR_OUT_OF_MEMORY;
       }
-      mLastBuffer = (mLastBuffer->next = newBuf.forget());
+      mLastBuffer = (mLastBuffer->next = std::move(newBuf));
     } else {
       MOZ_ASSERT(totalRead == aFromSegment.Length(),
                  "The Unicode decoder consumed the wrong number of bytes.");
@@ -994,9 +987,6 @@ nsresult nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest) {
       !mExecutor->HasStarted(),
       "Got OnStartRequest at the wrong stage in the executor life cycle.");
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  if (mObserver) {
-    mObserver->OnStartRequest(aRequest);
-  }
   mRequest = aRequest;
 
   mStreamState = STREAM_BEING_READ;
@@ -1151,20 +1141,6 @@ nsresult nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest) {
   return NS_OK;
 }
 
-nsresult nsHtml5StreamParser::CheckListenerChain() {
-  NS_ASSERTION(NS_IsMainThread(), "Should be on the main thread!");
-  if (!mObserver) {
-    return NS_OK;
-  }
-  nsresult rv;
-  nsCOMPtr<nsIThreadRetargetableStreamListener> retargetable =
-      do_QueryInterface(mObserver, &rv);
-  if (NS_SUCCEEDED(rv) && retargetable) {
-    rv = retargetable->CheckListenerChain();
-  }
-  return rv;
-}
-
 void nsHtml5StreamParser::DoStopRequest() {
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
   MOZ_RELEASE_ASSERT(STREAM_BEING_READ == mStreamState,
@@ -1209,7 +1185,8 @@ void nsHtml5StreamParser::DoStopRequest() {
     size_t read;
     size_t written;
     bool hadErrors;
-    Tie(result, read, written, hadErrors) =
+    // Do not use structured binding lest deal with [-Werror=unused-variable]
+    std::tie(result, read, written, hadErrors) =
         mUnicodeDecoder->DecodeToUTF16(src, dst, true);
     if (!mDecodingLocalFileAsUTF8) {
       OnNewContent(dst.To(written));
@@ -1234,7 +1211,7 @@ void nsHtml5StreamParser::DoStopRequest() {
         MarkAsBroken(NS_ERROR_OUT_OF_MEMORY);
         return;
       }
-      mLastBuffer = (mLastBuffer->next = newBuf.forget());
+      mLastBuffer = (mLastBuffer->next = std::move(newBuf));
     } else {
       if (mDecodingLocalFileAsUTF8) {
         MOZ_ASSERT(mLocalFileBytesBuffered < LOCAL_FILE_UTF_8_BUFFER_SIZE);
@@ -1271,9 +1248,6 @@ nsresult nsHtml5StreamParser::OnStopRequest(nsIRequest* aRequest,
                                             nsresult status) {
   NS_ASSERTION(mRequest == aRequest, "Got Stop on wrong stream.");
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  if (mObserver) {
-    mObserver->OnStopRequest(aRequest, status);
-  }
   nsCOMPtr<nsIRunnable> stopper = new nsHtml5RequestStopper(this);
   if (NS_FAILED(mEventTarget->Dispatch(stopper, nsIThread::DISPATCH_NORMAL))) {
     NS_WARNING("Dispatching StopRequest event failed.");

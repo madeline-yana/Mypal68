@@ -26,6 +26,7 @@ TEST(storage_transaction_helper, Commit)
   // exists after the transaction falls out of scope.
   {
     mozStorageTransaction transaction(db, false);
+    do_check_success(transaction.Start());
     do_check_true(has_transaction(db));
     (void)db->ExecuteSimpleSQL("CREATE TABLE test (id INTEGER PRIMARY KEY)"_ns);
     (void)transaction.Commit();
@@ -45,6 +46,7 @@ TEST(storage_transaction_helper, Rollback)
   // not exists after the transaction falls out of scope.
   {
     mozStorageTransaction transaction(db, true);
+    do_check_success(transaction.Start());
     do_check_true(has_transaction(db));
     (void)db->ExecuteSimpleSQL("CREATE TABLE test (id INTEGER PRIMARY KEY)"_ns);
     (void)transaction.Rollback();
@@ -64,6 +66,7 @@ TEST(storage_transaction_helper, AutoCommit)
   // transaction falls out of scope.  This means the Commit was successful.
   {
     mozStorageTransaction transaction(db, true);
+    do_check_success(transaction.Start());
     do_check_true(has_transaction(db));
     (void)db->ExecuteSimpleSQL("CREATE TABLE test (id INTEGER PRIMARY KEY)"_ns);
   }
@@ -83,6 +86,7 @@ TEST(storage_transaction_helper, AutoRollback)
   // successful.
   {
     mozStorageTransaction transaction(db, false);
+    do_check_success(transaction.Start());
     do_check_true(has_transaction(db));
     (void)db->ExecuteSimpleSQL("CREATE TABLE test (id INTEGER PRIMARY KEY)"_ns);
   }
@@ -98,6 +102,7 @@ TEST(storage_transaction_helper, null_database_connection)
   // We permit the use of the Transaction helper when passing a null database
   // in, so we need to make sure this still works without crashing.
   mozStorageTransaction transaction(nullptr, false);
+  do_check_success(transaction.Start());
   do_check_true(NS_SUCCEEDED(transaction.Commit()));
   do_check_true(NS_SUCCEEDED(transaction.Rollback()));
 }
@@ -116,6 +121,7 @@ TEST(storage_transaction_helper, async_Commit)
   {
     mozStorageTransaction transaction(
         db, false, mozIStorageConnection::TRANSACTION_DEFERRED, true);
+    do_check_success(transaction.Start());
     do_check_true(has_transaction(db));
     (void)db->ExecuteSimpleSQL("CREATE TABLE test (id INTEGER PRIMARY KEY)"_ns);
     (void)transaction.Commit();
@@ -136,4 +142,41 @@ TEST(storage_transaction_helper, async_Commit)
   do_check_true(exists);
 
   blocking_async_close(db);
+}
+
+TEST(storage_transaction_helper, Nesting)
+{
+  nsCOMPtr<mozIStorageConnection> db(getMemoryDatabase());
+
+  {
+    mozStorageTransaction transaction(db, false);
+    do_check_success(transaction.Start());
+    do_check_true(has_transaction(db));
+    do_check_success(
+        db->ExecuteSimpleSQL("CREATE TABLE test (id INTEGER PRIMARY KEY)"_ns));
+
+    {
+      mozStorageTransaction nestedTransaction(db, false);
+      do_check_success(nestedTransaction.Start());
+      do_check_true(has_transaction(db));
+      do_check_success(db->ExecuteSimpleSQL(
+          "CREATE TABLE nested_test (id INTEGER PRIMARY KEY)"_ns));
+
+#ifndef MOZ_DIAGNOSTIC_ASSERT_ENABLED
+      do_check_true(transaction.Commit() == NS_ERROR_NOT_AVAILABLE);
+      do_check_true(transaction.Rollback() == NS_ERROR_NOT_AVAILABLE);
+#endif
+    }
+
+    bool exists = false;
+    do_check_success(db->TableExists("nested_test"_ns, &exists));
+    do_check_false(exists);
+
+    (void)transaction.Commit();
+  }
+  do_check_false(has_transaction(db));
+
+  bool exists = false;
+  do_check_success(db->TableExists("test"_ns, &exists));
+  do_check_true(exists);
 }

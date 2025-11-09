@@ -5,6 +5,7 @@
 #define include_gfx_ipc_UiCompositorControllerParent_h
 
 #include "mozilla/layers/PUiCompositorControllerParent.h"
+#include "mozilla/layers/LayersTypes.h" //MY
 #include "mozilla/ipc/Shmem.h"
 #include "mozilla/RefPtr.h"
 

@@ -5,7 +5,7 @@
 #ifndef mozilla_hal_Types_h
 #define mozilla_hal_Types_h
 
-#include "ipc/IPCMessageUtils.h"
+#include "ipc/EnumSerializer.h"
 #include "mozilla/Observer.h"
 
 namespace mozilla {

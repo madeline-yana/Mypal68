@@ -26,7 +26,7 @@ function GeckoViewStartup() {}
 GeckoViewStartup.prototype = {
   classID: Components.ID("{8e993c34-fdd6-432c-967e-f995d888777f}"),
 
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIObserver]),
+  QueryInterface: ChromeUtils.generateQI(["nsIObserver"]),
 
   /* ----------  nsIObserver  ---------- */
   observe: function(aSubject, aTopic, aData) {
@@ -83,8 +83,8 @@ GeckoViewStartup.prototype = {
         Services.obs.addObserver(
           {
             QueryInterface: ChromeUtils.generateQI([
-              Ci.nsIObserver,
-              Ci.nsIFormSubmitObserver,
+              "nsIObserver",
+              "nsIFormSubmitObserver",
             ]),
             notifyInvalidSubmit: (form, element) => {
               // We should show the validation message here, bug 1510450.

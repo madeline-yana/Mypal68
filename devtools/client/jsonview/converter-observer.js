@@ -55,7 +55,7 @@ const CONTENT_SNIFFER_CATEGORY = "net-content-sniffers";
 function JsonViewSniffer() {}
 
 JsonViewSniffer.prototype = {
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIContentSniffer]),
+  QueryInterface: ChromeUtils.generateQI(["nsIContentSniffer"]),
 
   get wrappedJSObject() {
     return this;

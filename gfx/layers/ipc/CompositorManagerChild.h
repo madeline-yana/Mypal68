@@ -15,6 +15,7 @@
 namespace mozilla {
 namespace layers {
 
+class CompositorBridgeChild;
 class CompositorManagerParent;
 class LayerManager;
 

@@ -25,7 +25,6 @@
 #include "mozilla/widget/IMEData.h"
 #include "nsCOMPtr.h"
 #include "nsColor.h"
-#include "nsDataHashtable.h"
 #include "nsDebug.h"
 #include "nsID.h"
 #include "nsIObserver.h"
@@ -37,6 +36,7 @@
 #include "nsSize.h"
 #include "nsStringFwd.h"
 #include "nsTArray.h"
+#include "nsTHashMap.h"
 #include "nsWidgetInitData.h"
 #include "nsXULAppAPI.h"
 
@@ -317,7 +317,7 @@ struct AutoObserverNotifier {
       return 0;
     }
     uint64_t observerId = ++sObserverId;
-    sSavedObservers.Put(observerId, mObserver);
+    sSavedObservers.InsertOrUpdate(observerId, mObserver);
     SkipNotification();
     return observerId;
   }
@@ -347,8 +347,7 @@ struct AutoObserverNotifier {
 
  private:
   static uint64_t sObserverId;
-  static nsDataHashtable<nsUint64HashKey, nsCOMPtr<nsIObserver>>
-      sSavedObservers;
+  static nsTHashMap<uint64_t, nsCOMPtr<nsIObserver>> sSavedObservers;
 };
 
 }  // namespace widget

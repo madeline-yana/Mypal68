@@ -9,6 +9,7 @@
 #include "gfx2DGlue.h"
 #include "gfxContext.h"
 #include "gfxUtils.h"
+#include "mozilla/intl/BidiEmbeddingLevel.h"
 #include "mozilla/ComputedStyle.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Encoding.h"
@@ -752,9 +753,13 @@ void nsImageFrame::UpdateImage(imgIRequest* aRequest, imgIContainer* aImage) {
     // We no longer have a valid image, so release our stored image container.
     mImage = mPrevImage = nullptr;
   }
-  // NOTE(emilio): Intentionally using `|` instead of `||` to avoid
-  // short-circuiting.
-  bool intrinsicSizeChanged = UpdateIntrinsicSize() | UpdateIntrinsicRatio();
+  bool intrinsicSizeOrRatioChanged = [&] {
+    // NOTE(emilio): We intentionally want to call both functions and avoid
+    // short-circuiting.
+    bool intrinsicSizeChanged = UpdateIntrinsicSize();
+    bool intrinsicRatioChanged = UpdateIntrinsicRatio();
+    return intrinsicSizeChanged || intrinsicRatioChanged;
+  }();
   if (!GotInitialReflow()) {
     return;
   }
@@ -762,7 +767,7 @@ void nsImageFrame::UpdateImage(imgIRequest* aRequest, imgIContainer* aImage) {
   // We're going to need to repaint now either way.
   InvalidateFrame();
 
-  if (intrinsicSizeChanged) {
+  if (intrinsicSizeOrRatioChanged) {
     // Now we need to reflow if we have an unconstrained size and have
     // already gotten the initial reflow.
     if (!(mState & IMAGE_SIZECONSTRAINED)) {
@@ -1242,31 +1247,31 @@ void nsImageFrame::DisplayAltText(nsPresContext* aPresContext,
     nsresult rv = NS_ERROR_FAILURE;
 
     if (aPresContext->BidiEnabled()) {
-      nsBidiDirection dir;
+      mozilla::intl::BidiEmbeddingLevel level;
       nscoord x, y;
 
       if (isVertical) {
         x = pt.x + maxDescent;
         if (wm.IsBidiLTR()) {
           y = aRect.y;
-          dir = NSBIDI_LTR;
+          level = mozilla::intl::BidiEmbeddingLevel::LTR();
         } else {
           y = aRect.YMost() - strWidth;
-          dir = NSBIDI_RTL;
+          level = mozilla::intl::BidiEmbeddingLevel::RTL();
         }
       } else {
         y = pt.y + maxAscent;
         if (wm.IsBidiLTR()) {
           x = aRect.x;
-          dir = NSBIDI_LTR;
+          level = mozilla::intl::BidiEmbeddingLevel::LTR();
         } else {
           x = aRect.XMost() - strWidth;
-          dir = NSBIDI_RTL;
+          level = mozilla::intl::BidiEmbeddingLevel::RTL();
         }
       }
 
       rv = nsBidiPresUtils::RenderText(
-          str, maxFit, dir, aPresContext, aRenderingContext,
+          str, maxFit, level, aPresContext, aRenderingContext,
           aRenderingContext.GetDrawTarget(), *fm, x, y);
     }
     if (NS_FAILED(rv)) {

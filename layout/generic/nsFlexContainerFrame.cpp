@@ -4101,10 +4101,8 @@ void nsFlexContainerFrame::GenerateFlexLines(
     // (e.g. if main axis is vertical & 'height' is 'auto'), make sure we at
     // least wrap when we hit its max main-size.
     if (wrapThreshold == NS_UNCONSTRAINEDSIZE) {
-      const nscoord flexContainerMaxMainSize = GET_MAIN_COMPONENT_LOGICAL(
-          aAxisTracker, aAxisTracker.GetWritingMode(),
-          aReflowInput.ComputedMaxISize(), aReflowInput.ComputedMaxBSize());
-
+      const nscoord flexContainerMaxMainSize =
+          aAxisTracker.MainComponent(aReflowInput.ComputedMaxSize());
       wrapThreshold = flexContainerMaxMainSize;
     }
   }
@@ -5276,7 +5274,7 @@ std::tuple<nscoord, bool> nsFlexContainerFrame::ReflowChildren(
             "[frag] Flex item %p needed to be pushed to container's "
             "next-in-flow due to position below available space's block-end",
             item.Frame());
-        pushedItems.PutEntry(item.Frame());
+        pushedItems.Insert(item.Frame());
       } else if (item.NeedsFinalReflow(availableBSizeForItem)) {
         // The available size must be in item's writing-mode.
         const WritingMode itemWM = item.GetWritingMode();
@@ -5290,9 +5288,9 @@ std::tuple<nscoord, bool> nsFlexContainerFrame::ReflowChildren(
             aContainerSize, aHasLineClampEllipsis);
 
         if (childReflowStatus.IsIncomplete()) {
-          incompleteItems.PutEntry(item.Frame());
+          incompleteItems.Insert(item.Frame());
         } else if (childReflowStatus.IsOverflowIncomplete()) {
-          overflowIncompleteItems.PutEntry(item.Frame());
+          overflowIncompleteItems.Insert(item.Frame());
         }
       } else {
         MoveFlexItemToFinalPosition(aReflowInput, item, framePos,

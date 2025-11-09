@@ -49,6 +49,7 @@
 #include "mozilla/dom/InspectorFontFace.h"
 #include "mozilla/dom/KeyframeEffect.h"
 #include "mozilla/dom/SVGViewportElement.h"
+#include "mozilla/intl/BidiEmbeddingLevel.h"
 #include "mozilla/EffectCompositor.h"
 #include "mozilla/EffectSet.h"
 #include "mozilla/EventDispatcher.h"
@@ -103,7 +104,7 @@
 #include "nsCSSProps.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSRendering.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsDeckFrame.h"
 #include "nsDisplayList.h"
 #include "nsFlexContainerFrame.h"
@@ -183,7 +184,7 @@ typedef nsStyleTransformMatrix::TransformReferenceBox TransformReferenceBox;
 
 static ViewID sScrollIdCounter = ScrollableLayerGuid::START_SCROLL_ID;
 
-typedef nsDataHashtable<nsUint64HashKey, nsIContent*> ContentMap;
+typedef nsTHashMap<nsUint64HashKey, nsIContent*> ContentMap;
 static ContentMap* sContentMap = nullptr;
 static ContentMap& GetContentMap() {
   if (!sContentMap) {
@@ -590,7 +591,7 @@ ViewID nsLayoutUtils::FindOrCreateIDFor(nsIContent* aContent) {
     scrollId = sScrollIdCounter++;
     aContent->SetProperty(nsGkAtoms::RemoteId, new ViewID(scrollId),
                           DestroyViewID);
-    GetContentMap().Put(scrollId, aContent);
+    GetContentMap().InsertOrUpdate(scrollId, aContent);
   }
 
   return scrollId;
@@ -1444,7 +1445,9 @@ nsRect nsLayoutUtils::GetScrolledRect(nsIFrame* aScrolledFrame,
   WritingMode wm = aScrolledFrame->GetWritingMode();
   // Potentially override the frame's direction to use the direction found
   // by ScrollFrameHelper::GetScrolledFrameDir()
-  wm.SetDirectionFromBidiLevel(aDirection == StyleDirection::Rtl ? 1 : 0);
+  wm.SetDirectionFromBidiLevel(aDirection == StyleDirection::Rtl
+                                   ? mozilla::intl::BidiEmbeddingLevel::RTL()
+                                   : mozilla::intl::BidiEmbeddingLevel::LTR());
 
   nscoord x1 = aScrolledFrameOverflowArea.x,
           x2 = aScrolledFrameOverflowArea.XMost(),
@@ -5489,7 +5492,8 @@ nscoord nsLayoutUtils::AppUnitWidthOfStringBidi(const char16_t* aString,
                                                 gfxContext& aContext) {
   nsPresContext* presContext = aFrame->PresContext();
   if (presContext->BidiEnabled()) {
-    nsBidiLevel level = nsBidiPresUtils::BidiLevelFromStyle(aFrame->Style());
+    mozilla::intl::BidiEmbeddingLevel level =
+        nsBidiPresUtils::BidiLevelFromStyle(aFrame->Style());
     return nsBidiPresUtils::MeasureTextWidth(
         aString, aLength, level, presContext, aContext, aFontMetrics);
   }
@@ -5568,7 +5572,8 @@ void nsLayoutUtils::DrawString(const nsIFrame* aFrame,
 
   nsPresContext* presContext = aFrame->PresContext();
   if (presContext->BidiEnabled()) {
-    nsBidiLevel level = nsBidiPresUtils::BidiLevelFromStyle(aComputedStyle);
+    mozilla::intl::BidiEmbeddingLevel level =
+        nsBidiPresUtils::BidiLevelFromStyle(aComputedStyle);
     rv = nsBidiPresUtils::RenderText(aString, aLength, level, presContext,
                                      *aContext, aContext->GetDrawTarget(),
                                      aFontMetrics, aPoint.x, aPoint.y);
@@ -7255,9 +7260,7 @@ void nsLayoutUtils::AssertTreeOnlyEmptyNextInFlows(nsIFrame* aSubtreeRoot) {
                "frame tree not empty, but caller reported complete status");
 
   // Also assert that text frames map no text.
-  int32_t start, end;
-  nsresult rv = aSubtreeRoot->GetOffsets(start, end);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "GetOffsets failed");
+  auto [start, end] = aSubtreeRoot->GetOffsets();
   // In some cases involving :first-letter, we'll partially unlink a
   // continuation in the middle of a continuation chain from its
   // previous and next continuations before destroying it, presumably so
@@ -7342,7 +7345,7 @@ static void AddFontsFromTextRun(gfxTextRun* aTextRun, nsTextFrame* aFrame,
       // A new font entry we haven't seen before
       fontFace = new InspectorFontFace(fe, aTextRun->GetFontGroup(),
                                        glyphRuns.GetGlyphRun()->mMatchType);
-      aFontFaces.Put(fe, fontFace);
+      aFontFaces.InsertOrUpdate(fe, fontFace);
       aResult.AppendElement(fontFace);
     }
 
@@ -8849,9 +8852,9 @@ void nsLayoutUtils::GetFrameTextContent(nsIFrame* aFrame, nsAString& aResult) {
 void nsLayoutUtils::AppendFrameTextContent(nsIFrame* aFrame,
                                            nsAString& aResult) {
   if (aFrame->IsTextFrame()) {
-    auto textFrame = static_cast<nsTextFrame*>(aFrame);
-    auto offset = textFrame->GetContentOffset();
-    auto length = textFrame->GetContentLength();
+    auto* const textFrame = static_cast<nsTextFrame*>(aFrame);
+    const auto offset = AssertedCast<uint32_t>(textFrame->GetContentOffset());
+    const auto length = AssertedCast<uint32_t>(textFrame->GetContentLength());
     textFrame->TextFragment()->AppendTo(aResult, offset, length);
   } else {
     for (nsIFrame* child : aFrame->PrincipalChildList()) {
@@ -8861,7 +8864,7 @@ void nsLayoutUtils::AppendFrameTextContent(nsIFrame* aFrame,
 }
 
 /* static */
-nsRect nsLayoutUtils::GetSelectionBoundingRect(Selection* aSel) {
+nsRect nsLayoutUtils::GetSelectionBoundingRect(const Selection* aSel) {
   nsRect res;
   // Bounding client rect may be empty after calling GetBoundingClientRect
   // when range is collapsed. So we get caret's rect when range is

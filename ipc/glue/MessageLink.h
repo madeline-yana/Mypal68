@@ -5,12 +5,15 @@
 #ifndef ipc_glue_MessageLink_h
 #define ipc_glue_MessageLink_h 1
 
-#include "base/basictypes.h"
+#include <cstdint>
 #include "base/message_loop.h"
-
-#include "mozilla/WeakPtr.h"
+#include "mozilla/Assertions.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/ipc/Transport.h"
+
+namespace IPC {
+class Message;
+}
 
 namespace mozilla {
 namespace ipc {
@@ -30,7 +33,7 @@ struct HasResultCodes {
   };
 };
 
-enum Side : uint8_t { ParentSide, ChildSide, UnknownSide };
+enum MsgSide : uint8_t { ParentSide, ChildSide, UnknownSide };
 
 class MessageLink {
  public:
@@ -75,7 +78,7 @@ class ProcessLink : public MessageLink, public Transport::Listener {
   // listener as well). Once the channel is closed (either via normal shutdown
   // or a pipe error) the chain will be destroyed and the original listener
   // will again be registered.
-  void Open(UniquePtr<Transport> aTransport, MessageLoop* aIOLoop, Side aSide);
+  void Open(UniquePtr<Transport> aTransport, MessageLoop* aIOLoop, MsgSide aSide);
 
   // Run on the I/O thread, only when using inter-process link.
   // These methods acquire the monitor and forward to the

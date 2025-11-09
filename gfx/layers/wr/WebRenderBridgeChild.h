@@ -62,14 +62,10 @@ class WebRenderBridgeChild final : public PWebRenderBridgeChild,
  public:
   explicit WebRenderBridgeChild(const wr::PipelineId& aPipelineId);
 
-  void AddWebRenderParentCommand(const WebRenderParentCommand& aCmd,
-                                 wr::RenderRoot aRenderRoot);
-  bool HasWebRenderParentCommands(wr::RenderRoot aRenderRoot) {
-    return !mParentCommands[aRenderRoot].IsEmpty();
-  }
+  void AddWebRenderParentCommand(const WebRenderParentCommand& aCmd);
+  bool HasWebRenderParentCommands() { return !mParentCommands.IsEmpty(); }
 
-  void UpdateResources(wr::IpcResourceUpdateQueue& aResources,
-                       wr::RenderRoot aRenderRoot);
+  void UpdateResources(wr::IpcResourceUpdateQueue& aResources);
   void BeginTransaction();
   void EndTransaction(nsTArray<RenderRootDisplayListData>& aRenderRoots,
                       TransactionId aTransactionId, bool aContainsSVGroup,
@@ -101,18 +97,14 @@ class WebRenderBridgeChild final : public PWebRenderBridgeChild,
   }
 
   void AddPipelineIdForAsyncCompositable(const wr::PipelineId& aPipelineId,
-                                         const CompositableHandle& aHandlee,
-                                         wr::RenderRoot aRenderRoot);
+                                         const CompositableHandle& aHandlee);
   void AddPipelineIdForCompositable(const wr::PipelineId& aPipelineId,
-                                    const CompositableHandle& aHandlee,
-                                    wr::RenderRoot aRenderRoot);
-  void RemovePipelineIdForCompositable(const wr::PipelineId& aPipelineId,
-                                       wr::RenderRoot aRenderRoot);
+                                    const CompositableHandle& aHandlee);
+  void RemovePipelineIdForCompositable(const wr::PipelineId& aPipelineId);
 
   /// Release TextureClient that is bounded to ImageKey.
   /// It is used for recycling TextureClient.
-  void ReleaseTextureOfImage(const wr::ImageKey& aKey,
-                             wr::RenderRoot aRenderRoot);
+  void ReleaseTextureOfImage(const wr::ImageKey& aKey);
 
   /**
    * Clean this up, finishing with SendShutDown() which will cause __delete__
@@ -149,10 +141,10 @@ class WebRenderBridgeChild final : public PWebRenderBridgeChild,
                   const wr::GlyphOptions* aGlyphOptions = nullptr);
 
   Maybe<wr::FontInstanceKey> GetFontKeyForScaledFont(
-      gfx::ScaledFont* aScaledFont, wr::RenderRoot aRenderRoot,
+      gfx::ScaledFont* aScaledFont,
       wr::IpcResourceUpdateQueue* aResources = nullptr);
   Maybe<wr::FontKey> GetFontKeyForUnscaledFont(
-      gfx::UnscaledFont* aUnscaledFont, wr::RenderRoot aRenderRoot,
+      gfx::UnscaledFont* aUnscaledFont,
       wr::IpcResourceUpdateQueue* aResources = nullptr);
   void RemoveExpiredFontKeys(wr::IpcResourceUpdateQueue& aResources);
 
@@ -199,12 +191,10 @@ class WebRenderBridgeChild final : public PWebRenderBridgeChild,
   void ReleaseCompositable(const CompositableHandle& aHandle) override;
   bool DestroyInTransaction(PTextureChild* aTexture) override;
   bool DestroyInTransaction(const CompositableHandle& aHandle);
-  void RemoveTextureFromCompositable(
-      CompositableClient* aCompositable, TextureClient* aTexture,
-      const Maybe<wr::RenderRoot>& aRenderRoot) override;
+  void RemoveTextureFromCompositable(CompositableClient* aCompositable,
+                                     TextureClient* aTexture) override;
   void UseTextures(CompositableClient* aCompositable,
-                   const nsTArray<TimedTextureClient>& aTextures,
-                   const Maybe<wr::RenderRoot>& aRenderRoot) override;
+                   const nsTArray<TimedTextureClient>& aTextures) override;
   void UseComponentAlphaTextures(CompositableClient* aCompositable,
                                  TextureClient* aClientOnBlack,
                                  TextureClient* aClientOnWhite) override;
@@ -236,8 +226,8 @@ class WebRenderBridgeChild final : public PWebRenderBridgeChild,
   bool AddOpDestroy(const OpDestroy& aOp);
 
   nsTArray<OpDestroy> mDestroyedActors;
-  wr::RenderRootArray<nsTArray<WebRenderParentCommand>> mParentCommands;
-  nsDataHashtable<nsUint64HashKey, CompositableClient*> mCompositables;
+  nsTArray<WebRenderParentCommand> mParentCommands;
+  nsTHashMap<nsUint64HashKey, CompositableClient*> mCompositables;
   bool mIsInTransaction;
   bool mIsInClearCachedResources;
   wr::IdNamespace mIdNamespace;
@@ -248,13 +238,11 @@ class WebRenderBridgeChild final : public PWebRenderBridgeChild,
   bool mIPCOpen;
   bool mDestroyed;
 
-  wr::RenderRootArray<uint32_t> mFontKeysDeleted;
-  wr::RenderRootArray<nsDataHashtable<UnscaledFontHashKey, wr::FontKey>>
-      mFontKeys;
+  uint32_t mFontKeysDeleted;
+  nsTHashMap<UnscaledFontHashKey, wr::FontKey> mFontKeys;
 
-  wr::RenderRootArray<uint32_t> mFontInstanceKeysDeleted;
-  wr::RenderRootArray<nsDataHashtable<ScaledFontHashKey, wr::FontInstanceKey>>
-      mFontInstanceKeys;
+  uint32_t mFontInstanceKeysDeleted;
+  nsTHashMap<ScaledFontHashKey, wr::FontInstanceKey> mFontInstanceKeys;
 
   UniquePtr<ActiveResourceTracker> mActiveResourceTracker;
 

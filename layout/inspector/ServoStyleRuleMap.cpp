@@ -113,7 +113,7 @@ void ServoStyleRuleMap::FillTableFromRule(css::Rule& aRule) {
   switch (aRule.Type()) {
     case StyleCssRuleType::Style: {
       auto& rule = static_cast<CSSStyleRule&>(aRule);
-      mTable.Put(rule.Raw(), &rule);
+      mTable.InsertOrUpdate(rule.Raw(), &rule);
       break;
     }
     case StyleCssRuleType::LayerBlock:

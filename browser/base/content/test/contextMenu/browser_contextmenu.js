@@ -32,9 +32,6 @@ Services.scriptloader.loadSubScript(
   this
 );
 
-/* import-globals-from ../general/head.js */
-Services.scriptloader.loadSubScript(head_base + "head.js", this);
-
 add_task(async function init() {
   // Ensure screenshots is really disabled (bug 1498738)
   const addon = await AddonManager.getAddonByID("screenshots@mozilla.org");
@@ -1287,11 +1284,13 @@ add_task(async function test_dom_full_screen() {
       maybeScreenshotsPresent: true,
       shiftkey: true,
       async preCheckContextMenuFn() {
-        await pushPrefs(
-          ["full-screen-api.allow-trusted-requests-only", false],
-          ["full-screen-api.transition-duration.enter", "0 0"],
-          ["full-screen-api.transition-duration.leave", "0 0"]
-        );
+        await SpecialPowers.pushPrefEnv({
+          set: [
+            ["full-screen-api.allow-trusted-requests-only", false],
+            ["full-screen-api.transition-duration.enter", "0 0"],
+            ["full-screen-api.transition-duration.leave", "0 0"],
+          ],
+        });
         await ContentTask.spawn(
           gBrowser.selectedBrowser,
           null,

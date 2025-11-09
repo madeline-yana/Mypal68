@@ -396,7 +396,6 @@ module.exports = {
     PaintRequestList: false,
     PannerNode: false,
     ParentProcessMessageManager: false,
-    ParentSHistory: false,
     Path2D: false,
     PeerConnectionImpl: false,
     PeerConnectionObserver: false,

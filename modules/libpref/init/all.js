@@ -191,10 +191,6 @@ pref("security.remote_settings.intermediates.signer", "onecrl.content-signature.
 
 pref("general.useragent.compatMode.firefox", true);
 
-// This pref exists only for testing purposes. In order to disable all
-// overrides by default, don't initialize UserAgentOverrides.jsm.
-pref("general.useragent.site_specific_overrides", true);
-
 pref("general.config.obscure_value", 13); // for MCD .cfg files
 
 pref("general.warnOnAboutConfig", true);
@@ -300,8 +296,6 @@ pref("browser.display.show_image_placeholders", true);
 pref("browser.display.show_loading_image_placeholder", false);
 // min font device pixel size at which to turn on high quality
 pref("browser.display.auto_quality_min_font_size", 20);
-pref("browser.enable_automatic_image_resizing", false);
-pref("browser.enable_click_image_resizing", true);
 
 // See http://whatwg.org/specs/web-apps/current-work/#ping
 pref("browser.send_pings", false);
@@ -913,12 +907,6 @@ pref("dom.popup_allowed_events", "change click dblclick auxclick mouseup pointer
 pref("dom.serviceWorkers.disable_open_click_delay", 1000);
 
 pref("dom.storage.enabled", true);
-// Whether or not LSNG (Next Generation Local Storage) is enabled.
-// See bug 1517090 for enabling this on Nightly.
-// See bug 1534736 for changing it to EARLY_BETA_OR_EARLIER.
-// See bug 1539835 for enabling this unconditionally.
-// See bug 1562942 for disabling this in late 68.
-pref("dom.storage.next_gen", false);
 pref("dom.storage.shadow_writes", true);
 pref("dom.storage.snapshot_prefill", 16384);
 pref("dom.storage.snapshot_gradual_prefill", 4096);
@@ -949,6 +937,10 @@ pref("dom.cycle_collector.incremental", true);
 //   2 = openBlocked
 //   3 = openAbused
 pref("privacy.popups.disable_from_plugins", 3);
+
+// If enabled by privacy.resistFingerprinting.testGranularityMask, list of
+// domains exempted from RFP.
+pref("privacy.resistFingerprinting.exemptedDomains", "*.example.invalid");
 
 // Enable Paritioned LocalStorage for a list of hosts when detected as trackers
 // (See nsICookieService::BEHAVIOR_REJECT_TRACKER cookie behavior)
@@ -1017,6 +1009,9 @@ pref("javascript.options.mem.max", -1);
 // JSGC_MODE
 pref("javascript.options.mem.gc_per_zone", true);
 pref("javascript.options.mem.gc_incremental", true);
+
+// JSGC_INCREMENTAL_WEAKMAP_ENABLED
+pref("javascript.options.mem.incremental_weakmap", true);
 
 // JSGC_SLICE_TIME_BUDGET_MS
 // Override the shell's default of unlimited slice time.
@@ -1156,9 +1151,6 @@ pref("network.protocol-handler.external.le", false);   // file
 // This pref controls the default settings.  Per protocol settings can be used
 // to override this value.
 pref("network.protocol-handler.expose-all", true);
-
-// Warning for about:networking page
-pref("network.warnOnAboutNetworking", true);
 
 // Example: make IMAP an exposed protocol
 // pref("network.protocol-handler.expose.imap", true);
@@ -1397,11 +1389,10 @@ pref("network.sts.max_time_for_pr_close_during_shutdown", 5000);
 // The value is expected in seconds.
 pref("network.sts.pollable_event_timeout", 6);
 
-// Start a separate socket process. Performing networking on the socket process
-// is control by a sepparate pref
-// ("network.http.network_access_on_socket_process.enabled").
+// Perform all network access on the socket process.
+// The pref requires "network.sts.socket_process.enable" to be true.
 // Changing these prefs requires a restart.
-pref("network.process.enabled", false);
+pref("network.http.network_access_on_socket_process.enabled", false);
 
 // <ws>: WebSocket
 pref("network.websocket.enabled", true);
@@ -1771,7 +1762,6 @@ pref("network.http.tailing.total-max", 45000);
 pref("network.http.spdy.bug1563695", true);
 pref("network.http.spdy.bug1556491", true);
 
-pref("network.proxy.type",                  5);
 pref("network.proxy.ftp",                   "");
 pref("network.proxy.ftp_port",              0);
 pref("network.proxy.http",                  "");
@@ -4071,15 +4061,6 @@ pref("dom.wakelock.enabled", false);
 
 // The URL of the Firefox Accounts auth server backend
 pref("identity.fxaccounts.auth.uri", "");
-
-// Presentation Device
-pref("dom.presentation.tcp_server.debug", false);
-pref("dom.presentation.discovery.enabled", false);
-pref("dom.presentation.discovery.timeout_ms", 10000);
-pref("dom.presentation.discoverable", false);
-pref("dom.presentation.discoverable.encrypted", true);
-pref("dom.presentation.discoverable.retry_ms", 5000);
-pref("dom.presentation.session_transport.data_channel.enable", false);
 
 #ifdef XP_MACOSX
   #if !defined(RELEASE_OR_BETA) || defined(DEBUG)

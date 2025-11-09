@@ -16,9 +16,9 @@ ProtocolHandler.prototype = {
   defaultPort: -1,
   allowPort: () => false,
   newChannel() {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+    throw Components.Exception("", Cr.NS_ERROR_NOT_IMPLEMENTED);
   },
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIProtocolHandler]),
+  QueryInterface: ChromeUtils.generateQI(["nsIProtocolHandler"]),
 };
 
 var testProtocols = [
@@ -54,7 +54,9 @@ var testProtocols = [
   },
 ];
 function run_test() {
-  ChromeUtils.import("resource://testing-common/AppInfo.jsm", this);
+  const { newAppInfo } = ChromeUtils.import(
+    "resource://testing-common/AppInfo.jsm"
+  );
   let XULAppInfo = newAppInfo({
     name: "XPCShell",
     ID: "{39885e5f-f6b4-4e2a-87e5-6259ecf79011}",
@@ -73,7 +75,7 @@ function run_test() {
     contractID: "@mozilla.org/xre/app-info;1",
     createInstance(outer, iid) {
       if (outer != null) {
-        throw Cr.NS_ERROR_NO_AGGREGATION;
+        throw Components.Exception("", Cr.NS_ERROR_NO_AGGREGATION);
       }
       return XULAppInfo.QueryInterface(iid);
     },
@@ -92,7 +94,7 @@ function run_test() {
         "@mozilla.org/network/protocol;1?name=" + testProtocols[i].scheme,
       createInstance(aOuter, aIID) {
         if (aOuter != null) {
-          throw Cr.NS_ERROR_NO_AGGREGATION;
+          throw Components.Exception("", Cr.NS_ERROR_NO_AGGREGATION);
         }
         let handler = new ProtocolHandler(this.scheme, this.flags, this.CID);
         return handler.QueryInterface(aIID);

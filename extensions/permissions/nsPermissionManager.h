@@ -17,7 +17,6 @@
 #include "nsIPrefBranch.h"
 #include "nsHashKeys.h"
 #include "nsCOMArray.h"
-#include "nsDataHashtable.h"
 #include "nsRefPtrHashtable.h"
 #include "mozilla/BasePrincipal.h"
 #include "mozilla/ExpandedPrincipal.h"
@@ -127,6 +126,9 @@ class nsPermissionManager final : public nsIPermissionManager,
     enum { ALLOW_MEMMOVE = false };
 
     inline nsTArray<PermissionEntry>& GetPermissions() { return mPermissions; }
+    inline const nsTArray<PermissionEntry>& GetPermissions() const {
+      return mPermissions;
+    }
 
     inline int32_t GetPermissionIndex(uint32_t aType) const {
       for (uint32_t i = 0; i < mPermissions.Length(); ++i)

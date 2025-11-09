@@ -19,6 +19,7 @@
 #include "mozilla/SystemGroup.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/TypedArray.h"
+#include "nsComponentManagerUtils.h"
 #include "nsIFileStreams.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"

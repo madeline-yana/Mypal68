@@ -245,10 +245,18 @@ struct InputContext final {
     mHTMLInputType.Truncate();
     mHTMLInputInputmode.Truncate();
     mActionHint.Truncate();
+    mAutocapitalize.Truncate();
   }
 
   bool IsPasswordEditor() const {
     return mHTMLInputType.LowerCaseEqualsLiteral("password");
+  }
+
+  // https://html.spec.whatwg.org/dev/interaction.html#autocapitalization
+  bool IsAutocapitalizeSupported() const {
+    return !mHTMLInputType.EqualsLiteral("password") &&
+           !mHTMLInputType.EqualsLiteral("url") &&
+           !mHTMLInputType.EqualsLiteral("email");
   }
 
   IMEState mIMEState;
@@ -261,6 +269,9 @@ struct InputContext final {
 
   /* A hint for the action that is performed when the input is submitted */
   nsString mActionHint;
+
+  /* A hint for autocapitalize */
+  nsString mAutocapitalize;
 
   /**
    * mOrigin indicates whether this focus event refers to main or remote
@@ -803,6 +814,22 @@ struct CandidateWindowPosition {
   // See explanation of mPoint and mRect.
   bool mExcludeRect;
 };
+
+std::ostream& operator<<(std::ostream& aStream,
+                         const IMEState::Enabled& aEnabled);
+std::ostream& operator<<(std::ostream& aStream, const IMEState::Open& aOpen);
+std::ostream& operator<<(std::ostream& aStream, const IMEState& aState);
+std::ostream& operator<<(std::ostream& aStream,
+                         const InputContext::Origin& aOrigin);
+std::ostream& operator<<(std::ostream& aStream, const InputContext& aContext);
+std::ostream& operator<<(std::ostream& aStream,
+                         const InputContextAction::Cause& aCause);
+std::ostream& operator<<(std::ostream& aStream,
+                         const InputContextAction::FocusChange& aFocusChange);
+std::ostream& operator<<(std::ostream& aStream,
+                         const IMENotification::SelectionChangeDataBase& aData);
+std::ostream& operator<<(std::ostream& aStream,
+                         const IMENotification::TextChangeDataBase& aData);
 
 }  // namespace widget
 }  // namespace mozilla

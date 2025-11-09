@@ -2,9 +2,8 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
-ChromeUtils.import(
-  "resource://testing-common/CustomizableUITestUtils.jsm",
-  this
+const { CustomizableUITestUtils } = ChromeUtils.import(
+  "resource://testing-common/CustomizableUITestUtils.jsm"
 );
 let gCUITestUtils = new CustomizableUITestUtils(window);
 
@@ -216,11 +215,11 @@ add_task(async function test_AddSearchProvider() {
     alert() {
       this.promptCount++;
     },
-    QueryInterface: ChromeUtils.generateQI([Ci.nsIPrompt]),
+    QueryInterface: ChromeUtils.generateQI(["nsIPrompt"]),
   };
   let windowWatcher = {
     getNewPrompter: () => mockPrompter,
-    QueryInterface: ChromeUtils.generateQI([Ci.nsIWindowWatcher]),
+    QueryInterface: ChromeUtils.generateQI(["nsIWindowWatcher"]),
   };
   let origWindowWatcher = Services.ww;
   Services.ww = windowWatcher;

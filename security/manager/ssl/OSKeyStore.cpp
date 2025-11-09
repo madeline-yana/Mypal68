@@ -125,7 +125,7 @@ nsresult OSKeyStore::GenerateSecret(const nsACString& aLabel,
   secretString.Assign(BitwiseCast<char*, uint8_t*>(secret.data()),
                       secret.size());
 
-  nsAutoCString base64;
+  nsCString base64;
   rv = Base64Encode(secretString, base64);
   if (NS_FAILED(rv)) {
     return rv;
@@ -137,7 +137,7 @@ nsresult OSKeyStore::GenerateSecret(const nsACString& aLabel,
     return rv;
   }
 
-  aRecoveryPhrase = base64;
+  aRecoveryPhrase = std::move(base64);
   return NS_OK;
 }
 
@@ -187,12 +187,12 @@ nsresult OSKeyStore::EncryptBytes(const nsACString& aLabel, uint32_t inLen,
   ciphertext.Assign(BitwiseCast<char*, uint8_t*>(outBytes.data()),
                     outBytes.size());
 
-  nsAutoCString base64ciphertext;
+  nsCString base64ciphertext;
   rv = Base64Encode(ciphertext, base64ciphertext);
   if (NS_FAILED(rv)) {
     return rv;
   }
-  aEncryptedBase64Text.Assign(base64ciphertext);
+  aEncryptedBase64Text = std::move(base64ciphertext);
   return NS_OK;
 }
 

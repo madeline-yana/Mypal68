@@ -9,8 +9,7 @@
 #include "SkPDFDocument.h"
 #include <vector>
 
-namespace mozilla {
-namespace gfx {
+namespace mozilla::gfx {
 
 PrintTargetSkPDF::PrintTargetSkPDF(const IntSize& aSize,
                                    UniquePtr<SkWStream> aStream)
@@ -133,16 +132,14 @@ PrintTargetSkPDF::GetReferenceDrawTarget()
     if (!mRefCanvas) {
       return nullptr;
     }
-    RefPtr<DrawTarget> dt =
-      Factory::CreateDrawTargetWithSkCanvas(mRefCanvas);
+    RefPtr<DrawTarget> dt = Factory::CreateDrawTargetWithSkCanvas(mRefCanvas);
     if (!dt) {
       return nullptr;
     }
-    mRefDT = dt.forget();
+    mRefDT = std::move(dt);
   }
 
   return do_AddRef(mRefDT);
 }
 
-} // namespace gfx
-} // namespace mozilla
+}  // namespace mozilla::gfx

@@ -16,6 +16,8 @@
 #include "gfxPlatformFontList.h"
 #include "mozilla/ServoStyleSet.h"
 #include "mozilla/PostTraversalTask.h"
+#include "nsIFontLoadCompleteCallback.h"
+#include "nsTHashSet.h"
 
 #include "opentype-sanitiser.h"
 #include "ots-memory-stream.h"
@@ -234,10 +236,9 @@ class MOZ_STACK_CLASS gfxOTSContext : public ots::OTSContext {
     if (level > 0) {
       // For warnings (rather than errors that cause the font to fail),
       // we only report the first instance of any given message.
-      if (mWarningsIssued.Contains(msg)) {
+      if (!mWarningsIssued.EnsureInserted(msg)) {
         return;
       }
-      mWarningsIssued.PutEntry(msg);
     }
 
     mMessages.AppendElement(msg);
@@ -253,7 +254,7 @@ class MOZ_STACK_CLASS gfxOTSContext : public ots::OTSContext {
   nsTArray<nsCString>&& TakeMessages() { return std::move(mMessages); }
 
  private:
-  nsTHashtable<nsCStringHashKey> mWarningsIssued;
+  nsTHashSet<nsCString> mWarningsIssued;
   nsTArray<nsCString> mMessages;
   bool mCheckOTLTables;
   bool mCheckVariationTables;
@@ -1127,17 +1128,12 @@ gfxUserFontFamily* gfxUserFontSet::GetFamily(const nsACString& aFamilyName) {
   nsAutoCString key(aFamilyName);
   ToLowerCase(key);
 
-  gfxUserFontFamily* family = mFontFamilies.GetWeak(key);
-  if (!family) {
-    family = new gfxUserFontFamily(aFamilyName);
-    mFontFamilies.Put(key, RefPtr{family});
-  }
-  return family;
+  return mFontFamilies.GetOrInsertNew(key, aFamilyName);
 }
 
 void gfxUserFontSet::ForgetLocalFaces() {
-  for (auto iter = mFontFamilies.Iter(); !iter.Done(); iter.Next()) {
-    const auto fam = iter.Data();
+  for (const auto& entry : mFontFamilies) {
+    const auto fam = entry.GetData();
     const auto& fonts = fam->GetFontList();
     for (const auto& f : fonts) {
       auto ufe = static_cast<gfxUserFontEntry*>(f.get());

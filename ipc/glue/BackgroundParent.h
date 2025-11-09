@@ -8,6 +8,11 @@
 #include "base/process.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/ipc/Transport.h"
+#include "nsTArrayForwardDeclare.h"
+
+#ifdef DEBUG
+#  include "nsXULAppAPI.h"
+#endif
 
 template <class>
 struct already_AddRefed;

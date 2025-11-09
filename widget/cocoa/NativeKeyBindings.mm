@@ -50,7 +50,7 @@ void NativeKeyBindings::Shutdown() {
 NativeKeyBindings::NativeKeyBindings() {}
 
 #define SEL_TO_COMMAND(aSel, aCommand) \
-  mSelectorToCommand.Put(reinterpret_cast<struct objc_selector*>(@selector(aSel)), aCommand)
+  mSelectorToCommand.InsertOrUpdate(reinterpret_cast<struct objc_selector*>(@selector(aSel)), aCommand)
 
 void NativeKeyBindings::Init(NativeKeyBindingsType aType) {
   MOZ_LOG(gNativeKeyBindingsLog, LogLevel::Info, ("%p NativeKeyBindings::Init", this));

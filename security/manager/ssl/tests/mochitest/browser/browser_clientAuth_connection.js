@@ -110,7 +110,7 @@ const gClientAuthDialogs = {
     return false;
   },
 
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIClientAuthDialogs]),
+  QueryInterface: ChromeUtils.generateQI(["nsIClientAuthDialogs"]),
 };
 
 add_task(async function setup() {

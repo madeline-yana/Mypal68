@@ -240,7 +240,7 @@ nsJAR::FindEntries(const nsACString& aPattern,
 
 NS_IMETHODIMP
 nsJAR::GetInputStream(const nsACString& aFilename, nsIInputStream** result) {
-  return GetInputStreamWithSpec(EmptyCString(), aFilename, result);
+  return GetInputStreamWithSpec(""_ns, aFilename, result);
 }
 
 NS_IMETHODIMP
@@ -600,7 +600,7 @@ nsresult nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader** result,
     }
 
     MOZ_ASSERT(!mZips.Contains(uri));
-    mZips.Put(uri, RefPtr{zip});
+    mZips.InsertOrUpdate(uri, RefPtr{zip});
   }
   zip.forget(result);
   return rv;
@@ -656,7 +656,7 @@ nsZipReaderCache::GetInnerZip(nsIFile* zipFile, const nsACString& entry,
     }
 
     MOZ_ASSERT(!mZips.Contains(uri));
-    mZips.Put(uri, RefPtr{zip});
+    mZips.InsertOrUpdate(uri, RefPtr{zip});
   }
   zip.forget(result);
   return rv;

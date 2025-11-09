@@ -32,6 +32,7 @@
 #include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/LoadInfo.h"
+#include "nsComponentManagerUtils.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentUtils.h"
 #include "nsDeviceContext.h"
@@ -269,7 +270,7 @@ void FontFaceSet::FindMatchingFontFaces(const nsACString& aFont,
   arrays[1] = &mRuleFaces;
 
   // Set of FontFaces that we want to return.
-  nsTHashtable<nsPtrHashKey<FontFace>> matchingFaces;
+  nsTHashSet<FontFace*> matchingFaces;
 
   for (const FontFamilyName& fontFamilyName : familyList->mNames) {
     if (!fontFamilyName.IsNamed()) {
@@ -290,7 +291,7 @@ void FontFaceSet::FindMatchingFontFaces(const nsACString& aFont,
       FontFace::Entry* entry = static_cast<FontFace::Entry*>(e);
       if (HasAnyCharacterInUnicodeRange(entry, aText)) {
         for (FontFace* f : entry->GetFontFaces()) {
-          matchingFaces.PutEntry(f);
+          matchingFaces.Insert(f);
         }
       }
     }
@@ -575,7 +576,7 @@ nsresult FontFaceSet::StartLoad(gfxUserFontEntry* aUserFontEntry,
       aFontFaceSrc->mURI->get(), CORS_ANONYMOUS,
       aFontFaceSrc->mReferrerInfo->ReferrerPolicy());
   RefPtr<PreloaderBase> preload =
-      mDocument->Preloads().LookupPreload(&preloadKey);
+      mDocument->Preloads().LookupPreload(preloadKey);
 
   if (preload) {
     fontLoader = new nsFontFaceLoader(aUserFontEntry, aFontFaceSrc->mURI->get(),
@@ -651,13 +652,13 @@ bool FontFaceSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules) {
   mNonRuleFacesDirty = false;
 
   // reuse existing FontFace objects mapped to rules already
-  nsDataHashtable<nsPtrHashKey<RawServoFontFaceRule>, FontFace*> ruleFaceMap;
+  nsTHashMap<nsPtrHashKey<RawServoFontFaceRule>, FontFace*> ruleFaceMap;
   for (size_t i = 0, i_end = mRuleFaces.Length(); i < i_end; ++i) {
     FontFace* f = mRuleFaces[i].mFontFace;
     if (!f) {
       continue;
     }
-    ruleFaceMap.Put(f->GetRule(), f);
+    ruleFaceMap.InsertOrUpdate(f->GetRule(), f);
   }
 
   // The @font-face rules that make up the user font set have changed,
@@ -682,7 +683,7 @@ bool FontFaceSet::UpdateRules(const nsTArray<nsFontFaceRuleContainer>& aRules) {
   // that not happen, but in the meantime, don't try to insert the same
   // FontFace object more than once into mRuleFaces.  We track which
   // ones we've handled in this table.
-  nsTHashtable<nsPtrHashKey<RawServoFontFaceRule>> handledRules;
+  nsTHashSet<RawServoFontFaceRule*> handledRules;
 
   for (size_t i = 0, i_end = aRules.Length(); i < i_end; ++i) {
     // Insert each FontFace objects for each rule into our list, migrating old
@@ -1281,8 +1282,8 @@ void FontFaceSet::CacheFontLoadability() {
         if (src.mSourceType != gfxFontFaceSrc::eSourceType_URL) {
           continue;
         }
-        mAllowedFontLoads.LookupForAdd(&src).OrInsert(
-            [&] { return IsFontLoadAllowed(src); });
+        mAllowedFontLoads.LookupOrInsertWith(
+            &src, [&] { return IsFontLoadAllowed(src); });
       }
     }
   }
@@ -1292,7 +1293,7 @@ bool FontFaceSet::IsFontLoadAllowed(const gfxFontFaceSrc& aSrc) {
   MOZ_ASSERT(aSrc.mSourceType == gfxFontFaceSrc::eSourceType_URL);
 
   if (ServoStyleSet::IsInServoTraversal()) {
-    bool* entry = mAllowedFontLoads.GetValue(&aSrc);
+    auto entry = mAllowedFontLoads.Lookup(&aSrc);
     MOZ_DIAGNOSTIC_ASSERT(entry, "Missed an update?");
     return entry ? *entry : false;
   }

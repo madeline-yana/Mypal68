@@ -8,10 +8,12 @@
 #include "mozilla/layers/CompositorBridgeChild.h"
 #include "mozilla/layers/CompositorManagerParent.h"
 #include "mozilla/layers/CompositorThread.h"
+#include "mozilla/layers/LayersMessageUtils.h" //MY
 #include "mozilla/gfx/gfxVars.h"
 #include "mozilla/gfx/GPUProcessManager.h"
 #include "mozilla/dom/ContentChild.h"  // for ContentChild
 #include "mozilla/dom/BrowserChild.h"  // for BrowserChild
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/dom/TabGroup.h"      // for TabGroup
 #include "VsyncSource.h"
 

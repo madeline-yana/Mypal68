@@ -216,8 +216,7 @@ class RenderThread final {
   bool TooManyPendingFrames(wr::WindowId aWindowId);
   /// Can be called from any thread.
   void IncPendingFrameCount(wr::WindowId aWindowId, const VsyncId& aStartId,
-                            const TimeStamp& aStartTime,
-                            uint8_t aDocFrameCount);
+                            const TimeStamp& aStartTime);
   /// Can be called from any thread.
   std::pair<bool, bool> IncRenderingFrameCount(wr::WindowId aWindowId,
                                                bool aRender);
@@ -300,7 +299,6 @@ class RenderThread final {
     bool mRender = false;
     int64_t mPendingCount = 0;
     int64_t mRenderingCount = 0;
-    uint8_t mDocFramesSeen = 0;
     // One entry in this queue for each pending frame, so the length
     // should always equal mPendingCount
     std::queue<TimeStamp> mStartTimes;

@@ -37,11 +37,7 @@ class ShareableCanvasRenderer : public CopyableCanvasRenderer {
   void ClearCachedResources() override;
   void Destroy() override;
 
-  void UpdateCompositableClient(
-#ifdef MOZ_BUILD_WEBRENDER
-      wr::RenderRoot aRenderRoot = wr::RenderRoot::Default
-#endif
-  );
+  void UpdateCompositableClient();
 
   const TextureFlags& Flags() const { return mFlags; }
 

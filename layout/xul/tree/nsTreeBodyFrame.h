@@ -16,7 +16,8 @@
 #include "nsTArray.h"
 #include "nsTreeStyleCache.h"
 #include "nsTreeColumns.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
+#include "nsTHashSet.h"
 #include "imgIRequest.h"
 #include "imgINotificationObserver.h"
 #include "nsScrollbarFrame.h"
@@ -544,7 +545,7 @@ class nsTreeBodyFrame final : public nsLeafBoxFrame,
   // is provided by the view or by the ComputedStyle. The ComputedStyle
   // represents a resolved :-moz-tree-cell-image (or twisty) pseudo-element.
   // It maps directly to an imgIRequest.
-  nsDataHashtable<nsStringHashKey, nsTreeImageCacheEntry> mImageCache;
+  nsTHashMap<nsStringHashKey, nsTreeImageCacheEntry> mImageCache;
 
   // A scratch array used when looking up cached ComputedStyles.
   mozilla::AtomArray mScratchArray;
@@ -600,9 +601,9 @@ class nsTreeBodyFrame final : public nsLeafBoxFrame,
   // overflow/underflow event handlers
   bool mCheckingOverflow;
 
-  // Hash table to keep track of which listeners we created and thus
+  // Hash set to keep track of which listeners we created and thus
   // have pointers to us.
-  nsTHashtable<nsPtrHashKey<nsTreeImageListener> > mCreatedListeners;
+  nsTHashSet<nsTreeImageListener*> mCreatedListeners;
 
 };  // class nsTreeBodyFrame
 

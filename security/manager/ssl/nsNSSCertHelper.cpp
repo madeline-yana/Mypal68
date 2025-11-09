@@ -6,7 +6,6 @@
 
 #include <algorithm>
 
-#include "DateTimeFormat.h"
 #include "ScopedNSSTypes.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Casting.h"
@@ -14,6 +13,7 @@
 #include "mozilla/Sprintf.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/Utf8.h"
+#include "mozilla/intl/AppDateTimeFormat.h"
 #include "mozilla/net/DNS.h"
 #include "nsCOMPtr.h"
 #include "nsIStringBundle.h"
@@ -1449,8 +1449,10 @@ static nsresult ProcessTime(PRTime dispTime, const char16_t* displayName,
   PRExplodedTime explodedTime;
   PR_ExplodeTime(dispTime, PR_LocalTimeParameters, &explodedTime);
 
-  DateTimeFormat::FormatPRExplodedTime(kDateFormatLong, kTimeFormatLong,
-                                       &explodedTime, tempString);
+  intl::DateTimeFormat::StyleBag style;
+  style.date = Some(intl::DateTimeFormat::Style::Long);
+  style.time = Some(intl::DateTimeFormat::Style::Long);
+  intl::AppDateTimeFormat::Format(style, &explodedTime, tempString);
 
   text.Append(tempString);
   text.AppendLiteral("\n(");
@@ -1458,8 +1460,7 @@ static nsresult ProcessTime(PRTime dispTime, const char16_t* displayName,
   PRExplodedTime explodedTimeGMT;
   PR_ExplodeTime(dispTime, PR_GMTParameters, &explodedTimeGMT);
 
-  DateTimeFormat::FormatPRExplodedTime(kDateFormatLong, kTimeFormatLong,
-                                       &explodedTimeGMT, tempString);
+  intl::AppDateTimeFormat::Format(style, &explodedTimeGMT, tempString);
 
   text.Append(tempString);
   // Append "GMT" if it's not already added by the formatter

@@ -144,6 +144,19 @@ gfxFontEntry::~gfxFontEntry() {
   MOZ_ASSERT(!mGrFaceInitialized);
 }
 
+void gfxFontEntry::InitializeFrom(fontlist::Face* aFace,
+                                  const fontlist::Family* aFamily) {
+  mStyleRange = aFace->mStyle;
+  mWeightRange = aFace->mWeight;
+  mStretchRange = aFace->mStretch;
+  mFixedPitch = aFace->mFixedPitch;
+  mIsBadUnderlineFont = aFamily->IsBadUnderlineFamily();
+  mShmemFace = aFace;
+  auto* list = gfxPlatformFontList::PlatformFontList()->SharedFontList();
+  mFamilyName = aFamily->DisplayName().AsString(list);
+  mHasCmapTable = TrySetShmemCharacterMap();
+}
+
 bool gfxFontEntry::TrySetShmemCharacterMap() {
   MOZ_ASSERT(mShmemFace);
   auto list = gfxPlatformFontList::PlatformFontList()->SharedFontList();
@@ -603,7 +616,7 @@ hb_face_t* gfxFontEntry::GetHBFace() {
   if (blob) {
     unsigned int blobLength;
     const void* tableData = hb_blob_get_data(blob, &blobLength);
-    fontEntry->mGrTableMap->Put(tableData, blob);
+    fontEntry->mGrTableMap->InsertOrUpdate(tableData, blob);
     *aLen = blobLength;
     return tableData;
   }
@@ -625,7 +638,7 @@ void gfxFontEntry::GrReleaseTable(const void* aAppFaceHandle,
 gr_face* gfxFontEntry::GetGrFace() {
   if (!mGrFaceInitialized) {
     gr_face_ops faceOps = {sizeof(gr_face_ops), GrGetTable, GrReleaseTable};
-    mGrTableMap = new nsDataHashtable<nsPtrHashKey<const void>, void*>;
+    mGrTableMap = new nsTHashMap<nsPtrHashKey<const void>, void*>;
     mGrFace = gr_make_face_with_ops(this, &faceOps, gr_face_default);
     mGrFaceInitialized = true;
   }
@@ -677,7 +690,7 @@ bool gfxFontEntry::HasGraphiteSpaceContextuals() {
 
 #define FEATURE_SCRIPT_MASK 0x000000ff  // script index replaces low byte of tag
 
-static_assert(int(Script::NUM_SCRIPT_CODES) <= FEATURE_SCRIPT_MASK,
+static_assert(int(intl::Script::NUM_SCRIPT_CODES) <= FEATURE_SCRIPT_MASK,
               "Too many script codes");
 
 // high-order three bytes of tag with script in low-order byte
@@ -688,7 +701,7 @@ static_assert(int(Script::NUM_SCRIPT_CODES) <= FEATURE_SCRIPT_MASK,
 bool gfxFontEntry::SupportsOpenTypeFeature(Script aScript,
                                            uint32_t aFeatureTag) {
   if (!mSupportedFeatures) {
-    mSupportedFeatures = MakeUnique<nsDataHashtable<nsUint32HashKey, bool>>();
+    mSupportedFeatures = MakeUnique<nsTHashMap<nsUint32HashKey, bool>>();
   }
 
   // note: high-order three bytes *must* be unique for each feature
@@ -707,58 +720,50 @@ bool gfxFontEntry::SupportsOpenTypeFeature(Script aScript,
                "need to bump the size of the feature shift");
 
   uint32_t scriptFeature = SCRIPT_FEATURE(aScript, aFeatureTag);
-  bool result;
-  if (mSupportedFeatures->Get(scriptFeature, &result)) {
-    return result;
-  }
+  return mSupportedFeatures->LookupOrInsertWith(scriptFeature, [&] {
+    bool result = false;
+    hb_face_t* face = GetHBFace();
 
-  result = false;
+    if (hb_ot_layout_has_substitution(face)) {
+      hb_script_t hbScript =
+          gfxHarfBuzzShaper::GetHBScriptUsedForShaping(aScript);
 
-  hb_face_t* face = GetHBFace();
+      // Get the OpenType tag(s) that match this script code
+      unsigned int scriptCount = 4;
+      hb_tag_t scriptTags[4];
+      hb_ot_tags_from_script_and_language(hbScript, HB_LANGUAGE_INVALID,
+                                          &scriptCount, scriptTags, nullptr,
+                                          nullptr);
 
-  if (hb_ot_layout_has_substitution(face)) {
-    hb_script_t hbScript =
-        gfxHarfBuzzShaper::GetHBScriptUsedForShaping(aScript);
-
-    // Get the OpenType tag(s) that match this script code
-    unsigned int scriptCount = 4;
-    hb_tag_t scriptTags[4];
-    hb_ot_tags_from_script_and_language(hbScript, HB_LANGUAGE_INVALID,
-                                        &scriptCount, scriptTags, nullptr,
-                                        nullptr);
-
-    // Append DEFAULT to the returned tags, if room
-    if (scriptCount < 4) {
-      scriptTags[scriptCount++] = HB_OT_TAG_DEFAULT_SCRIPT;
-    }
-
-    // Now check for 'smcp' under the first of those scripts that is present
-    const hb_tag_t kGSUB = HB_TAG('G', 'S', 'U', 'B');
-    for (unsigned int i = 0; i < scriptCount; i++) {
-      unsigned int scriptIndex;
-      if (hb_ot_layout_table_find_script(face, kGSUB, scriptTags[i],
-                                         &scriptIndex)) {
-        if (hb_ot_layout_language_find_feature(
-                face, kGSUB, scriptIndex, HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX,
-                aFeatureTag, nullptr)) {
-          result = true;
-        }
-        break;
+      // Append DEFAULT to the returned tags, if room
+      if (scriptCount < 4) {
+        scriptTags[scriptCount++] = HB_OT_TAG_DEFAULT_SCRIPT;
       }
+
+      // Now check for 'smcp' under the first of those scripts that is present
+      const hb_tag_t kGSUB = HB_TAG('G', 'S', 'U', 'B');
+      result = std::any_of(scriptTags, scriptTags + scriptCount,
+                           [&](const hb_tag_t& scriptTag) {
+                             unsigned int scriptIndex;
+                             return hb_ot_layout_table_find_script(
+                                        face, kGSUB, scriptTag, &scriptIndex) &&
+                                    hb_ot_layout_language_find_feature(
+                                        face, kGSUB, scriptIndex,
+                                        HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX,
+                                        aFeatureTag, nullptr);
+                           });
     }
-  }
 
-  hb_face_destroy(face);
+    hb_face_destroy(face);
 
-  mSupportedFeatures->Put(scriptFeature, result);
-
-  return result;
+    return result;
+  });
 }
 
 const hb_set_t* gfxFontEntry::InputsForOpenTypeFeature(Script aScript,
                                                        uint32_t aFeatureTag) {
   if (!mFeatureInputs) {
-    mFeatureInputs = MakeUnique<nsDataHashtable<nsUint32HashKey, hb_set_t*>>();
+    mFeatureInputs = MakeUnique<nsTHashMap<nsUint32HashKey, hb_set_t*>>();
   }
 
   NS_ASSERTION(aFeatureTag == HB_TAG('s', 'u', 'p', 's') ||
@@ -808,13 +813,13 @@ const hb_set_t* gfxFontEntry::InputsForOpenTypeFeature(Script aScript,
 
   hb_face_destroy(face);
 
-  mFeatureInputs->Put(scriptFeature, inputGlyphs);
+  mFeatureInputs->InsertOrUpdate(scriptFeature, inputGlyphs);
   return inputGlyphs;
 }
 
 bool gfxFontEntry::SupportsGraphiteFeature(uint32_t aFeatureTag) {
   if (!mSupportedFeatures) {
-    mSupportedFeatures = MakeUnique<nsDataHashtable<nsUint32HashKey, bool>>();
+    mSupportedFeatures = MakeUnique<nsTHashMap<nsUint32HashKey, bool>>();
   }
 
   // note: high-order three bytes *must* be unique for each feature
@@ -838,7 +843,7 @@ bool gfxFontEntry::SupportsGraphiteFeature(uint32_t aFeatureTag) {
   result = face ? gr_face_find_fref(face, aFeatureTag) != nullptr : false;
   ReleaseGrFace(face);
 
-  mSupportedFeatures->Put(scriptFeature, result);
+  mSupportedFeatures->InsertOrUpdate(scriptFeature, result);
 
   return result;
 }
@@ -1302,6 +1307,8 @@ void gfxFontEntry::AddSizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
   if (mFeatureInputs) {
     aSizes->mFontTableCacheSize +=
         mFeatureInputs->ShallowSizeOfIncludingThis(aMallocSizeOf);
+    // XXX Can't this simply be
+    // aSizes->mFontTableCacheSize += 8192 * mFeatureInputs->Count();
     for (auto iter = mFeatureInputs->ConstIter(); !iter.Done(); iter.Next()) {
       // There's no API to get the real size of an hb_set, so we'll use
       // an approximation based on knowledge of the implementation.
@@ -1634,7 +1641,8 @@ void gfxFontFamily::FindFontForChar(GlobalFontMatch* aMatchData) {
       LogModule* log = gfxPlatform::GetLog(eGfxLog_textrun);
 
       if (MOZ_UNLIKELY(MOZ_LOG_TEST(log, LogLevel::Debug))) {
-        Script script = GetScriptCode(aMatchData->mCh);
+        intl::Script script =
+            intl::UnicodeProperties::GetScriptCode(aMatchData->mCh);
         MOZ_LOG(log, LogLevel::Debug,
                 ("(textrun-systemfallback-fonts) char: u+%6.6x "
                  "script: %d match: [%s]\n",
@@ -1823,7 +1831,7 @@ bool gfxFontFamily::CheckForLegacyFamilyNames(gfxPlatformFontList* aFontList) {
     uint32_t dataLength;
     const char* nameData = hb_blob_get_data(nameTable, &dataLength);
     if (LookForLegacyFamilyName(Name(), nameData, dataLength, legacyName)) {
-      if (aFontList->AddWithLegacyFamilyName(legacyName, fe)) {
+      if (aFontList->AddWithLegacyFamilyName(legacyName, fe, mVisibility)) {
         added = true;
       }
     }

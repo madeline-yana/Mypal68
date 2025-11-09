@@ -389,7 +389,7 @@ Tools.dom = {
   inMenu: true,
 
   isTargetSupported: function(target) {
-    return target.getTrait("webConsoleCommands");
+    return true;
   },
 
   build: function(iframeWindow, toolbox) {

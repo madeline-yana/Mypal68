@@ -17,7 +17,7 @@
 #include "mozilla/WeakPtr.h"
 #include "nsTObserverArray.h"
 #include "nsTArray.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "nsRefreshObservers.h"
@@ -357,6 +357,8 @@ class nsRefreshDriver final : public mozilla::layers::TransactionIdAllocator,
    */
   static mozilla::Maybe<mozilla::TimeStamp> GetNextTickHint();
 
+  static bool IsRegularRateTimerTicking();
+
   static void DispatchIdleRunnableAfterTickUnlessExists(nsIRunnable* aRunnable,
                                                         uint32_t aDelay);
   static void CancelIdleRunnable(nsIRunnable* aRunnable);
@@ -394,7 +396,7 @@ class nsRefreshDriver final : public mozilla::layers::TransactionIdAllocator,
   typedef nsTArray<RefPtr<VVPResizeEvent>> VisualViewportResizeEventArray;
   typedef nsTArray<RefPtr<mozilla::Runnable>> ScrollEventArray;
   typedef nsTArray<RefPtr<VVPScrollEvent>> VisualViewportScrollEventArray;
-  typedef nsTHashtable<nsISupportsHashKey> RequestTable;
+  typedef nsTHashSet<nsCOMPtr<nsISupports>> RequestTable;
   struct ImageStartData {
     ImageStartData() = default;
 

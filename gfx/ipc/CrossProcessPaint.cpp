@@ -120,7 +120,7 @@ bool PaintFragment::IsEmpty() const {
 }
 
 PaintFragment::PaintFragment(IntSize aSize, ByteBuf&& aRecording,
-                             nsTHashtable<nsUint64HashKey>&& aDependencies)
+                             nsTHashSet<uint64_t>&& aDependencies)
     : mSize(aSize),
       mRecording(std::move(aRecording)),
       mDependencies(std::move(aDependencies)) {}
@@ -190,12 +190,12 @@ void CrossProcessPaint::ReceiveFragment(dom::TabId aId,
   }
 
   MOZ_ASSERT(mPendingFragments > 0);
-  MOZ_ASSERT(!mReceivedFragments.GetValue(aId));
+  MOZ_ASSERT(!mReceivedFragments.Contains(aId));
   MOZ_ASSERT(!aFragment.IsEmpty());
 
   // Double check our invariants to protect against a compromised content
   // process
-  if (mPendingFragments == 0 || mReceivedFragments.GetValue(aId) ||
+  if (mPendingFragments == 0 || mReceivedFragments.Contains(aId) ||
       aFragment.IsEmpty()) {
     CPP_LOG("Dropping invalid fragment from %llu.\n", (uint64_t)aId);
     LostFragment(aId);
@@ -205,12 +205,11 @@ void CrossProcessPaint::ReceiveFragment(dom::TabId aId,
   CPP_LOG("Receiving fragment from %llu.\n", (uint64_t)aId);
 
   // Queue paints for child tabs
-  for (auto iter = aFragment.mDependencies.Iter(); !iter.Done(); iter.Next()) {
-    auto dependency = iter.Get()->GetKey();
-    QueueSubPaint(dom::TabId(dependency));
+  for (const auto& key : aFragment.mDependencies) {
+    QueueSubPaint(dom::TabId(key));
   }
 
-  mReceivedFragments.Put(aId, std::move(aFragment));
+  mReceivedFragments.InsertOrUpdate(aId, std::move(aFragment));
   mPendingFragments -= 1;
 
   // Resolve this paint if we have received all pending fragments
@@ -246,7 +245,7 @@ void CrossProcessPaint::QueueRootPaint(dom::TabId aId, const IntRect& aRect,
 }
 
 void CrossProcessPaint::QueueSubPaint(dom::TabId aId) {
-  MOZ_ASSERT(!mReceivedFragments.GetValue((uint64_t)aId));
+  MOZ_ASSERT(!mReceivedFragments.Contains((uint64_t)aId));
 
   CPP_LOG("Queueing sub paint for %llu.\n", (uint64_t)aId);
 
@@ -314,12 +313,11 @@ bool CrossProcessPaint::ResolveInternal(dom::TabId aId,
 
   CPP_LOG("Resolving fragment %llu.\n", (uint64_t)aId);
 
-  Maybe<PaintFragment> fragment = mReceivedFragments.GetAndRemove(aId);
+  Maybe<PaintFragment> fragment = mReceivedFragments.Extract(aId);
 
   // Rasterize all the dependencies first so that we can resolve this fragment
-  for (auto iter = fragment->mDependencies.Iter(); !iter.Done(); iter.Next()) {
-    auto dependency = iter.Get()->GetKey();
-    if (!ResolveInternal(dom::TabId(dependency), aResolved)) {
+  for (const auto& key : fragment->mDependencies) {
+    if (!ResolveInternal(dom::TabId(key), aResolved)) {
       return false;
     }
   }
@@ -354,12 +352,11 @@ bool CrossProcessPaint::ResolveInternal(dom::TabId aId,
 
   // We are done with the resolved images of our dependencies, let's remove
   // them
-  for (auto iter = fragment->mDependencies.Iter(); !iter.Done(); iter.Next()) {
-    auto dependency = iter.Get()->GetKey();
-    aResolved->Remove(dependency);
+  for (const auto& key : fragment->mDependencies) {
+    aResolved->Remove(key);
   }
 
-  aResolved->Put(aId, std::move(snapshot));
+  aResolved->InsertOrUpdate(aId, std::move(snapshot));
   return true;
 }
 

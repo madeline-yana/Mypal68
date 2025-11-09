@@ -20,6 +20,7 @@
 #include "mozilla/ipc/Transport.h"       // for Transport
 #include "mozilla/gfx/gfxVars.h"
 #include "mozilla/gfx/Point.h"  // for IntSize
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/layers/AsyncCanvasRenderer.h"
 #include "mozilla/media/MediaSystemResourceManager.h"  // for MediaSystemResourceManager
 #include "mozilla/media/MediaSystemResourceManagerChild.h"  // for MediaSystemResourceManagerChild
@@ -96,13 +97,9 @@ struct AutoEndTransaction final {
   CompositableTransaction* mTxn;
 };
 
-void ImageBridgeChild::UseTextures(CompositableClient* aCompositable,
-                                   const nsTArray<TimedTextureClient>& aTextures
-#ifdef MOZ_BUILD_WEBRENDER
-                                   ,
-                                   const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-) {
+void ImageBridgeChild::UseTextures(
+    CompositableClient* aCompositable,
+    const nsTArray<TimedTextureClient>& aTextures) {
   MOZ_ASSERT(aCompositable);
   MOZ_ASSERT(aCompositable->GetIPCHandle());
   MOZ_ASSERT(aCompositable->IsConnected());
@@ -331,12 +328,7 @@ void ImageBridgeChild::UpdateImageClient(RefPtr<ImageContainer> aContainer) {
   }
 
   BeginTransaction();
-  client->UpdateImage(aContainer, Layer::CONTENT_OPAQUE
-#ifdef MOZ_BUILD_WEBRENDER
-                      ,
-                      Nothing()
-#endif
-  );
+  client->UpdateImage(aContainer, Layer::CONTENT_OPAQUE);
   EndTransaction();
 }
 
@@ -375,12 +367,7 @@ void ImageBridgeChild::UpdateAsyncCanvasRendererNow(
   }
 
   BeginTransaction();
-  // TODO wr::RenderRoot::Unknown
-  aWrapper->GetCanvasClient()->Updated(
-#ifdef MOZ_BUILD_WEBRENDER
-      wr::RenderRoot::Default
-#endif
-  );
+  aWrapper->GetCanvasClient()->Updated();
   EndTransaction();
 }
 
@@ -980,12 +967,7 @@ bool ImageBridgeChild::DestroyInTransaction(const CompositableHandle& aHandle) {
 }
 
 void ImageBridgeChild::RemoveTextureFromCompositable(
-    CompositableClient* aCompositable, TextureClient* aTexture
-#ifdef MOZ_BUILD_WEBRENDER
-    ,
-    const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-) {
+    CompositableClient* aCompositable, TextureClient* aTexture) {
   MOZ_ASSERT(CanSend());
   MOZ_ASSERT(aTexture);
   MOZ_ASSERT(aTexture->IsSharedWithCompositor());

@@ -9,9 +9,6 @@
 
 #include "mozilla/DefineEnum.h"                  // for MOZ_DEFINE_ENUM
 #include "mozilla/layers/ScrollableLayerGuid.h"  // for ViewID
-#ifdef MOZ_BUILD_WEBRENDER
-#  include "mozilla/webrender/WebRenderTypes.h"  // for RenderRoot
-#endif
 #include "mozilla/Variant.h"  // for Variant
 
 namespace mozilla {

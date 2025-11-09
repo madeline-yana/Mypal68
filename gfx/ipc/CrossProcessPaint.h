@@ -10,10 +10,11 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/ipc/ByteBuf.h"
-#include "nsDataHashtable.h"
+#include "nsColor.h"
+#include "nsTHashMap.h"
 #include "nsHashKeys.h"
 #include "nsRefPtrHashtable.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 
 namespace IPC {
 template <typename T>
@@ -62,11 +63,11 @@ class PaintFragment final {
 
   typedef mozilla::ipc::ByteBuf ByteBuf;
 
-  PaintFragment(IntSize, ByteBuf&&, nsTHashtable<nsUint64HashKey>&&);
+  PaintFragment(IntSize, ByteBuf&&, nsTHashSet<uint64_t>&&);
 
   IntSize mSize;
   ByteBuf mRecording;
-  nsTHashtable<nsUint64HashKey> mDependencies;
+  nsTHashSet<uint64_t> mDependencies;
 };
 
 /**
@@ -119,7 +120,7 @@ class CrossProcessPaint final {
 
  private:
   typedef nsRefPtrHashtable<nsUint64HashKey, SourceSurface> ResolvedSurfaceMap;
-  typedef nsDataHashtable<nsUint64HashKey, PaintFragment> ReceivedFragmentMap;
+  typedef nsTHashMap<nsUint64HashKey, PaintFragment> ReceivedFragmentMap;
 
   CrossProcessPaint(dom::Promise* aPromise, float aScale,
                     nscolor aBackgroundColor, dom::TabId aRootId);

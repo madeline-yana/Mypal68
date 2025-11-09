@@ -47,10 +47,12 @@
  */
 
 #include "gfxScriptItemizer.h"
-#include "nsUnicodeProperties.h"
+#include "mozilla/intl/UnicodeProperties.h"
 #include "nsCharTraits.h"
+#include "nsUnicodeProperties.h"
 #include "harfbuzz/hb.h"
 
+using namespace mozilla::intl;
 using namespace mozilla::unicode;
 
 #define MOD(sp) ((sp) % PAREN_STACK_DEPTH)
@@ -103,14 +105,19 @@ void gfxScriptItemizer::fixup(Script newScriptCode) {
   }
 }
 
+static inline bool CanMergeWithContext(Script aScript) {
+  return aScript <= Script::INHERITED || aScript == Script::UNKNOWN;
+}
+
 // We regard the current char as having the same script as the in-progress run
-// if either script code is Common or Inherited, or if the run script appears
+// if either script is Common/Inherited/Unknown, or if the run script appears
 // in the character's ScriptExtensions, or if the char is a cluster extender.
 static inline bool SameScript(Script runScript, Script currCharScript,
                               uint32_t aCurrCh) {
-  return runScript <= Script::INHERITED ||
-         currCharScript <= Script::INHERITED || currCharScript == runScript ||
-         IsClusterExtender(aCurrCh) || HasScript(aCurrCh, runScript);
+  return CanMergeWithContext(runScript) ||
+         CanMergeWithContext(currCharScript) || currCharScript == runScript ||
+         IsClusterExtender(aCurrCh) ||
+         UnicodeProperties::HasScript(aCurrCh, runScript);
 }
 
 gfxScriptItemizer::gfxScriptItemizer(const char16_t* src, uint32_t length)
@@ -134,6 +141,7 @@ bool gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
 
   SYNC_FIXUP();
   scriptCode = Script::COMMON;
+  Script fallbackScript = Script::UNKNOWN;
 
   for (scriptStart = scriptLimit; scriptLimit < textLength; scriptLimit += 1) {
     uint32_t ch;
@@ -155,7 +163,7 @@ bool gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
     // if the character has script=COMMON, otherwise we don't care.
     uint8_t gc = HB_UNICODE_GENERAL_CATEGORY_UNASSIGNED;
 
-    sc = GetScriptCode(ch);
+    sc = UnicodeProperties::GetScriptCode(ch);
     if (sc == Script::COMMON) {
       /*
        * Paired character handling:
@@ -170,12 +178,12 @@ bool gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
        */
       gc = GetGeneralCategory(ch);
       if (gc == HB_UNICODE_GENERAL_CATEGORY_OPEN_PUNCTUATION) {
-        uint32_t endPairChar = mozilla::unicode::GetMirroredChar(ch);
+        uint32_t endPairChar = UnicodeProperties::CharMirror(ch);
         if (endPairChar != ch) {
           push(endPairChar, scriptCode);
         }
       } else if (gc == HB_UNICODE_GENERAL_CATEGORY_CLOSE_PUNCTUATION &&
-                 HasMirroredChar(ch)) {
+                 UnicodeProperties::IsMirrored(ch)) {
         while (STACK_IS_NOT_EMPTY() && TOP().endPairChar != ch) {
           pop();
         }
@@ -187,9 +195,25 @@ bool gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
     }
 
     if (SameScript(scriptCode, sc, ch)) {
-      if (scriptCode <= Script::INHERITED && sc > Script::INHERITED) {
-        scriptCode = sc;
-        fixup(scriptCode);
+      if (scriptCode == Script::COMMON) {
+        // If we have not yet resolved a specific scriptCode for the run,
+        // check whether this character provides it.
+        if (!CanMergeWithContext(sc)) {
+          // Use this character's script.
+          scriptCode = sc;
+          fixup(scriptCode);
+        } else if (fallbackScript == Script::UNKNOWN) {
+          // See if the character has a ScriptExtensions property we can
+          // store for use in the event the run remains unresolved.
+          UnicodeProperties::ScriptExtensionVector extensions;
+          auto extResult = UnicodeProperties::GetExtensions(ch, extensions);
+          if (extResult.isOk()) {
+            Script ext = Script(extensions[0]);
+            if (!CanMergeWithContext(ext)) {
+              fallbackScript = ext;
+            }
+          }
+        }
       }
 
       /*
@@ -197,7 +221,7 @@ bool gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
        * pop the matching open character from the stack
        */
       if (gc == HB_UNICODE_GENERAL_CATEGORY_CLOSE_PUNCTUATION &&
-          HasMirroredChar(ch)) {
+          UnicodeProperties::IsMirrored(ch)) {
         pop();
       }
     } else {
@@ -213,7 +237,12 @@ bool gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
 
   aRunStart = scriptStart;
   aRunLimit = scriptLimit;
-  aRunScript = scriptCode;
+
+  if (scriptCode == Script::COMMON && fallbackScript != Script::UNKNOWN) {
+    aRunScript = fallbackScript;
+  } else {
+    aRunScript = scriptCode;
+  }
 
   return true;
 }

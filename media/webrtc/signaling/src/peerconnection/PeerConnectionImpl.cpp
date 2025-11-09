@@ -1905,13 +1905,14 @@ bool PeerConnectionImpl::PluginCrash(uint32_t aPluginID,
   init.mBubbles = true;
   init.mCancelable = true;
 
-  RefPtr<PluginCrashedEvent> event = PluginCrashedEvent::Constructor(
-      doc, NS_LITERAL_STRING("PluginCrashed"), init);
+  RefPtr<PluginCrashedEvent> event =
+      PluginCrashedEvent::Constructor(doc, u"PluginCrashed"_ns, init);
 
   event->SetTrusted(true);
   event->WidgetEventPtr()->mFlags.mOnlyChromeDispatch = true;
 
-  EventDispatcher::DispatchDOMEvent(mWindow, nullptr, event, nullptr, nullptr);
+  nsCOMPtr<nsPIDOMWindowInner> window = mWindow;
+  EventDispatcher::DispatchDOMEvent(window, nullptr, event, nullptr, nullptr);
 
   return true;
 }
@@ -2344,15 +2345,14 @@ static UniquePtr<dom::RTCStatsCollection> GetSenderStats_s(
   UniquePtr<dom::RTCStatsCollection> report(new dom::RTCStatsCollection);
   auto asVideo = aPipeline->Conduit()->AsVideoSessionConduit();
 
-  nsString kind = asVideo.isNothing() ? NS_LITERAL_STRING("audio")
-                                      : NS_LITERAL_STRING("video");
-  nsString idstr = kind + NS_LITERAL_STRING("_");
+  nsString kind = asVideo.isNothing() ? u"audio"_ns : u"video"_ns;
+  nsString idstr = kind + u"_"_ns;
   idstr.AppendInt(static_cast<uint32_t>(aPipeline->Level()));
 
   // TODO(@@NG):ssrcs handle Conduits having multiple stats at the same level
   // This is pending spec work
   // Gather pipeline stats.
-  nsString localId = NS_LITERAL_STRING("outbound_rtp_") + idstr;
+  nsString localId = u"outbound_rtp_"_ns + idstr;
   nsString remoteId;
   Maybe<uint32_t> ssrc;
   std::vector<unsigned int> ssrcvals = aPipeline->Conduit()->GetLocalSSRCs();
@@ -2373,7 +2373,7 @@ static UniquePtr<dom::RTCStatsCollection> GetSenderStats_s(
     if (timestamp.isSome() &&
         aPipeline->Conduit()->GetRTCPReceiverReport(
             &jitterMs, &packetsReceived, &bytesReceived, &packetsLost, &rtt)) {
-      remoteId = NS_LITERAL_STRING("outbound_rtcp_") + idstr;
+      remoteId = u"outbound_rtcp_"_ns + idstr;
       RTCRemoteInboundRtpStreamStats s;
       s.mTimestamp.Construct(*timestamp);
       s.mId.Construct(remoteId);

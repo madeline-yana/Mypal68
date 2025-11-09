@@ -22,6 +22,9 @@ const {
 const {
   WatchpointMap,
 } = require("devtools/server/actors/utils/watchpoint-map");
+const {
+  isHiddenSource,
+} = require("devtools/server/actors/utils/TabSources");
 
 const { logEvent } = require("devtools/server/actors/utils/logEvent");
 
@@ -124,7 +127,6 @@ const ThreadActor = ActorClassWithSpec(threadSpec, {
     this._watchpointsMap = new WatchpointMap(this);
 
     this._options = {
-      autoBlackBox: false,
       skipBreakpoints: false,
     };
 
@@ -361,7 +363,6 @@ const ThreadActor = ActorClassWithSpec(threadSpec, {
     this._debuggerSourcesSeen = new WeakSet();
 
     this._options = { ...this._options, ...options };
-    this.sources.setOptions(this._options);
     this.sources.on("newSource", this.onNewSourceEvent);
 
     // Initialize an event loop stack. This can't be done in the constructor,
@@ -654,6 +655,9 @@ const ThreadActor = ActorClassWithSpec(threadSpec, {
     if ("observeAsmJS" in options) {
       this.dbg.allowUnobservedAsmJS = !options.observeAsmJS;
     }
+    if ("observeWasm" in options) {
+      this.dbg.allowUnobservedWasm = !options.observeWasm;
+    }
 
     if ("pauseWorkersUntilAttach" in options) {
       if (this._parent.pauseWorkersUntilAttach) {
@@ -662,9 +666,6 @@ const ThreadActor = ActorClassWithSpec(threadSpec, {
     }
 
     this._options = { ...this._options, ...options };
-
-    // Update the global source store
-    this.sources.setOptions(options);
 
     return {};
   },
@@ -792,7 +793,7 @@ const ThreadActor = ActorClassWithSpec(threadSpec, {
       }
 
       if (!sourceActor) {
-        // If the frame location is in a source that not pass the 'allowSource'
+        // If the frame location is in a source that not pass the 'isHiddenSource'
         // check and thus has no actor, we do not bother pausing.
         return undefined;
       }
@@ -1893,7 +1894,7 @@ const ThreadActor = ActorClassWithSpec(threadSpec, {
    * @returns true, if the source was added; false otherwise.
    */
   _addSource: function(source) {
-    if (!this.sources.allowSource(source)) {
+    if (isHiddenSource(source)) {
       return false;
     }
 

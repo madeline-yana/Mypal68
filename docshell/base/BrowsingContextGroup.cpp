@@ -21,23 +21,23 @@ bool BrowsingContextGroup::Contains(BrowsingContext* aBrowsingContext) {
 
 void BrowsingContextGroup::Register(BrowsingContext* aBrowsingContext) {
   MOZ_DIAGNOSTIC_ASSERT(aBrowsingContext);
-  mContexts.PutEntry(aBrowsingContext);
+  mContexts.Insert(aBrowsingContext);
 }
 
 void BrowsingContextGroup::Unregister(BrowsingContext* aBrowsingContext) {
   MOZ_DIAGNOSTIC_ASSERT(aBrowsingContext);
-  mContexts.RemoveEntry(aBrowsingContext);
+  mContexts.Remove(aBrowsingContext);
 }
 
 void BrowsingContextGroup::Subscribe(ContentParent* aOriginProcess) {
   MOZ_DIAGNOSTIC_ASSERT(aOriginProcess);
-  mSubscribers.PutEntry(aOriginProcess);
+  mSubscribers.Insert(aOriginProcess);
   aOriginProcess->OnBrowsingContextGroupSubscribe(this);
 }
 
 void BrowsingContextGroup::Unsubscribe(ContentParent* aOriginProcess) {
   MOZ_DIAGNOSTIC_ASSERT(aOriginProcess);
-  mSubscribers.RemoveEntry(aOriginProcess);
+  mSubscribers.Remove(aOriginProcess);
   aOriginProcess->OnBrowsingContextGroupUnsubscribe(this);
 }
 
@@ -64,8 +64,8 @@ void BrowsingContextGroup::EnsureSubscribed(ContentParent* aProcess) {
 
   // Ensure that cached BrowsingContext objects are also visited, by visiting
   // them after mToplevels.
-  for (auto iter = mCachedContexts.Iter(); !iter.Done(); iter.Next()) {
-    iter.Get()->GetKey()->PreOrderWalk([&](BrowsingContext* aContext) {
+  for (const auto& key : mCachedContexts) {
+    key->PreOrderWalk([&](BrowsingContext* aContext) {
       inits.AppendElement(aContext->GetIPCInitializer());
     });
   }
@@ -84,13 +84,13 @@ bool BrowsingContextGroup::IsContextCached(BrowsingContext* aContext) const {
 }
 
 void BrowsingContextGroup::CacheContext(BrowsingContext* aContext) {
-  mCachedContexts.PutEntry(aContext);
+  mCachedContexts.Insert(aContext);
 }
 
 void BrowsingContextGroup::CacheContexts(
     const BrowsingContext::Children& aContexts) {
   for (BrowsingContext* child : aContexts) {
-    mCachedContexts.PutEntry(child);
+    mCachedContexts.Insert(child);
   }
 }
 
@@ -99,9 +99,8 @@ bool BrowsingContextGroup::EvictCachedContext(BrowsingContext* aContext) {
 }
 
 BrowsingContextGroup::~BrowsingContextGroup() {
-  for (auto iter = mSubscribers.Iter(); !iter.Done(); iter.Next()) {
-    nsRefPtrHashKey<ContentParent>* entry = iter.Get();
-    entry->GetKey()->OnBrowsingContextGroupUnsubscribe(this);
+  for (const auto& key : mSubscribers) {
+    key->OnBrowsingContextGroupUnsubscribe(this);
   }
 }
 

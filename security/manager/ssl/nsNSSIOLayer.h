@@ -10,7 +10,7 @@
 #include "mozilla/TimeStamp.h"
 #include "mozilla/UniquePtr.h"
 #include "nsCOMPtr.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsIClientAuthDialogs.h"
 #include "nsIProxyInfo.h"
 #include "nsISSLSocketControl.h"
@@ -244,7 +244,7 @@ class nsSSLIOLayerHelpers {
       MOZ_ASSERT(intolerant == 0 || tolerant < intolerant);
     }
   };
-  nsDataHashtable<nsCStringHashKey, IntoleranceEntry> mTLSIntoleranceInfo;
+  nsTHashMap<nsCStringHashKey, IntoleranceEntry> mTLSIntoleranceInfo;
   // Sites that require insecure fallback to TLS 1.0, set by the pref
   // security.tls.insecure_fallback_hosts, which is a comma-delimited
   // list of domain names.

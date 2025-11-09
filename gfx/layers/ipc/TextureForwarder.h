@@ -7,6 +7,7 @@
 
 #include <stdint.h>  // for int32_t, uint64_t
 #include "gfxTypes.h"
+#include "mozilla/ipc/ProtocolUtils.h" //MY
 #include "mozilla/layers/LayersMessages.h"  // for Edit, etc
 #include "mozilla/layers/LayersTypes.h"     // for LayersBackend
 #include "mozilla/layers/TextureClient.h"   // for TextureClient

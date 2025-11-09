@@ -26,8 +26,8 @@ SHistoryListener.prototype = {
   OnHistoryReplaceEntry() {},
 
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsISHistoryListener,
-    Ci.nsISupportsWeakReference,
+    "nsISHistoryListener",
+    "nsISupportsWeakReference",
   ]),
 };
 

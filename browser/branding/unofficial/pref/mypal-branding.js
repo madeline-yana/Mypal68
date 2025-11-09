@@ -29,6 +29,4 @@ pref("app.update.badgeWaitTime", 0);
 // If this is less than 5, then pasting code into the web console is disabled
 pref("devtools.selfxss.count", 5);
 
-pref("general.useragent.override.yandex.com", "Mozilla/5.0 (Windows NT 5.1; rv:102.0) Gecko/20100101 Firefox/102.0");
-pref("general.useragent.override.yandex.eu", "Mozilla/5.0 (Windows NT 5.1; rv:102.0) Gecko/20100101 Firefox/102.0");
-pref("general.useragent.override.yandex.ru", "Mozilla/5.0 (Windows NT 5.1; rv:102.0) Gecko/20100101 Firefox/102.0");
+pref("general.useragent.override.www.aliexpress.com", "Mozilla/5.0 (Windows NT 5.1; rv:91.0) Gecko/20100101 Firefox/91.0");

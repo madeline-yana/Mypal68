@@ -40,7 +40,7 @@ function ConsoleAPIListener(window, owner, { addonId } = {}) {
 exports.ConsoleAPIListener = ConsoleAPIListener;
 
 ConsoleAPIListener.prototype = {
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIObserver]),
+  QueryInterface: ChromeUtils.generateQI(["nsIObserver"]),
 
   /**
    * The content window for which we listen to window.console API calls.

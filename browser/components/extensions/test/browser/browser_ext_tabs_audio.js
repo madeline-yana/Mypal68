@@ -207,11 +207,11 @@ add_task(async function() {
   });
 
   extension.onMessage("change-tab", (tabId, attr, on) => {
-    let {
+    const {
       Management: {
         global: { tabTracker },
       },
-    } = ChromeUtils.import("resource://gre/modules/Extension.jsm", null);
+    } = ChromeUtils.import("resource://gre/modules/Extension.jsm");
 
     let tab = tabTracker.getTab(tabId);
 

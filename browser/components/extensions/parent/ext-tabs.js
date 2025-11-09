@@ -1452,7 +1452,7 @@ this.tabs = class extends ExtensionAPI {
                     }
                   },
                   QueryInterface: ChromeUtils.generateQI([
-                    Ci.nsIWebProgressListener,
+                    "nsIWebProgressListener",
                   ]),
                 };
 

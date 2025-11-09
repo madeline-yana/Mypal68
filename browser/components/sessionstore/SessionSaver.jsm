@@ -6,9 +6,16 @@
 
 var EXPORTED_SYMBOLS = ["SessionSaver"];
 
-ChromeUtils.import("resource://gre/modules/Timer.jsm", this);
-ChromeUtils.import("resource://gre/modules/Services.jsm", this);
-ChromeUtils.import("resource://gre/modules/XPCOMUtils.jsm", this);
+const {
+  cancelIdleCallback,
+  clearTimeout,
+  requestIdleCallback,
+  setTimeout,
+} = ChromeUtils.import("resource://gre/modules/Timer.jsm");
+const { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
+const { XPCOMUtils } = ChromeUtils.import(
+  "resource://gre/modules/XPCOMUtils.jsm"
+);
 
 XPCOMUtils.defineLazyModuleGetters(this, {
   AppConstants: "resource://gre/modules/AppConstants.jsm",
@@ -45,18 +52,6 @@ const PREF_IDLE_DELAY = "browser.sessionstore.idleDelay";
 function notify(subject, topic) {
   Services.obs.notifyObservers(subject, topic);
 }
-
-// TelemetryStopwatch helper functions.
-function stopWatch(method) {
-  return function(...histograms) {
-    for (let hist of histograms) {
-      TelemetryStopwatch[method]("FX_SESSION_RESTORE_" + hist);
-    }
-  };
-}
-
-var stopWatchStart = stopWatch("start");
-var stopWatchFinish = stopWatch("finish");
 
 /**
  * The external API implemented by the SessionSaver module.
@@ -255,7 +250,6 @@ var SessionSaverInternal = {
       return Promise.resolve();
     }
 
-    stopWatchStart("COLLECT_DATA_MS");
     let state = SessionStore.getCurrentState(forceUpdateAllWindows);
     PrivacyFilter.filterPrivateWindowsAndTabs(state);
 
@@ -290,7 +284,6 @@ var SessionSaverInternal = {
     // Clear cookies and storage on clean shutdown.
     this._maybeClearCookiesAndStorage(state);
 
-    stopWatchFinish("COLLECT_DATA_MS");
     return this._writeState(state);
   },
 

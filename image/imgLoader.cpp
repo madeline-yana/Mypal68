@@ -115,23 +115,20 @@ class imgMemoryReporter final : public nsIMemoryReporter {
     nsTArray<ImageMemoryCounter> uncached;
 
     for (uint32_t i = 0; i < mKnownLoaders.Length(); i++) {
-      for (auto iter = mKnownLoaders[i]->mChromeCache.Iter(); !iter.Done();
+      for (auto iter = mKnownLoaders[i]->mChromeCache.ConstIter(); !iter.Done();
            iter.Next()) {
         imgCacheEntry* entry = iter.UserData();
         RefPtr<imgRequest> req = entry->GetRequest();
         RecordCounterForRequest(req, &chrome, !entry->HasNoProxies());
       }
-      for (auto iter = mKnownLoaders[i]->mCache.Iter(); !iter.Done();
+      for (auto iter = mKnownLoaders[i]->mCache.ConstIter(); !iter.Done();
            iter.Next()) {
         imgCacheEntry* entry = iter.UserData();
         RefPtr<imgRequest> req = entry->GetRequest();
         RecordCounterForRequest(req, &content, !entry->HasNoProxies());
       }
       MutexAutoLock lock(mKnownLoaders[i]->mUncachedImagesMutex);
-      for (auto iter = mKnownLoaders[i]->mUncachedImages.Iter(); !iter.Done();
-           iter.Next()) {
-        nsPtrHashKey<imgRequest>* entry = iter.Get();
-        RefPtr<imgRequest> req = entry->GetKey();
+      for (RefPtr<imgRequest> req : mKnownLoaders[i]->mUncachedImages) {
         RecordCounterForRequest(req, &uncached, req->HasConsumers());
       }
     }
@@ -181,7 +178,8 @@ class imgMemoryReporter final : public nsIMemoryReporter {
     size_t n = 0;
     for (uint32_t i = 0; i < imgLoader::sMemReporter->mKnownLoaders.Length();
          i++) {
-      for (auto iter = imgLoader::sMemReporter->mKnownLoaders[i]->mCache.Iter();
+      for (auto iter =
+               imgLoader::sMemReporter->mKnownLoaders[i]->mCache.ConstIter();
            !iter.Done(); iter.Next()) {
         imgCacheEntry* entry = iter.UserData();
         if (entry->HasNoProxies()) {
@@ -1319,9 +1317,7 @@ imgLoader::~imgLoader() {
     // If there are any of our imgRequest's left they are in the uncached
     // images set, so clear their pointer to us.
     MutexAutoLock lock(mUncachedImagesMutex);
-    for (auto iter = mUncachedImages.Iter(); !iter.Done(); iter.Next()) {
-      nsPtrHashKey<imgRequest>* entry = iter.Get();
-      RefPtr<imgRequest> req = entry->GetKey();
+    for (RefPtr<imgRequest> req : mUncachedImages) {
       req->ClearLoader();
     }
   }
@@ -1466,8 +1462,8 @@ imgLoader::RemoveEntriesFromPrincipal(nsIPrincipal* aPrincipal) {
   AutoTArray<RefPtr<imgCacheEntry>, 128> entriesToBeRemoved;
 
   imgCacheTable& cache = GetCache(aPrincipal->IsSystemPrincipal());
-  for (auto iter = cache.Iter(); !iter.Done(); iter.Next()) {
-    auto& key = iter.Key();
+  for (const auto& entry : cache) {
+    const auto& key = entry.GetKey();
 
     if (key.OriginAttributesRef() !=
         BasePrincipal::Cast(aPrincipal)->OriginAttributesRef()) {
@@ -1481,7 +1477,7 @@ imgLoader::RemoveEntriesFromPrincipal(nsIPrincipal* aPrincipal) {
     }
 
     if (imageOrigin == origin) {
-      entriesToBeRemoved.AppendElement(iter.Data());
+      entriesToBeRemoved.AppendElement(entry.GetData());
     }
   }
 
@@ -1552,10 +1548,10 @@ imgLoader::ClearCacheForControlledDocument(Document* aDoc) {
   MOZ_ASSERT(aDoc);
   AutoTArray<RefPtr<imgCacheEntry>, 128> entriesToBeRemoved;
   imgCacheTable& cache = GetCache(false);
-  for (auto iter = cache.Iter(); !iter.Done(); iter.Next()) {
-    auto& key = iter.Key();
+  for (const auto& entry : cache) {
+    const auto& key = entry.GetKey();
     if (key.ControlledDocument() == aDoc) {
-      entriesToBeRemoved.AppendElement(iter.Data());
+      entriesToBeRemoved.AppendElement(entry.GetData());
     }
   }
   for (auto& entry : entriesToBeRemoved) {
@@ -1615,7 +1611,7 @@ bool imgLoader::PutIntoCache(const ImageCacheKey& aKey, imgCacheEntry* entry) {
              nullptr));
   }
 
-  cache.Put(aKey, RefPtr{entry});
+  cache.InsertOrUpdate(aKey, RefPtr{entry});
 
   // We can be called to resurrect an evicted entry.
   if (entry->Evicted()) {
@@ -1782,7 +1778,7 @@ bool imgLoader::ValidateRequestWithNewChannel(
         auto preloadKey = PreloadHashKey::CreateAsImage(
             aURI, aTriggeringPrincipal, ConvertToCORSMode(aCORSMode),
             aReferrerInfo->ReferrerPolicy());
-        proxy->NotifyOpen(&preloadKey, aLoadingDocument, true);
+        proxy->NotifyOpen(preloadKey, aLoadingDocument, true);
       }
 
       // Attach the proxy without notifying
@@ -1851,7 +1847,7 @@ bool imgLoader::ValidateRequestWithNewChannel(
     auto preloadKey = PreloadHashKey::CreateAsImage(
         aURI, aTriggeringPrincipal, ConvertToCORSMode(aCORSMode),
         aReferrerInfo->ReferrerPolicy());
-    req->NotifyOpen(&preloadKey, aLoadingDocument, true);
+    req->NotifyOpen(preloadKey, aLoadingDocument, true);
   }
 
   // Add the proxy without notifying
@@ -2087,8 +2083,8 @@ nsresult imgLoader::EvictEntries(imgCacheTable& aCacheToClear) {
   // We have to make a temporary, since RemoveFromCache removes the element
   // from the queue, invalidating iterators.
   nsTArray<RefPtr<imgCacheEntry> > entries;
-  for (auto iter = aCacheToClear.Iter(); !iter.Done(); iter.Next()) {
-    RefPtr<imgCacheEntry>& data = iter.Data();
+  for (auto iter = aCacheToClear.ConstIter(); !iter.Done(); iter.Next()) {
+    const RefPtr<imgCacheEntry>& data = iter.Data();
     entries.AppendElement(data);
   }
 
@@ -2127,12 +2123,12 @@ nsresult imgLoader::EvictEntries(imgCacheQueue& aQueueToClear) {
 
 void imgLoader::AddToUncachedImages(imgRequest* aRequest) {
   MutexAutoLock lock(mUncachedImagesMutex);
-  mUncachedImages.PutEntry(aRequest);
+  mUncachedImages.Insert(aRequest);
 }
 
 void imgLoader::RemoveFromUncachedImages(imgRequest* aRequest) {
   MutexAutoLock lock(mUncachedImagesMutex);
-  mUncachedImages.RemoveEntry(aRequest);
+  mUncachedImages.Remove(aRequest);
 }
 
 bool imgLoader::PreferLoadFromCache(nsIURI* aURI) const {
@@ -2270,7 +2266,7 @@ nsresult imgLoader::LoadImage(
         aReferrerInfo ? aReferrerInfo->ReferrerPolicy()
                       : ReferrerPolicy::_empty);
     if (RefPtr<PreloaderBase> preload =
-            aLoadingDocument->Preloads().LookupPreload(&key)) {
+            aLoadingDocument->Preloads().LookupPreload(key)) {
       RefPtr<imgRequestProxy> proxy = do_QueryObject(preload);
       MOZ_ASSERT(proxy);
 
@@ -2501,7 +2497,7 @@ nsresult imgLoader::LoadImage(
       auto preloadKey = PreloadHashKey::CreateAsImage(
           aURI, aTriggeringPrincipal, ConvertToCORSMode(corsmode),
           aReferrerInfo->ReferrerPolicy());
-      proxy->NotifyOpen(&preloadKey, aLoadingDocument, true);
+      proxy->NotifyOpen(preloadKey, aLoadingDocument, true);
     }
 
     // Note that it's OK to add here even if the request is done.  If it is,

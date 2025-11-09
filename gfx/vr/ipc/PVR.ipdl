@@ -4,7 +4,7 @@
 
 using mozilla::TimeStamp from "mozilla/TimeStamp.h";
 using mozilla::gfx::OpenVRControllerType from "VRMessageUtils.h";
-using mozilla::dom::NativeThreadId from "mozilla/dom/TabMessageUtils.h";
+using mozilla::dom::NativeThreadId from "mozilla/dom/NativeThreadId.h";
 include "VRMessageUtils.h";
 
 include GraphicsMessages;

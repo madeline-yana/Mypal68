@@ -289,7 +289,6 @@ class GeckoAppShellSupport final
       case hal::SENSOR_LINEAR_ACCELERATION:
       case hal::SENSOR_ACCELERATION:
       case hal::SENSOR_GYROSCOPE:
-      case hal::SENSOR_PROXIMITY:
         values.AppendElement(aX);
         values.AppendElement(aY);
         values.AppendElement(aZ);
@@ -638,7 +637,6 @@ bool nsAppShell::ProcessNextNativeEvent(bool mayWait) {
       AUTO_PROFILER_LABEL("nsAppShell::ProcessNextNativeEvent:Wait", IDLE);
       mozilla::BackgroundHangMonitor().NotifyWait();
 
-      AUTO_PROFILER_THREAD_SLEEP;
       curEvent = mEventQueue.Pop(/* mayWait */ true);
     }
   }
@@ -719,7 +717,7 @@ nsresult nsAppShell::AddObserver(const nsAString& aObserverKey,
                                  nsIObserver* aObserver) {
   NS_ASSERTION(aObserver != nullptr,
                "nsAppShell::AddObserver: aObserver is null!");
-  mObserversHash.Put(aObserverKey, aObserver);
+  mObserversHash.InsertOrUpdate(aObserverKey, aObserver);
   return NS_OK;
 }
 

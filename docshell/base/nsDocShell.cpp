@@ -1304,12 +1304,6 @@ nsDocShell::GatherCharsetMenuTelemetry() {
 
 NS_IMETHODIMP
 nsDocShell::SetCharset(const nsACString& aCharset) {
-  // set the charset override
-  return SetForcedCharset(aCharset);
-}
-
-NS_IMETHODIMP
-nsDocShell::SetForcedCharset(const nsACString& aCharset) {
   if (aCharset.IsEmpty()) {
     mForcedCharset = nullptr;
     return NS_OK;
@@ -1324,16 +1318,6 @@ nsDocShell::SetForcedCharset(const nsACString& aCharset) {
     return NS_ERROR_INVALID_ARG;
   }
   mForcedCharset = encoding;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::GetForcedCharset(nsACString& aResult) {
-  if (mForcedCharset) {
-    mForcedCharset->Name(aResult);
-  } else {
-    aResult.Truncate();
-  }
   return NS_OK;
 }
 
@@ -3447,6 +3431,10 @@ Document* nsDocShell::GetDocument() {
   return mContentViewer->GetDocument();
 }
 
+Document* nsDocShell::GetExtantDocument() {
+  return mContentViewer ? mContentViewer->GetDocument() : nullptr;
+}
+
 nsPIDOMWindowOuter* nsDocShell::GetWindow() {
   if (NS_FAILED(EnsureScriptEnvironment())) {
     return nullptr;
@@ -4099,7 +4087,7 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
         break;
       case NS_ERROR_PROXY_CONNECTION_REFUSED:
       case NS_ERROR_PROXY_AUTHENTICATION_FAILED:
-      case NS_ERROR_TOO_MANY_REQUESTS:
+      case NS_ERROR_PROXY_TOO_MANY_REQUESTS:
         // Proxy connection was refused.
         error = "proxyConnectFailure";
         break;
@@ -6613,7 +6601,7 @@ nsresult nsDocShell::EndPageLoad(nsIWebProgress* aProgress,
          aStatus == NS_ERROR_UNKNOWN_PROXY_HOST ||
          aStatus == NS_ERROR_PROXY_CONNECTION_REFUSED ||
          aStatus == NS_ERROR_PROXY_AUTHENTICATION_FAILED ||
-         aStatus == NS_ERROR_TOO_MANY_REQUESTS ||
+         aStatus == NS_ERROR_PROXY_TOO_MANY_REQUESTS ||
          aStatus == NS_ERROR_BLOCKED_BY_POLICY) &&
         (isTopFrame || mUseErrorPages)) {
       DisplayLoadError(aStatus, url, nullptr, aChannel);

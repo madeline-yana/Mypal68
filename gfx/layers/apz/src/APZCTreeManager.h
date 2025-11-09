@@ -36,7 +36,6 @@ class MultiTouchInput;
 namespace wr {
 class TransactionWrapper;
 class WebRenderAPI;
-struct WrTransformProperty;
 }  // namespace wr
 #endif
 
@@ -219,14 +218,9 @@ class APZCTreeManager : public IAPZCTreeManager, public APZInputBridge {
    * another composite if there are still active animations.
    * In effect it is the webrender equivalent of (part of) the code in
    * AsyncCompositionManager.
-   * In the WebRender world a single "layer tree" might get split into multiple
-   * render roots; the aRenderRoot argument indicates which render root we are
-   * sampling in this call. The transaction should only be updated with samples
-   * from APZC instances in that render root.
    */
   void SampleForWebRender(wr::TransactionWrapper& aTxn,
-                          const TimeStamp& aSampleTime,
-                          wr::RenderRoot aRenderRoot);
+                          const TimeStamp& aSampleTime);
 #endif
 
   /**
@@ -522,20 +516,9 @@ class APZCTreeManager : public IAPZCTreeManager, public APZInputBridge {
   void AssertOnUpdaterThread();
 
 #ifdef MOZ_BUILD_WEBRENDER
-  // Returns a pointer to the WebRenderAPI this APZCTreeManager is for, for
-  // the provided RenderRoot (since an APZCTreeManager can cover multiple
-  // RenderRoots). This might be null (for example, if WebRender is not
-  // enabled).
-  already_AddRefed<wr::WebRenderAPI> GetWebRenderAPI(
-      wr::RenderRoot aRenderRoot) const;
-
-  // Returns a pointer to the root WebRenderAPI for the RenderRoot that owns
-  // the given point. For example, if aPoint is in the content area and
-  // RenderRoot splitting is enabled, this will return the WebRenderAPI for
-  // the Content RenderRoot.
+  // Returns a pointer to the WebRenderAPI this APZCTreeManager is for.
   // This might be null (for example, if WebRender is not enabled).
-  already_AddRefed<wr::WebRenderAPI> GetWebRenderAPIAtPoint(
-      const ScreenPoint& aPoint) const;
+  already_AddRefed<wr::WebRenderAPI> GetWebRenderAPI() const;
 #endif
 
  protected:

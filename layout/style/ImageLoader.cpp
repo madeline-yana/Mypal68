@@ -27,6 +27,7 @@
 #ifdef MOZ_BUILD_WEBRENDER
 #  include "mozilla/layers/WebRenderUserData.h"
 #endif
+#include "nsTHashSet.h"
 
 using namespace mozilla::dom;
 
@@ -55,7 +56,7 @@ NS_INTERFACE_MAP_END
 struct ImageTableEntry {
   // Set of all ImageLoaders that have registered this URL and care for updates
   // for it.
-  nsTHashtable<nsPtrHashKey<ImageLoader>> mImageLoaders;
+  nsTHashSet<ImageLoader*> mImageLoaders;
 
   // The amount of style values that are sharing this image.
   uint32_t mSharedCount = 1;
@@ -167,31 +168,38 @@ void ImageLoader::AssociateRequestToFrame(imgIRequest* aRequest,
     MOZ_ASSERT(observer == sImageObserver);
   }
 
-  const auto& frameSet =
-      mRequestToFrameMap.LookupForAdd(aRequest).OrInsert([=]() {
-        mDocument->ImageTracker()->Add(aRequest);
+  auto* const frameSet =
+      mRequestToFrameMap
+          .LookupOrInsertWith(
+              aRequest,
+              [&] {
+                mDocument->ImageTracker()->Add(aRequest);
 
-        if (auto entry = sImages->Lookup(aRequest)) {
-          DebugOnly<bool> inserted =
-              entry.Data()->mImageLoaders.EnsureInserted(this);
-          MOZ_ASSERT(inserted);
-        } else {
-          MOZ_ASSERT_UNREACHABLE(
-              "Shouldn't be associating images not in sImages");
-        }
+                if (auto entry = sImages->Lookup(aRequest)) {
+                  DebugOnly<bool> inserted =
+                      entry.Data()->mImageLoaders.EnsureInserted(this);
+                  MOZ_ASSERT(inserted);
+                } else {
+                  MOZ_ASSERT_UNREACHABLE(
+                      "Shouldn't be associating images not in sImages");
+                }
 
-        if (nsPresContext* presContext = GetPresContext()) {
-          nsLayoutUtils::RegisterImageRequestIfAnimated(presContext, aRequest,
-                                                        nullptr);
-        }
-        return new FrameSet();
-      });
+                if (nsPresContext* presContext = GetPresContext()) {
+                  nsLayoutUtils::RegisterImageRequestIfAnimated(
+                      presContext, aRequest, nullptr);
+                }
+                return MakeUnique<FrameSet>();
+              })
+          .get();
 
-  const auto& requestSet =
-      mFrameToRequestMap.LookupForAdd(aFrame).OrInsert([=]() {
-        aFrame->SetHasImageRequest(true);
-        return new RequestSet();
-      });
+  auto* const requestSet =
+      mFrameToRequestMap
+          .LookupOrInsertWith(aFrame,
+                              [=]() {
+                                aFrame->SetHasImageRequest(true);
+                                return MakeUnique<RequestSet>();
+                              })
+          .get();
 
   // Add frame to the frameSet, and handle any special processing the
   // frame might require.
@@ -344,8 +352,8 @@ void ImageLoader::SetAnimationMode(uint16_t aMode) {
                    aMode == imgIContainer::kLoopOnceAnimMode,
                "Wrong Animation Mode is being set!");
 
-  for (auto iter = mRequestToFrameMap.ConstIter(); !iter.Done(); iter.Next()) {
-    auto request = static_cast<imgIRequest*>(iter.Key());
+  for (nsISupports* key : mRequestToFrameMap.Keys()) {
+    auto* request = static_cast<imgIRequest*>(key);
 
 #ifdef DEBUG
     {
@@ -368,8 +376,8 @@ void ImageLoader::SetAnimationMode(uint16_t aMode) {
 void ImageLoader::ClearFrames(nsPresContext* aPresContext) {
   MOZ_ASSERT(NS_IsMainThread());
 
-  for (auto iter = mRequestToFrameMap.ConstIter(); !iter.Done(); iter.Next()) {
-    auto request = static_cast<imgIRequest*>(iter.Key());
+  for (const auto& key : mRequestToFrameMap.Keys()) {
+    auto* request = static_cast<imgIRequest*>(key);
 
 #ifdef DEBUG
     {
@@ -464,7 +472,7 @@ already_AddRefed<imgRequestProxy> ImageLoader::LoadImage(
     }
   }
 
-  sImages->LookupForAdd(request).OrInsert([] { return new ImageTableEntry(); });
+  sImages->GetOrInsertNew(request);
   return request.forget();
 }
 
@@ -676,12 +684,9 @@ void GlobalImageObserver::Notify(imgIRequest* aRequest, int32_t aType,
     return;
   }
 
-  auto& loaders = entry.Data()->mImageLoaders;
-  nsTArray<RefPtr<ImageLoader>> loadersToNotify(loaders.Count());
-  for (auto iter = loaders.Iter(); !iter.Done(); iter.Next()) {
-    loadersToNotify.AppendElement(iter.Get()->GetKey());
-  }
-  for (auto& loader : loadersToNotify) {
+  const auto loadersToNotify =
+      ToTArray<nsTArray<RefPtr<ImageLoader>>>(entry.Data()->mImageLoaders);
+  for (const auto& loader : loadersToNotify) {
     loader->Notify(aRequest, aType, aData);
   }
 }

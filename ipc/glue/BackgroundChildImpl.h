@@ -6,6 +6,7 @@
 #define mozilla_ipc_backgroundchildimpl_h__
 
 #include "mozilla/Attributes.h"
+#include "mozilla/ipc/InputStreamUtils.h"
 #include "mozilla/ipc/PBackgroundChild.h"
 #include "mozilla/UniquePtr.h"
 #include "nsRefPtrHashtable.h"
@@ -26,7 +27,8 @@ namespace ipc {
 
 // Instances of this class should never be created directly. This class is meant
 // to be inherited in BackgroundImpl.
-class BackgroundChildImpl : public PBackgroundChild {
+class BackgroundChildImpl : public PBackgroundChild,
+                            public ChildToParentStreamActorManager {
  public:
   class ThreadLocal;
 
@@ -36,6 +38,11 @@ class BackgroundChildImpl : public PBackgroundChild {
   // process of being created). Otherwise this function returns null.
   // This functions is implemented in BackgroundImpl.cpp.
   static ThreadLocal* GetThreadLocalForCurrentThread();
+
+  PChildToParentStreamChild* SendPChildToParentStreamConstructor(
+      PChildToParentStreamChild* aActor) override;
+  PFileDescriptorSetChild* SendPFileDescriptorSetConstructor(
+      const FileDescriptor& aFD) override;
 
  protected:
   BackgroundChildImpl();
@@ -98,7 +105,8 @@ class BackgroundChildImpl : public PBackgroundChild {
       PBackgroundLocalStorageCacheChild* aActor) override;
 
   virtual PBackgroundStorageChild* AllocPBackgroundStorageChild(
-      const nsString& aProfilePath) override;
+      const nsString& aProfilePath,
+      const uint32_t& aPrivateBrowsingId) override;
 
   virtual bool DeallocPBackgroundStorageChild(
       PBackgroundStorageChild* aActor) override;
@@ -208,6 +216,7 @@ class BackgroundChildImpl : public PBackgroundChild {
   virtual bool DeallocPQuotaChild(PQuotaChild* aActor) override;
 
   // Gamepad API Background IPC
+#ifdef MOZ_GAMEPAD
   virtual PGamepadEventChannelChild* AllocPGamepadEventChannelChild() override;
 
   virtual bool DeallocPGamepadEventChannelChild(
@@ -217,6 +226,7 @@ class BackgroundChildImpl : public PBackgroundChild {
 
   virtual bool DeallocPGamepadTestChannelChild(
       PGamepadTestChannelChild* aActor) override;
+#endif
 
   virtual PClientManagerChild* AllocPClientManagerChild() override;
 

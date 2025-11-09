@@ -54,8 +54,8 @@ async function recordReflows(testPromise, win = window) {
     },
 
     QueryInterface: ChromeUtils.generateQI([
-      Ci.nsIReflowObserver,
-      Ci.nsISupportsWeakReference,
+      "nsIReflowObserver",
+      "nsISupportsWeakReference",
     ]),
   };
 

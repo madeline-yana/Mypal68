@@ -22,6 +22,7 @@ NS_IMPL_RELEASE(MaybeCloseWindowHelper)
 
 NS_INTERFACE_MAP_BEGIN(MaybeCloseWindowHelper)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY(nsITimerCallback)
 NS_INTERFACE_MAP_END
 
 MaybeCloseWindowHelper::MaybeCloseWindowHelper(

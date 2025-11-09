@@ -126,8 +126,8 @@ function tunnelToInnerBrowser(outer, inner) {
     // browser and they share it.
 
     QueryInterface: ChromeUtils.generateQI([
-      Ci.nsISupportsWeakReference,
-      Ci.nsIWebProgressListener,
+      "nsISupportsWeakReference",
+      "nsIWebProgressListener",
     ]),
   };
 

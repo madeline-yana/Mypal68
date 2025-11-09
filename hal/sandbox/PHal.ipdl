@@ -5,6 +5,7 @@
 include protocol PContent;
 include protocol PBrowser;
 
+include "mozilla/dom/ReferrerInfoUtils.h";
 include "mozilla/GfxMessageUtils.h";
 
 using hal::ScreenOrientation from "mozilla/HalScreenConfiguration.h";

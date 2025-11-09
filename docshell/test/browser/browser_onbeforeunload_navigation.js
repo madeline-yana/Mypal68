@@ -186,7 +186,7 @@ var tabStateListener = {
   onSecurityChange: () => {},
   onProgressChange: () => {},
   onContentBlockingEvent: () => {},
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIWebProgressListener]),
+  QueryInterface: ChromeUtils.generateQI(["nsIWebProgressListener"]),
 };
 
 function onTabModalDialogLoaded(node) {

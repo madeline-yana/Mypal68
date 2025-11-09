@@ -17,7 +17,6 @@ EXPORTS += [
 
 EXPORTS.mozilla.dom += [
     'ChildSHistory.h',
-    'ParentSHistory.h',
 ]
 
 UNIFIED_SOURCES += [
@@ -25,7 +24,6 @@ UNIFIED_SOURCES += [
     'nsSHEntry.cpp',
     'nsSHEntryShared.cpp',
     'nsSHistory.cpp',
-    'ParentSHistory.cpp',
 ]
 
 LOCAL_INCLUDES += [

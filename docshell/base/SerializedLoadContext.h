@@ -7,6 +7,7 @@
 
 #include "base/basictypes.h"
 #include "ipc/IPCMessageUtils.h"
+#include "ipc/IPCMessageUtilsSpecializations.h"
 #include "mozilla/BasePrincipal.h"
 
 class nsILoadContext;

@@ -8,6 +8,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "gfxPlatformFontList.h"
 #include "mozilla/gfx/UnscaledFontFreeType.h"
+#include "nsTHashSet.h"
 
 namespace mozilla {
 namespace dom {
@@ -21,6 +22,8 @@ class nsZipArchive;
 class WillShutdownObserver;
 
 class FT2FontEntry : public gfxFontEntry {
+  friend class gfxFT2FontList;
+
   using FontListEntry = mozilla::dom::SystemFontListEntry;
 
  public:
@@ -96,7 +99,8 @@ class FT2FontEntry : public gfxFontEntry {
    * not be able to find it when the shared font list is in use.
    */
   void AppendToFaceList(nsCString& aFaceList, const nsACString& aFamilyName,
-                        const nsACString& aPSName, const nsACString& aFullName);
+                        const nsACString& aPSName, const nsACString& aFullName,
+                        FontVisibility aVisibility);
 
   void AddSizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
                               FontListSizes* aSizes) const override;
@@ -122,7 +126,8 @@ class FT2FontFamily : public gfxFontFamily {
   using FontListEntry = mozilla::dom::SystemFontListEntry;
 
  public:
-  explicit FT2FontFamily(const nsACString& aName) : gfxFontFamily(aName) {}
+  explicit FT2FontFamily(const nsACString& aName, FontVisibility aVisibility)
+      : gfxFontFamily(aName, aVisibility) {}
 
   // Append this family's faces to the IPC fontlist
   void AddFacesToFontList(nsTArray<FontListEntry>* aFontList);
@@ -160,7 +165,8 @@ class gfxFT2FontList : public gfxPlatformFontList {
         gfxPlatformFontList::PlatformFontList());
   }
 
-  gfxFontFamily* CreateFontFamily(const nsACString& aName) const override;
+  gfxFontFamily* CreateFontFamily(const nsACString& aName,
+                                  FontVisibility aVisibility) const override;
 
   void WillShutdown();
 
@@ -218,7 +224,7 @@ class gfxFT2FontList : public gfxPlatformFontList {
 
   FontFamily GetDefaultFontForPlatform(const gfxFontStyle* aStyle) override;
 
-  nsTHashtable<nsCStringHashKey> mSkipSpaceLookupCheckFamilies;
+  nsTHashSet<nsCString> mSkipSpaceLookupCheckFamilies;
 
  private:
   mozilla::UniquePtr<FontNameCache> mFontNameCache;

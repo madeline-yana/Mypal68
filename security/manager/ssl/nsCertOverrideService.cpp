@@ -126,7 +126,7 @@ nsCertOverrideService::Observe(nsISupports*, const char* aTopic,
     nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
                                          getter_AddRefs(mSettingsFile));
     if (NS_SUCCEEDED(rv)) {
-      mSettingsFile->AppendNative(NS_LITERAL_CSTRING(CERT_OVERRIDE_FILE_NAME));
+      mSettingsFile->AppendNative(nsLiteralCString(CERT_OVERRIDE_FILE_NAME));
     } else {
       mSettingsFile = nullptr;
     }

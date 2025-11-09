@@ -682,7 +682,7 @@ void nsSSLIOLayerHelpers::rememberTolerantAtVersion(const nsACString& hostName,
 
   entry.AssertInvariant();
 
-  mTLSIntoleranceInfo.Put(key, entry);
+  mTLSIntoleranceInfo.InsertOrUpdate(key, entry);
 }
 
 void nsSSLIOLayerHelpers::forgetIntolerance(const nsACString& hostName,
@@ -700,7 +700,7 @@ void nsSSLIOLayerHelpers::forgetIntolerance(const nsACString& hostName,
     entry.intoleranceReason = 0;
 
     entry.AssertInvariant();
-    mTLSIntoleranceInfo.Put(key, entry);
+    mTLSIntoleranceInfo.InsertOrUpdate(key, entry);
   }
 }
 
@@ -745,7 +745,7 @@ bool nsSSLIOLayerHelpers::rememberIntolerantAtVersion(
   entry.intolerant = intolerant;
   entry.intoleranceReason = intoleranceReason;
   entry.AssertInvariant();
-  mTLSIntoleranceInfo.Put(key, entry);
+  mTLSIntoleranceInfo.InsertOrUpdate(key, entry);
 
   return true;
 }
@@ -1658,14 +1658,7 @@ void nsSSLIOLayerHelpers::setInsecureFallbackSites(const nsCString& str) {
 
   mInsecureFallbackSites.Clear();
 
-  if (str.IsEmpty()) {
-    return;
-  }
-
-  nsCCharSeparatedTokenizer toker(str, ',');
-
-  while (toker.hasMoreTokens()) {
-    const nsACString& host = toker.nextToken();
+  for (const nsACString& host : nsCCharSeparatedTokenizer(str, ',').ToRange()) {
     if (!host.IsEmpty()) {
       mInsecureFallbackSites.PutEntry(host);
     }
@@ -1699,10 +1692,9 @@ FallbackPrefRemover::Run() {
   MOZ_ASSERT(NS_IsMainThread());
   nsAutoCString oldValue;
   Preferences::GetCString("security.tls.insecure_fallback_hosts", oldValue);
-  nsCCharSeparatedTokenizer toker(oldValue, ',');
   nsCString newValue;
-  while (toker.hasMoreTokens()) {
-    const nsACString& host = toker.nextToken();
+  for (const nsACString& host :
+       nsCCharSeparatedTokenizer(oldValue, ',').ToRange()) {
     if (host.Equals(mHost)) {
       continue;
     }

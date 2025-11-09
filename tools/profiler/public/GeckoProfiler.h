@@ -113,6 +113,7 @@ profiler_capture_backtrace() {
 #  include "mozilla/TimeStamp.h"
 #  include "mozilla/UniquePtr.h"
 #  include "nscore.h"
+#  include "nsJSUtils.h"  // for nsJSUtils::GetCurrentlyRunningCodeInnerWindowID
 #  include "nsString.h"
 
 #  include <functional>
@@ -184,25 +185,22 @@ class Vector;
     MACRO(9, "stackwalk", StackWalk,                                           \
           "Walk the C++ stack, not available on all platforms")                \
                                                                                \
-    MACRO(10, "tasktracer", TaskTracer,                                        \
-          "Start profiling with feature TaskTracer")                           \
+    MACRO(10, "threads", Threads, "Profile the registered secondary threads")  \
                                                                                \
-    MACRO(11, "threads", Threads, "Profile the registered secondary threads")  \
+    MACRO(11, "jstracer", JSTracer, "Enable tracing of the JavaScript engine") \
                                                                                \
-    MACRO(12, "jstracer", JSTracer, "Enable tracing of the JavaScript engine") \
-                                                                               \
-    MACRO(13, "jsallocations", JSAllocations,                                  \
+    MACRO(12, "jsallocations", JSAllocations,                                  \
           "Have the JavaScript engine track allocations")                      \
                                                                                \
-    MACRO(14, "nostacksampling", NoStackSampling,                              \
+    MACRO(13, "nostacksampling", NoStackSampling,                              \
           "Disable all stack sampling: Cancels \"js\", \"leaf\", "             \
           "\"stackwalk\" and labels")                                          \
                                                                                \
-    MACRO(15, "nativeallocations", NativeAllocations,                          \
+    MACRO(14, "nativeallocations", NativeAllocations,                          \
           "Collect the stacks from a smaller subset of all native "            \
           "allocations, biasing towards collecting larger allocations")        \
                                                                                \
-    MACRO(16, "ipcmessages", IPCMessages,                                      \
+    MACRO(15, "ipcmessages", IPCMessages,                                      \
           "Have the IPC layer track cross-process messages")
 
 struct ProfilerFeature {
@@ -893,9 +891,10 @@ void profiler_add_js_allocation_marker(JS::RecordAllocationInfo&& info);
 bool profiler_add_native_allocation_marker(int aMainThreadId, int64_t aSize,
                                            uintptr_t aMemorySize);
 
-// Returns true if the profiler lock is currently held *on the current thread*.
-// This may be used by re-entrant code that may call profiler functions while
-// the profiler already has the lock (which would deadlock).
+// Returns true if any of the profiler mutexes are currently locked *on the
+// current thread*. This may be used by re-entrant code that may call profiler
+// functions while the same of a different profiler mutex is locked, which could
+// deadlock.
 bool profiler_is_locked_on_current_thread();
 
 // Insert a marker in the profile timeline for a specified thread.
@@ -947,6 +946,17 @@ inline mozilla::MarkerInnerWindowId MarkerInnerWindowIdFromDocShell(
     return mozilla::MarkerInnerWindowId::NoId();
   }
   return mozilla::MarkerInnerWindowId(*id);
+}
+
+// This is a helper function to get the Inner Window ID from a JS Context but
+// it's not a recommended method to get it and it's not encouraged to use this
+// function. If there is a computed inner window ID, `window`, or `Document`
+// available in the call site, please use them. Use this function as a last
+// resort.
+inline mozilla::MarkerInnerWindowId MarkerInnerWindowIdFromJSContext(
+    JSContext* aContext) {
+  return mozilla::MarkerInnerWindowId(
+      nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(aContext));
 }
 
 // Adds a tracing marker to the profile. A no-op if the profiler is inactive.

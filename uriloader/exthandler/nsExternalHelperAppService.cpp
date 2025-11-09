@@ -743,7 +743,7 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(
     if (fileExtension.IsEmpty() || mimeType.IsEmpty()) {
       // Extension lookup gave us no useful match
       mimeSvc->GetFromTypeAndExtension(
-          NS_LITERAL_CSTRING(APPLICATION_OCTET_STREAM), fileExtension,
+          nsLiteralCString(APPLICATION_OCTET_STREAM), fileExtension,
           getter_AddRefs(mimeInfo));
       mimeType.AssignLiteral(APPLICATION_OCTET_STREAM);
     }
@@ -1394,7 +1394,7 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel* aChannel) {
   rv = mTempFile->GetLeafName(mTempLeafName);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  NS_ENSURE_TRUE(StringEndsWith(mTempLeafName, NS_LITERAL_STRING(".part")),
+  NS_ENSURE_TRUE(StringEndsWith(mTempLeafName, u".part"_ns),
                  NS_ERROR_UNEXPECTED);
 
   // Strip off the ".part" from mTempLeafName

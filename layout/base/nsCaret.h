@@ -7,6 +7,7 @@
 #ifndef nsCaret_h__
 #define nsCaret_h__
 
+#include "mozilla/intl/BidiEmbeddingLevel.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Selection.h"
 #include "nsCoord.h"
@@ -168,13 +169,13 @@ class nsCaret final : public nsISelectionListener {
    * This rect does not include any extra decorations for bidi.
    * @param aRect must be non-null
    */
-  static nsIFrame* GetGeometry(mozilla::dom::Selection* aSelection,
+  static nsIFrame* GetGeometry(const mozilla::dom::Selection* aSelection,
                                nsRect* aRect);
-  static nsresult GetCaretFrameForNodeOffset(
+  static nsIFrame* GetCaretFrameForNodeOffset(
       nsFrameSelection* aFrameSelection, nsIContent* aContentNode,
-      int32_t aOffset, CaretAssociationHint aFrameHint, uint8_t aBidiLevel,
-      nsIFrame** aReturnFrame, nsIFrame** aReturnUnadjustedFrame,
-      int32_t* aReturnOffset);
+      int32_t aOffset, CaretAssociationHint aFrameHint,
+      mozilla::intl::BidiEmbeddingLevel aBidiLevel,
+      nsIFrame** aReturnUnadjustedFrame, int32_t* aReturnOffset);
   static nsRect GetGeometryForFrame(nsIFrame* aFrame, int32_t aFrameOffset,
                                     nscoord* aBidiIndicatorSize);
 
@@ -185,7 +186,7 @@ class nsCaret final : public nsISelectionListener {
   // @param aUnadjustedFrame return the original frame that the selection is
   // targeting, without any adjustment for painting.
   // @return the frame of the focus node.
-  static nsIFrame* GetFrameAndOffset(mozilla::dom::Selection* aSelection,
+  static nsIFrame* GetFrameAndOffset(const mozilla::dom::Selection* aSelection,
                                      nsINode* aOverrideNode,
                                      int32_t aOverrideOffset,
                                      int32_t* aFrameOffset,

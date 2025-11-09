@@ -116,8 +116,7 @@ JumpListBuilder::JumpListBuilder()
   }
 
   // Make a lazy thread for any IO
-  mIOThread = new LazyIdleThread(DEFAULT_THREAD_TIMEOUT_MS,
-                                 NS_LITERAL_CSTRING("Jump List"),
+  mIOThread = new LazyIdleThread(DEFAULT_THREAD_TIMEOUT_MS, "Jump List"_ns,
                                  LazyIdleThread::ManualShutdown);
   Preferences::AddStrongObserver(this, kPrefTaskbarEnabled);
 

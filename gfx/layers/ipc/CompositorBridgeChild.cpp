@@ -35,6 +35,7 @@
 #include "mozilla/gfx/GPUProcessManager.h"
 #include "mozilla/gfx/Logging.h"
 #include "mozilla/gfx/gfxVars.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/layers/SyncObject.h"  // for SyncObjectClient
 #include "mozilla/mozalloc.h"           // for operator new, etc
 #include "nsDebug.h"                    // for NS_WARNING
@@ -181,9 +182,8 @@ void CompositorBridgeChild::Destroy() {
   }
 
   const ManagedContainer<PTextureChild>& textures = ManagedPTextureChild();
-  for (auto iter = textures.ConstIter(); !iter.Done(); iter.Next()) {
-    RefPtr<TextureClient> texture =
-        TextureClient::AsTextureClient(iter.Get()->GetKey());
+  for (const auto& key : textures) {
+    RefPtr<TextureClient> texture = TextureClient::AsTextureClient(key);
 
     if (texture) {
       texture->Destroy();
@@ -569,9 +569,10 @@ mozilla::ipc::IPCResult CompositorBridgeChild::RecvSharedCompositorFrameMetrics(
     const mozilla::ipc::SharedMemoryBasic::Handle& metrics,
     const CrossProcessMutexHandle& handle, const LayersId& aLayersId,
     const uint32_t& aAPZCId) {
-  SharedFrameMetricsData* data =
-      new SharedFrameMetricsData(metrics, handle, aLayersId, aAPZCId);
-  mFrameMetricsTable.Put(data->GetViewID(), data);
+  auto data =
+      MakeUnique<SharedFrameMetricsData>(metrics, handle, aLayersId, aAPZCId);
+  const auto& viewID = data->GetViewID();
+  mFrameMetricsTable.InsertOrUpdate(viewID, std::move(data));
   return IPC_OK();
 }
 

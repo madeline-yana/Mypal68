@@ -423,20 +423,20 @@ NS_IMPL_ISUPPORTS(CloseListener, mozIStorageCompletionCallback)
 Connection::Connection(Service* aService, int aFlags,
                        ConnectionOperation aSupportedOperations,
                        bool aIgnoreLockingMode)
-    : sharedAsyncExecutionMutex(),
+    : sharedAsyncExecutionMutex(),//"Connection::sharedAsyncExecutionMutex"
       sharedDBMutex("Connection::sharedDBMutex"),
       threadOpenedOn(do_GetCurrentThread()),
       mDBConn(nullptr),
       mAsyncExecutionThreadShuttingDown(false),
       mConnectionClosed(false),
       mDefaultTransactionType(mozIStorageConnection::TRANSACTION_DEFERRED),
-      mTransactionInProgress(false),
       mDestroying(false),
       mProgressHandler(nullptr),
       mFlags(aFlags),
       mIgnoreLockingMode(aIgnoreLockingMode),
       mStorageService(aService),
-      mSupportedOperations(aSupportedOperations) {
+      mSupportedOperations(aSupportedOperations),
+      mTransactionNestingLevel(0) {
   MOZ_ASSERT(!mIgnoreLockingMode || mFlags & SQLITE_OPEN_READONLY,
              "Can't ignore locking for a non-readonly connection!");
   mStorageService->registerConnection(this);
@@ -557,14 +557,24 @@ nsIEventTarget* Connection::getAsyncExecutionTarget() {
   return mAsyncExecutionThread;
 }
 
-nsresult Connection::initialize() {
+nsresult Connection::initialize(const nsACString& aStorageKey,
+                                const nsACString& aName) {
+  MOZ_ASSERT(aStorageKey.Equals(kMozStorageMemoryStorageKey));
   NS_ASSERTION(!connectionReady(),
                "Initialize called on already opened database!");
   MOZ_ASSERT(!mIgnoreLockingMode, "Can't ignore locking on an in-memory db.");
   AUTO_PROFILER_LABEL("Connection::initialize", OTHER);
 
+  mStorageKey = aStorageKey;
+  mName = aName;
+
   // in memory database requested, sqlite uses a magic file name
-  int srv = ::sqlite3_open_v2(":memory:", &mDBConn, mFlags, GetVFSName(true));
+
+  const nsAutoCString path = mName.IsEmpty()
+                                 ? nsAutoCString(":memory:"_ns)
+                                 : "file:"_ns + mName + "?mode=memory"_ns;
+
+  int srv = ::sqlite3_open_v2(path.get(), &mDBConn, mFlags, GetVFSName(true));
   if (srv != SQLITE_OK) {
     mDBConn = nullptr;
     return convertResultCode(srv);
@@ -776,7 +786,9 @@ nsresult Connection::initializeInternal() {
 
 nsresult Connection::initializeOnAsyncThread(nsIFile* aStorageFile) {
   MOZ_ASSERT(threadOpenedOn != NS_GetCurrentThread());
-  nsresult rv = aStorageFile ? initialize(aStorageFile) : initialize();
+  nsresult rv = aStorageFile
+                    ? initialize(aStorageFile)
+                    : initialize(kMozStorageMemoryStorageKey, VoidCString());
   if (NS_FAILED(rv)) {
     // Shutdown the async thread, since initialization failed.
     AutoLock lockedScope(sharedAsyncExecutionMutex);
@@ -862,7 +874,7 @@ nsresult Connection::databaseElementExists(
 bool Connection::findFunctionByInstance(mozIStorageFunction* aInstance) {
   sharedDBMutex.assertCurrentThreadOwns();
 
-  for (auto iter = mFunctions.Iter(); !iter.Done(); iter.Next()) {
+  for (auto iter = mFunctions.ConstIter(); !iter.Done(); iter.Next()) {
     if (iter.UserData().function == aInstance) {
       return true;
     }
@@ -1441,8 +1453,14 @@ Connection::AsyncClone(bool aReadOnly,
 }
 
 nsresult Connection::initializeClone(Connection* aClone, bool aReadOnly) {
-  nsresult rv = mFileURL ? aClone->initialize(mFileURL)
-                         : aClone->initialize(mDatabaseFile);
+  nsresult rv;
+  if (!mStorageKey.IsEmpty()) {
+    rv = aClone->initialize(mStorageKey, mName);
+  } else if (mFileURL) {
+    rv = aClone->initialize(mFileURL);
+  } else {
+    rv = aClone->initialize(mDatabaseFile);
+  }
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -1549,9 +1567,9 @@ nsresult Connection::initializeClone(Connection* aClone, bool aReadOnly) {
 
   // Copy any functions that have been added to this connection.
   SQLiteMutexAutoLock lockedScope(sharedDBMutex);
-  for (auto iter = mFunctions.Iter(); !iter.Done(); iter.Next()) {
-    const nsACString& key = iter.Key();
-    Connection::FunctionInfo data = iter.UserData();
+  for (const auto& entry : mFunctions) {
+    const nsACString& key = entry.GetKey();
+    Connection::FunctionInfo data = entry.GetData();
 
     rv = aClone->CreateFunction(key, data.numArgs, data.function);
     if (NS_FAILED(rv)) {
@@ -1576,7 +1594,6 @@ Connection::Clone(bool aReadOnly, mozIStorageConnection** _connection) {
   if (NS_FAILED(rv)) {
     return rv;
   }
-  if (!mDatabaseFile) return NS_ERROR_UNEXPECTED;
 
   int flags = mFlags;
   if (aReadOnly) {
@@ -1868,13 +1885,13 @@ Connection::GetTransactionInProgress(bool* _inProgress) {
   if (!connectionReady()) {
     return NS_ERROR_NOT_INITIALIZED;
   }
-  nsresult rv = ensureOperationSupported(SYNCHRONOUS);
+  nsresult rv = ensureOperationSupported(ASYNCHRONOUS);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
   SQLiteMutexAutoLock lockedScope(sharedDBMutex);
-  *_inProgress = mTransactionInProgress;
+  *_inProgress = transactionInProgress(lockedScope);
   return NS_OK;
 }
 
@@ -1914,13 +1931,17 @@ Connection::BeginTransaction() {
     return rv;
   }
 
-  return beginTransactionInternal(mDBConn, mDefaultTransactionType);
+  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  return beginTransactionInternal(lockedScope, mDBConn,
+                                  mDefaultTransactionType);
 }
 
-nsresult Connection::beginTransactionInternal(sqlite3* aNativeConnection,
-                                              int32_t aTransactionType) {
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
-  if (mTransactionInProgress) return NS_ERROR_FAILURE;
+nsresult Connection::beginTransactionInternal(
+    const SQLiteMutexAutoLock& aProofOfLock, sqlite3* aNativeConnection,
+    int32_t aTransactionType) {
+  if (transactionInProgress(aProofOfLock)) {
+    return NS_ERROR_FAILURE;
+  }
   nsresult rv;
   switch (aTransactionType) {
     case TRANSACTION_DEFERRED:
@@ -1935,7 +1956,6 @@ nsresult Connection::beginTransactionInternal(sqlite3* aNativeConnection,
     default:
       return NS_ERROR_ILLEGAL_VALUE;
   }
-  if (NS_SUCCEEDED(rv)) mTransactionInProgress = true;
   return rv;
 }
 
@@ -1949,15 +1969,17 @@ Connection::CommitTransaction() {
     return rv;
   }
 
-  return commitTransactionInternal(mDBConn);
+  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  return commitTransactionInternal(lockedScope, mDBConn);
 }
 
-nsresult Connection::commitTransactionInternal(sqlite3* aNativeConnection) {
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
-  if (!mTransactionInProgress) return NS_ERROR_UNEXPECTED;
+nsresult Connection::commitTransactionInternal(
+    const SQLiteMutexAutoLock& aProofOfLock, sqlite3* aNativeConnection) {
+  if (!transactionInProgress(aProofOfLock)) {
+    return NS_ERROR_UNEXPECTED;
+  }
   nsresult rv =
       convertResultCode(executeSql(aNativeConnection, "COMMIT TRANSACTION"));
-  if (NS_SUCCEEDED(rv)) mTransactionInProgress = false;
   return rv;
 }
 
@@ -1971,16 +1993,18 @@ Connection::RollbackTransaction() {
     return rv;
   }
 
-  return rollbackTransactionInternal(mDBConn);
+  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
+  return rollbackTransactionInternal(lockedScope, mDBConn);
 }
 
-nsresult Connection::rollbackTransactionInternal(sqlite3* aNativeConnection) {
-  SQLiteMutexAutoLock lockedScope(sharedDBMutex);
-  if (!mTransactionInProgress) return NS_ERROR_UNEXPECTED;
+nsresult Connection::rollbackTransactionInternal(
+    const SQLiteMutexAutoLock& aProofOfLock, sqlite3* aNativeConnection) {
+  if (!transactionInProgress(aProofOfLock)) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   nsresult rv =
       convertResultCode(executeSql(aNativeConnection, "ROLLBACK TRANSACTION"));
-  if (NS_SUCCEEDED(rv)) mTransactionInProgress = false;
   return rv;
 }
 
@@ -2018,7 +2042,7 @@ Connection::CreateFunction(const nsACString& aFunctionName,
   // Check to see if this function is already defined.  We only check the name
   // because a function can be defined with the same body but different names.
   SQLiteMutexAutoLock lockedScope(sharedDBMutex);
-  NS_ENSURE_FALSE(mFunctions.Get(aFunctionName, nullptr), NS_ERROR_FAILURE);
+  NS_ENSURE_FALSE(mFunctions.Contains(aFunctionName), NS_ERROR_FAILURE);
 
   int srv = ::sqlite3_create_function(
       mDBConn, nsPromiseFlatCString(aFunctionName).get(), aNumArguments,
@@ -2026,7 +2050,7 @@ Connection::CreateFunction(const nsACString& aFunctionName,
   if (srv != SQLITE_OK) return convertResultCode(srv);
 
   FunctionInfo info = {aFunction, aNumArguments};
-  mFunctions.Put(aFunctionName, info);
+  mFunctions.InsertOrUpdate(aFunctionName, info);
 
   return NS_OK;
 }
@@ -2180,6 +2204,9 @@ Connection::GetQuotaObjects(QuotaObject** aDatabaseQuotaObject,
   }
 
   RefPtr<QuotaObject> databaseQuotaObject = GetQuotaObjectForFile(file);
+  if (NS_WARN_IF(!databaseQuotaObject)) {
+    return NS_ERROR_FAILURE;
+  }
 
   srv = ::sqlite3_file_control(mDBConn, nullptr, SQLITE_FCNTL_JOURNAL_POINTER,
                                &file);
@@ -2188,10 +2215,30 @@ Connection::GetQuotaObjects(QuotaObject** aDatabaseQuotaObject,
   }
 
   RefPtr<QuotaObject> journalQuotaObject = GetQuotaObjectForFile(file);
+  if (NS_WARN_IF(!journalQuotaObject)) {
+    return NS_ERROR_FAILURE;
+  }
 
   databaseQuotaObject.forget(aDatabaseQuotaObject);
   journalQuotaObject.forget(aJournalQuotaObject);
   return NS_OK;
+}
+
+SQLiteMutex& Connection::GetSharedDBMutex() { return sharedDBMutex; }
+
+uint32_t Connection::GetTransactionNestingLevel(
+    const mozilla::storage::SQLiteMutexAutoLock& aProofOfLock) {
+  return mTransactionNestingLevel;
+}
+
+uint32_t Connection::IncreaseTransactionNestingLevel(
+    const mozilla::storage::SQLiteMutexAutoLock& aProofOfLock) {
+  return ++mTransactionNestingLevel;
+}
+
+uint32_t Connection::DecreaseTransactionNestingLevel(
+    const mozilla::storage::SQLiteMutexAutoLock& aProofOfLock) {
+  return --mTransactionNestingLevel;
 }
 
 }  // namespace mozilla::storage

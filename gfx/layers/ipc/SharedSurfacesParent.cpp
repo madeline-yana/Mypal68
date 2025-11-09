@@ -132,7 +132,7 @@ void SharedSurfacesParent::AddSameProcess(const wr::ExternalImageId& aId,
   wr::RenderThread::Get()->RegisterExternalImage(id, texture.forget());
 
   surface->AddConsumer();
-  sInstance->mSurfaces.Put(id, std::move(surface));
+  sInstance->mSurfaces.InsertOrUpdate(id, std::move(surface));
 }
 
 /* static */
@@ -190,7 +190,7 @@ void SharedSurfacesParent::Add(const wr::ExternalImageId& aId,
   wr::RenderThread::Get()->RegisterExternalImage(id, texture.forget());
 
   surface->AddConsumer();
-  sInstance->mSurfaces.Put(id, std::move(surface));
+  sInstance->mSurfaces.InsertOrUpdate(id, std::move(surface));
 }
 
 /* static */
@@ -207,13 +207,14 @@ void SharedSurfacesParent::AccumulateMemoryReport(
     return;
   }
 
-  for (auto i = sInstance->mSurfaces.ConstIter(); !i.Done(); i.Next()) {
-    SourceSurfaceSharedDataWrapper* surface = i.Data();
+  for (const auto& entry : sInstance->mSurfaces) {
+    SourceSurfaceSharedDataWrapper* surface = entry.GetData();
     if (surface->GetCreatorPid() == aPid) {
       aReport.mSurfaces.insert(std::make_pair(
-          i.Key(), SharedSurfacesMemoryReport::SurfaceEntry{
-                       aPid, surface->GetSize(), surface->Stride(),
-                       surface->GetConsumers(), surface->HasCreatorRef()}));
+          entry.GetKey(),
+          SharedSurfacesMemoryReport::SurfaceEntry{
+              aPid, surface->GetSize(), surface->Stride(),
+              surface->GetConsumers(), surface->HasCreatorRef()}));
     }
   }
 }
@@ -235,10 +236,10 @@ bool SharedSurfacesParent::AccumulateMemoryReport(
     return true;
   }
 
-  for (auto i = sInstance->mSurfaces.ConstIter(); !i.Done(); i.Next()) {
-    SourceSurfaceSharedDataWrapper* surface = i.Data();
+  for (const auto& entry : sInstance->mSurfaces) {
+    SourceSurfaceSharedDataWrapper* surface = entry.GetData();
     aReport.mSurfaces.insert(std::make_pair(
-        i.Key(),
+        entry.GetKey(),
         SharedSurfacesMemoryReport::SurfaceEntry{
             surface->GetCreatorPid(), surface->GetSize(), surface->Stride(),
             surface->GetConsumers(), surface->HasCreatorRef()}));

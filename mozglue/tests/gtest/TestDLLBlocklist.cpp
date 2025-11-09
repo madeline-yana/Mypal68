@@ -36,7 +36,7 @@ static nsString GetFullPath(const nsAString& aLeaf) {
 TEST(TestDllBlocklist, BlockDllByName) {
   // The DLL name has capital letters, so this also tests that the comparison
   // is case-insensitive.
-  NS_NAMED_LITERAL_STRING(kLeafName, "TestDllBlocklist_MatchByName.dll");
+  constexpr auto kLeafName = u"TestDllBlocklist_MatchByName.dll"_ns;
   nsString dllPath = GetFullPath(kLeafName);
 
   nsModuleHandle hDll(::LoadLibraryW(dllPath.get()));
@@ -46,7 +46,7 @@ TEST(TestDllBlocklist, BlockDllByName) {
 }
 
 TEST(TestDllBlocklist, BlockDllByVersion) {
-  NS_NAMED_LITERAL_STRING(kLeafName, "TestDllBlocklist_MatchByVersion.dll");
+  constexpr auto kLeafName = u"TestDllBlocklist_MatchByVersion.dll"_ns;
   nsString dllPath = GetFullPath(kLeafName);
 
   nsModuleHandle hDll(::LoadLibraryW(dllPath.get()));
@@ -56,7 +56,7 @@ TEST(TestDllBlocklist, BlockDllByVersion) {
 }
 
 TEST(TestDllBlocklist, AllowDllByVersion) {
-  NS_NAMED_LITERAL_STRING(kLeafName, "TestDllBlocklist_AllowByVersion.dll");
+  constexpr auto kLeafName = u"TestDllBlocklist_AllowByVersion.dll"_ns;
   nsString dllPath = GetFullPath(kLeafName);
 
   nsModuleHandle hDll(::LoadLibraryW(dllPath.get()));
@@ -102,7 +102,7 @@ TEST(TestDllBlocklist, BlockThreadWithLoadLibraryEntryPoint) {
 #if defined(NIGHTLY_BUILD)
   using ThreadProc = unsigned(__stdcall*)(void*);
 
-  NS_NAMED_LITERAL_STRING(kLeafNameW, "TestDllBlocklist_MatchByVersion.dll");
+  constexpr auto kLeafNameW = u"TestDllBlocklist_MatchByVersion.dll"_ns;
 
   nsString fullPathW = GetFullPath(kLeafNameW);
   EXPECT_FALSE(fullPathW.IsEmpty());

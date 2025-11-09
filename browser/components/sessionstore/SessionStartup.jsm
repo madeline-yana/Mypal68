@@ -209,10 +209,6 @@ var SessionStartup = {
           }, 0)
         );
       }, 0);
-      Services.telemetry.scalarSet(
-        "browser.engagement.restored_pinned_tabs_count",
-        pinnedTabCount
-      );
     }, 60000);
 
     // If this is a normal restore then throw away any previous session.
@@ -253,13 +249,6 @@ var SessionStartup = {
           !stateFlagPresent ||
           this._initialState.session.state == STATE_RUNNING_STR;
       }
-
-      // Report shutdown success via telemetry. Shortcoming here are
-      // being-killed-by-OS-shutdown-logic, shutdown freezing after
-      // session restore was written, etc.
-      Services.telemetry
-        .getHistogramById("SHUTDOWN_OK")
-        .add(!this._previousSessionCrashed);
 
       Services.obs.addObserver(this, "sessionstore-windows-restored", true);
 
@@ -421,7 +410,7 @@ var SessionStartup = {
   },
 
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIObserver,
-    Ci.nsISupportsWeakReference,
+    "nsIObserver",
+    "nsISupportsWeakReference",
   ]),
 };

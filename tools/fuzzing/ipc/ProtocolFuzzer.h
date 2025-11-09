@@ -17,7 +17,7 @@ namespace ipc {
 class ProtocolFuzzerHelper {
  public:
   static mozilla::dom::ContentParent* CreateContentParent(
-      mozilla::dom::ContentParent* aOpener, const nsAString& aRemoteType);
+      mozilla::dom::ContentParent* aOpener, const nsACString& aRemoteType);
 
   static void CompositorBridgeParentSetup();
 
@@ -25,7 +25,7 @@ class ProtocolFuzzerHelper {
                                  Shmem::SharedMemory* aSegment, int32_t aId) {
     MOZ_ASSERT(!aProtocol->mShmemMap.Contains(aId),
                "Don't insert with an existing ID");
-    aProtocol->mShmemMap.Put(aId, aSegment);
+    aProtocol->mShmemMap.InsertOrUpdate(aId, aSegment);
   }
 
   static void RemoveShmemFromProtocol(IToplevelProtocol* aProtocol,

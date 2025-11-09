@@ -12,7 +12,7 @@
 #include "nsThreadUtils.h"
 #include "nsIInterfaceRequestor.h"
 
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "mozIStorageProgressHandler.h"
 #include "SQLiteMutex.h"
 #include "mozIStorageConnection.h"
@@ -83,7 +83,7 @@ class Connection final : public mozIStorageConnection,
   /**
    * Creates the connection to an in-memory database.
    */
-  nsresult initialize();
+  nsresult initialize(const nsACString& aStorageKey, const nsACString& aName);
 
   /**
    * Creates the connection to the database.
@@ -223,15 +223,30 @@ class Connection final : public mozIStorageConnection,
    * @see BeginTransactionAs, CommitTransaction, RollbackTransaction.
    */
   nsresult beginTransactionInternal(
-      sqlite3* aNativeConnection,
+      const SQLiteMutexAutoLock& aProofOfLock, sqlite3* aNativeConnection,
       int32_t aTransactionType = TRANSACTION_DEFERRED);
-  nsresult commitTransactionInternal(sqlite3* aNativeConnection);
-  nsresult rollbackTransactionInternal(sqlite3* aNativeConnection);
+  nsresult commitTransactionInternal(const SQLiteMutexAutoLock& aProofOfLock,
+                                     sqlite3* aNativeConnection);
+  nsresult rollbackTransactionInternal(const SQLiteMutexAutoLock& aProofOfLock,
+                                       sqlite3* aNativeConnection);
 
   /**
    * Indicates if this database connection is open.
    */
   inline bool connectionReady() { return mDBConn != nullptr; }
+
+  /**
+   * Indicates if this database connection has an open transaction. Because
+   * multiple threads can execute statements on the same connection, this method
+   * requires proof that the caller is holding `sharedDBMutex`.
+   *
+   * Per the SQLite docs, `sqlite3_get_autocommit` returns 0 if autocommit mode
+   * is disabled. `BEGIN` disables autocommit mode, and `COMMIT`, `ROLLBACK`, or
+   * an automatic rollback re-enables it.
+   */
+  inline bool transactionInProgress(const SQLiteMutexAutoLock& aProofOfLock) {
+    return !getAutocommit();
+  }
 
   /**
    * Indicates if this database connection supports the given operation.
@@ -348,6 +363,8 @@ class Connection final : public mozIStorageConnection,
   nsresult ensureOperationSupported(ConnectionOperation aOperationType);
 
   sqlite3* mDBConn;
+  nsCString mStorageKey;
+  nsCString mName;
   nsCOMPtr<nsIFileURL> mFileURL;
   nsCOMPtr<nsIFile> mDatabaseFile;
 
@@ -396,12 +413,6 @@ class Connection final : public mozIStorageConnection,
   mozilla::Atomic<int32_t> mDefaultTransactionType;
 
   /**
-   * Tracks if we have a transaction in progress or not.  Access protected by
-   * sharedDBMutex.
-   */
-  bool mTransactionInProgress;
-
-  /**
    * Used to trigger cleanup logic only the first time our refcount hits 1.  We
    * may trigger a failsafe Close() that invokes SpinningSynchronousClose()
    * which invokes AsyncClose() which may bump our refcount back up to 2 (and
@@ -415,7 +426,7 @@ class Connection final : public mozIStorageConnection,
    * Stores the mapping of a given function by name to its instance.  Access is
    * protected by sharedDBMutex.
    */
-  nsDataHashtable<nsCStringHashKey, FunctionInfo> mFunctions;
+  nsTHashMap<nsCStringHashKey, FunctionInfo> mFunctions;
 
   /**
    * Stores the registered progress handler for the database connection.  Access
@@ -444,6 +455,8 @@ class Connection final : public mozIStorageConnection,
   const ConnectionOperation mSupportedOperations;
 
   nsresult synchronousClose();
+
+  uint32_t mTransactionNestingLevel;
 };
 
 /**

@@ -108,12 +108,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(DocAccessible, Accessible)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNotificationController)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVirtualCursor)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChildDocuments)
-  for (auto hashesIter = tmp->mDependentIDsHashes.Iter(); !hashesIter.Done();
-       hashesIter.Next()) {
-    auto dependentIDsHash = hashesIter.UserData();
-    for (auto providersIter = dependentIDsHash->Iter(); !providersIter.Done();
-         providersIter.Next()) {
-      AttrRelProviders* providers = providersIter.UserData();
+  for (const auto& hashEntry : tmp->mDependentIDsHashes) {
+    for (const auto& providerEntry : *hashEntry.GetData()) {
+      AttrRelProviders* providers = providerEntry.GetData().get();
       for (int32_t provIdx = providers->Length() - 1; provIdx >= 0; provIdx--) {
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(
             cb, "content of dependent ids hash entry of document accessible");
@@ -126,8 +123,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(DocAccessible, Accessible)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAccessibleCache)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAnchorJumpElm)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mInvalidationList)
-  for (auto it = tmp->mARIAOwnsHash.ConstIter(); !it.Done(); it.Next()) {
-    nsTArray<RefPtr<Accessible> >* ar = it.UserData();
+  for (const auto& arEntry : tmp->mARIAOwnsHash) {
+    nsTArray<RefPtr<Accessible>>* ar = arEntry.GetData().get();
     for (uint32_t i = 0; i < ar->Length(); i++) {
       NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mARIAOwnsHash entry item");
       cb.NoteXPCOMChild(ar->ElementAt(i));
@@ -1218,11 +1215,12 @@ Accessible* DocAccessible::GetAccessibleOrDescendant(nsINode* aNode) const {
 void DocAccessible::BindToDocument(Accessible* aAccessible,
                                    const nsRoleMapEntry* aRoleMapEntry) {
   // Put into DOM node cache.
-  if (aAccessible->IsNodeMapEntry())
-    mNodeToAccessibleMap.Put(aAccessible->GetNode(), aAccessible);
+  if (aAccessible->IsNodeMapEntry()) {
+    mNodeToAccessibleMap.InsertOrUpdate(aAccessible->GetNode(), aAccessible);
+  }
 
   // Put into unique ID cache.
-  mAccessibleCache.Put(aAccessible->UniqueID(), RefPtr{aAccessible});
+  mAccessibleCache.InsertOrUpdate(aAccessible->UniqueID(), RefPtr{aAccessible});
 
   aAccessible->SetRoleMapEntry(aRoleMapEntry);
 
@@ -2086,7 +2084,8 @@ void DocAccessible::DoARIAOwnsRelocation(Accessible* aOwner) {
   logging::TreeInfo("aria owns relocation", logging::eVerbose, aOwner);
 #endif
 
-  nsTArray<RefPtr<Accessible> >* owned = mARIAOwnsHash.LookupOrAdd(aOwner);
+  nsTArray<RefPtr<Accessible>>* owned =
+      mARIAOwnsHash.GetOrInsertNew(aOwner);
 
   IDRefsIterator iter(this, aOwner->Elm(), nsGkAtoms::aria_owns);
   uint32_t idx = 0;
@@ -2183,7 +2182,7 @@ void DocAccessible::DoARIAOwnsRelocation(Accessible* aOwner) {
     if (MoveChild(child, aOwner, insertIdx)) {
       child->SetRelocated(true);
       MOZ_ASSERT(owned == mARIAOwnsHash.Get(aOwner));
-      owned = mARIAOwnsHash.LookupOrAdd(aOwner);
+      owned = mARIAOwnsHash.GetOrInsertNew(aOwner);
       owned->InsertElementAt(idx, child);
       idx++;
     }

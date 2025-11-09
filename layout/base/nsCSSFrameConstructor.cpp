@@ -6329,35 +6329,16 @@ void nsCSSFrameConstructor::CheckBitsForLazyFrameConstruction(
 // FIXME(emilio, bug 1410020): This function assumes that the flattened tree
 // parent of all the appended children is the same, which, afaict, is not
 // necessarily true.
-//
-// NOTE(emilio): The IsXULElement checks are pretty unfortunate, but there's
-// tons of browser chrome code that rely on XBL bindings getting synchronously
-// loaded as soon as the elements get inserted in the DOM.
-bool nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
-                                                 nsIContent* aChild) {
+void nsCSSFrameConstructor::ConstructLazily(Operation aOperation,
+                                            nsIContent* aChild) {
   MOZ_ASSERT(aChild->GetParent());
-  if (aOperation == CONTENTINSERT) {
-    MOZ_ASSERT(!aChild->IsRootOfAnonymousSubtree());
-    if (aChild->IsXULElement()) {
-      return false;
-    }
-  } else {  // CONTENTAPPEND
-    MOZ_ASSERT(aOperation == CONTENTAPPEND,
-               "operation should be either insert or append");
-    for (nsIContent* child = aChild; child; child = child->GetNextSibling()) {
-      MOZ_ASSERT(!child->IsRootOfAnonymousSubtree());
-      if (child->IsXULElement()) {
-        return false;
-      }
-    }
-  }
 
   // We can construct lazily; just need to set suitable bits in the content
   // tree.
   Element* parent = aChild->GetFlattenedTreeParentElement();
   if (!parent) {
     // Not part of the flat tree, nothing to do.
-    return true;
+    return;
   }
 
   if (Servo_Element_IsDisplayNone(parent)) {
@@ -6366,7 +6347,7 @@ bool nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
     // FIXME(emilio): This should be an assert, except for weird <frameset>
     // stuff that does its own frame construction. Such an assert would fire in
     // layout/style/crashtests/1411478.html, for example.
-    return true;
+    return;
   }
 
   // Set NODE_NEEDS_FRAME on the new nodes.
@@ -6392,8 +6373,6 @@ bool nsCSSFrameConstructor::MaybeConstructLazily(Operation aOperation,
 
   CheckBitsForLazyFrameConstruction(parent);
   parent->NoteDescendantsNeedFramesForServo();
-
-  return true;
 }
 
 void nsCSSFrameConstructor::IssueSingleInsertNofications(
@@ -6596,14 +6575,9 @@ void nsCSSFrameConstructor::ContentAppended(nsIContent* aFirstNewContent,
   }
 
   if (aInsertionKind == InsertionKind::Async) {
-    if (MaybeConstructLazily(CONTENTAPPEND, aFirstNewContent)) {
-      LazilyStyleNewChildRange(aFirstNewContent, nullptr);
-      return;
-    }
-    // We couldn't construct lazily. Make Servo eagerly traverse the new content
-    // if needed (when aInsertionKind == InsertionKind::Sync, we know that the
-    // styles are up-to-date already).
-    StyleNewChildRange(aFirstNewContent, nullptr);
+    ConstructLazily(CONTENTAPPEND, aFirstNewContent);
+    LazilyStyleNewChildRange(aFirstNewContent, nullptr);
+    return;
   }
 
   LAYOUT_PHASE_TEMP_EXIT();
@@ -6954,14 +6928,9 @@ void nsCSSFrameConstructor::ContentRangeInserted(nsIContent* aStartChild,
   }
 
   if (aInsertionKind == InsertionKind::Async) {
-    if (MaybeConstructLazily(CONTENTINSERT, aStartChild)) {
-      LazilyStyleNewChildRange(aStartChild, aEndChild);
-      return;
-    }
-    // We couldn't construct lazily. Make Servo eagerly traverse the new content
-    // if needed (when aInsertionKind == InsertionKind::Sync, we know that the
-    // styles are up-to-date already).
-    StyleNewChildRange(aStartChild, aEndChild);
+    ConstructLazily(CONTENTINSERT, aStartChild);
+    LazilyStyleNewChildRange(aStartChild, aEndChild);
+    return;
   }
 
   bool isAppend, isRangeInsertSafe;
@@ -9833,9 +9802,9 @@ static int32_t FirstLetterCount(const nsTextFragment* aFragment) {
   int32_t count = 0;
   int32_t firstLetterLength = 0;
 
-  int32_t i, n = aFragment->GetLength();
-  for (i = 0; i < n; i++) {
-    char16_t ch = aFragment->CharAt(i);
+  const uint32_t n = aFragment->GetLength();
+  for (uint32_t i = 0; i < n; i++) {
+    const char16_t ch = aFragment->CharAt(i);
     // FIXME: take content language into account when deciding whitespace.
     if (dom::IsSpaceCharacter(ch)) {
       if (firstLetterLength) {

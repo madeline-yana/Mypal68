@@ -20,8 +20,10 @@ include protocol PClientManager;
 //include protocol PEndpointForReport;
 include protocol PFileDescriptorSet;
 include protocol PFileSystemRequest;
+#ifdef MOZ_GAMEPAD
 include protocol PGamepadEventChannel;
 include protocol PGamepadTestChannel;
+#endif
 include protocol PHttpBackgroundChannel;
 include protocol PRemoteLazyInputStream;
 include protocol PMediaTransport;
@@ -87,8 +89,10 @@ sync protocol PBackground
 //  manages PEndpointForReport;
   manages PFileDescriptorSet;
   manages PFileSystemRequest;
+#ifdef MOZ_GAMEPAD
   manages PGamepadEventChannel;
   manages PGamepadTestChannel;
+#endif
   manages PHttpBackgroundChannel;
   manages PRemoteLazyInputStream;
   manages PMediaTransport;
@@ -160,7 +164,7 @@ parent:
                                      nsCString originKey,
                                      uint32_t privateBrowsingId);
 
-  async PBackgroundStorage(nsString profilePath);
+  async PBackgroundStorage(nsString profilePath, uint32_t privateBrowsingId);
 
   async PVsync();
 
@@ -187,9 +191,11 @@ parent:
 
   async PFileSystemRequest(FileSystemParams params);
 
+#ifdef MOZ_GAMEPAD
   async PGamepadEventChannel();
 
   async PGamepadTestChannel();
+#endif
 
   async PHttpBackgroundChannel(uint64_t channelId);
 

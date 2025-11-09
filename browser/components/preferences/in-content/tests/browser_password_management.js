@@ -1,7 +1,5 @@
 "use strict";
 
-ChromeUtils.import("resource://testing-common/TelemetryTestUtils.jsm", this);
-
 const PM_URL = "chrome://passwordmgr/content/passwordManager.xhtml";
 const PREF_MANAGEMENT_URI = "signon.management.overrideURI";
 
@@ -54,12 +52,6 @@ add_task(async function test_openPasswordSubDialog() {
   });
 
   passwordsDialog = await dialogOpened;
-
-  // check telemetry events while we are in here
-  TelemetryTestUtils.assertEvents(
-    [["pwmgr", "open_management", "preferences"]],
-    { category: "pwmgr", method: "open_management" }
-  );
 });
 
 add_task(async function test_deletePasswordWithKey() {

@@ -375,6 +375,12 @@ var gMainPane = {
     setEventListener("manageBrowserLanguagesButton", "command", function() {
       gMainPane.showBrowserLanguages({ search: false });
     });
+    setEventListener(
+      "warnCloseMultiple",
+      "command",
+      gMainPane.onWarnCloseMultiple
+    );
+
     if (AppConstants.MOZ_UPDATER) {
       // These elements are only compiled in when the updater is enabled
       setEventListener("checkForUpdatesButton", "command", function() {
@@ -1035,6 +1041,15 @@ var gMainPane = {
     startupPref.value = newValue;
   },
 
+  onWarnCloseMultiple(event) {
+    const value = event.target.checked;
+    Services.prefs.setIntPref(
+      "browser.tabs.warnOnClose",
+      value ? 1 : 0
+      );
+    document.getElementById("warnCloseMultiple").checked = value;
+  },
+
   // TABS
 
   /*
@@ -1624,7 +1639,7 @@ var gMainPane = {
 
   // nsISupports
 
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIObserver]),
+  QueryInterface: ChromeUtils.generateQI(["nsIObserver"]),
 
   // nsIObserver
 

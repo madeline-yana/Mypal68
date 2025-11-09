@@ -1341,6 +1341,14 @@ void IMContextWrapper::SetInputContext(nsWindow* aCaller,
           hints |= GTK_INPUT_HINT_INHIBIT_OSK;
         }
 
+        if (mInputContext.mAutocapitalize.EqualsLiteral("characters")) {
+          hints |= GTK_INPUT_HINT_UPPERCASE_CHARS;
+        } else if (mInputContext.mAutocapitalize.EqualsLiteral("sentences")) {
+          hints |= GTK_INPUT_HINT_UPPERCASE_SENTENCES;
+        } else if (mInputContext.mAutocapitalize.EqualsLiteral("words")) {
+          hints |= GTK_INPUT_HINT_UPPERCASE_WORDS;
+        }
+
         g_object_set(currentContext, "input-hints", hints, nullptr);
       }
     }
@@ -1460,17 +1468,10 @@ void IMContextWrapper::OnSelectionChange(
 
   MOZ_LOG(gGtkIMLog, LogLevel::Info,
           ("0x%p OnSelectionChange(aCaller=0x%p, aIMENotification={ "
-           "mSelectionChangeData={ mOffset=%u, Length()=%u, mReversed=%s, "
-           "mWritingMode=%s, mCausedByComposition=%s, "
-           "mCausedBySelectionEvent=%s, mOccurredDuringComposition=%s "
-           "} }), mCompositionState=%s, mIsDeletingSurrounding=%s, "
+           "mSelectionChangeData=%s }), "
+           "mCompositionState=%s, mIsDeletingSurrounding=%s, "
            "mRetrieveSurroundingSignalReceived=%s",
-           this, aCaller, selectionChangeData.mOffset,
-           selectionChangeData.Length(), ToChar(selectionChangeData.mReversed),
-           GetWritingModeName(selectionChangeData.GetWritingMode()).get(),
-           ToChar(selectionChangeData.mCausedByComposition),
-           ToChar(selectionChangeData.mCausedBySelectionEvent),
-           ToChar(selectionChangeData.mOccurredDuringComposition),
+           this, aCaller, ToString(selectionChangeData).c_str(),
            GetCompositionStateName(), ToChar(mIsDeletingSurrounding),
            ToChar(retrievedSurroundingSignalReceived)));
 

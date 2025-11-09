@@ -206,7 +206,7 @@ void StreamSamplesAndMarkers(const char* aName, int aThreadId,
                              double aSinceTime, UniqueStacks& aUniqueStacks) {
   aWriter.StringProperty(
       "processType",
-      MakeStringSpan(XRE_GeckoProcessTypeToString(XRE_GetProcessType())));
+      MakeStringSpan(XRE_GetProcessTypeString()));
 
   aWriter.StringProperty("name", MakeStringSpan(aName));
 

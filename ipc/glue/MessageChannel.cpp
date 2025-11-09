@@ -23,16 +23,11 @@
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "nsAppRunner.h"
 #include "nsContentUtils.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsDebug.h"
 #include "nsIMemoryReporter.h"
 #include "nsISupportsImpl.h"
 #include "nsPrintfCString.h"
-
-#ifdef MOZ_TASK_TRACER
-#  include "GeckoTaskTracer.h"
-using namespace mozilla::tasktracer;
-#endif
 
 #ifdef MOZ_GECKO_PROFILER
 #  include "ProfilerMarkerPayload.h"
@@ -486,7 +481,7 @@ class ChannelCountReporter final : public nsIMemoryReporter {
     }
   };
 
-  using CountTable = nsDataHashtable<nsDepCharHashKey, ChannelCounts>;
+  using CountTable = nsTHashMap<nsDepCharHashKey, ChannelCounts>;
 
   static StaticMutex sChannelCountMutex;
   static CountTable* sChannelCounts;
@@ -501,22 +496,22 @@ class ChannelCountReporter final : public nsIMemoryReporter {
     if (!sChannelCounts) {
       return NS_OK;
     }
-    for (auto iter = sChannelCounts->Iter(); !iter.Done(); iter.Next()) {
-      nsPrintfCString pathNow("ipc-channels/%s", iter.Key());
-      nsPrintfCString pathMax("ipc-channels-peak/%s", iter.Key());
+    for (const auto& entry : *sChannelCounts) {
+      nsPrintfCString pathNow("ipc-channels/%s", entry.GetKey());
+      nsPrintfCString pathMax("ipc-channels-peak/%s", entry.GetKey());
       nsPrintfCString descNow(
           "Number of IPC channels for"
           " top-level actor type %s",
-          iter.Key());
+          entry.GetKey());
       nsPrintfCString descMax(
           "Peak number of IPC channels for"
           " top-level actor type %s",
-          iter.Key());
+          entry.GetKey());
 
-      aHandleReport->Callback(EmptyCString(), pathNow, KIND_OTHER, UNITS_COUNT,
-                              iter.Data().mNow, descNow, aData);
-      aHandleReport->Callback(EmptyCString(), pathMax, KIND_OTHER, UNITS_COUNT,
-                              iter.Data().mMax, descMax, aData);
+      aHandleReport->Callback(""_ns, pathNow, KIND_OTHER, UNITS_COUNT,
+                              entry.GetData().mNow, descNow, aData);
+      aHandleReport->Callback(""_ns, pathMax, KIND_OTHER, UNITS_COUNT,
+                              entry.GetData().mMax, descMax, aData);
     }
     return NS_OK;
   }
@@ -526,13 +521,13 @@ class ChannelCountReporter final : public nsIMemoryReporter {
     if (!sChannelCounts) {
       sChannelCounts = new CountTable;
     }
-    sChannelCounts->GetOrInsert(aName).Inc();
+    sChannelCounts->LookupOrInsert(aName).Inc();
   }
 
   static void Decrement(const char* aName) {
     StaticMutexAutoLock countLock(sChannelCountMutex);
     MOZ_ASSERT(sChannelCounts);
-    sChannelCounts->GetOrInsert(aName).Dec();
+    sChannelCounts->LookupOrInsert(aName).Dec();
   }
 };
 
@@ -682,7 +677,7 @@ int MessageChannel::DispatchingSyncMessageNestedLevel() const {
              : 0;
 }
 
-static void PrintErrorMessage(Side side, const char* channelName,
+static void PrintErrorMessage(MsgSide side, const char* channelName,
                               const char* msg) {
   const char* from = (side == ChildSide)
                          ? "Child"
@@ -813,7 +808,7 @@ void MessageChannel::Clear() {
 }
 
 bool MessageChannel::Open(mozilla::UniquePtr<Transport> aTransport,
-                          MessageLoop* aIOLoop, Side aSide) {
+                          MessageLoop* aIOLoop, MsgSide aSide) {
   MOZ_ASSERT(!mLink, "Open() called > once");
 
   mMonitor = new Monitor2("aTransport");
@@ -832,7 +827,7 @@ bool MessageChannel::Open(mozilla::UniquePtr<Transport> aTransport,
 }
 
 bool MessageChannel::Open(MessageChannel* aTargetChan,
-                          nsIEventTarget* aEventTarget, Side aSide) {
+                          nsIEventTarget* aEventTarget, MsgSide aSide) {
   // Opens a connection to another thread in the same process.
 
   //  This handshake proceeds as follows:
@@ -853,7 +848,7 @@ bool MessageChannel::Open(MessageChannel* aTargetChan,
 
   CommonThreadOpenInit(aTargetChan, aSide);
 
-  Side oppSide = UnknownSide;
+  MsgSide oppSide = UnknownSide;
   switch (aSide) {
     case ChildSide:
       oppSide = ParentSide;
@@ -870,7 +865,7 @@ bool MessageChannel::Open(MessageChannel* aTargetChan,
   Monitor2AutoLock lock(*mMonitor);
   mChannelState = ChannelOpening;
   MOZ_ALWAYS_SUCCEEDS(
-      aEventTarget->Dispatch(NewNonOwningRunnableMethod<MessageChannel*, Side>(
+      aEventTarget->Dispatch(NewNonOwningRunnableMethod<MessageChannel*, MsgSide>(
           "ipc::MessageChannel::OnOpenAsSlave", aTargetChan,
           &MessageChannel::OnOpenAsSlave, this, oppSide)));
 
@@ -880,7 +875,7 @@ bool MessageChannel::Open(MessageChannel* aTargetChan,
   return (ChannelConnected == mChannelState);
 }
 
-void MessageChannel::OnOpenAsSlave(MessageChannel* aTargetChan, Side aSide) {
+void MessageChannel::OnOpenAsSlave(MessageChannel* aTargetChan, MsgSide aSide) {
   // Invoked when the other side has begun the open.
   MOZ_ASSERT(ChannelClosed == mChannelState, "Not currently closed");
   MOZ_ASSERT(ChannelOpening == aTargetChan->mChannelState,
@@ -898,7 +893,7 @@ void MessageChannel::OnOpenAsSlave(MessageChannel* aTargetChan, Side aSide) {
 }
 
 void MessageChannel::CommonThreadOpenInit(MessageChannel* aTargetChan,
-                                          Side aSide) {
+                                          MsgSide aSide) {
   mWorkerLoop = MessageLoop::current();
   mWorkerThread = PR_GetCurrentThread();
   mWorkerLoop->AddDestructionObserver(this);
@@ -909,10 +904,10 @@ void MessageChannel::CommonThreadOpenInit(MessageChannel* aTargetChan,
 }
 
 bool MessageChannel::OpenOnSameThread(MessageChannel* aTargetChan,
-                                      mozilla::ipc::Side aSide) {
+                                      mozilla::ipc::MsgSide aSide) {
   CommonThreadOpenInit(aTargetChan, aSide);
 
-  Side oppSide = UnknownSide;
+  MsgSide oppSide = UnknownSide;
   switch (aSide) {
     case ChildSide:
       oppSide = ParentSide;
@@ -1292,9 +1287,6 @@ void MessageChannel::OnMessageReceivedFromLink(Message&& aMsg) {
   // blocked. This is okay, since we always check for pending events before
   // blocking again.
 
-#ifdef MOZ_TASK_TRACER
-  aMsg.TaskTracerDispatch();
-#endif
   RefPtr<MessageTask> task = new MessageTask(this, std::move(aMsg));
   mPending.insertBack(task);
 
@@ -1406,9 +1398,6 @@ bool MessageChannel::Send(UniquePtr<Message> aMsg, Message* aReply) {
   SyncStackFrame frame(this, false);
   NeuteredWindowRegion neuteredRgn(mFlags &
                                    REQUIRE_DEFERRED_MESSAGE_PROTECTION);
-#endif
-#ifdef MOZ_TASK_TRACER
-  AutoScopedLabel autolabel("sync message %s", aMsg->name());
 #endif
 
   CxxStackFrame f(*this, OUT_MESSAGE, aMsg.get());
@@ -1617,9 +1606,6 @@ bool MessageChannel::Call(UniquePtr<Message> aMsg, Message* aReply) {
 #ifdef OS_WIN
   SyncStackFrame frame(this, true);
 #endif
-#ifdef MOZ_TASK_TRACER
-  AutoScopedLabel autolabel("sync message %s", aMsg->name());
-#endif
 
   // This must come before MonitorAutoLock, as its destructor acquires the
   // monitor lock.
@@ -1771,9 +1757,6 @@ bool MessageChannel::Call(UniquePtr<Message> aMsg, Message* aReply) {
     // own the monitor.
     size_t stackDepth = InterruptStackDepth();
     {
-#ifdef MOZ_TASK_TRACER
-      Message::AutoTaskTracerRun tasktracerRun(recvd);
-#endif
       Monitor2AutoUnlock unlock(*mMonitor);
 
       CxxStackFrame frame(*this, IN_MESSAGE, &recvd);
@@ -2057,9 +2040,6 @@ void MessageChannel::DispatchMessage(Message&& aMsg) {
     MOZ_RELEASE_ASSERT(!aMsg.is_sync() || id == transaction.TransactionID());
 
     {
-#ifdef MOZ_TASK_TRACER
-      Message::AutoTaskTracerRun tasktracerRun(aMsg);
-#endif
       Monitor2AutoUnlock unlock(*mMonitor);
       CxxStackFrame frame(*this, IN_MESSAGE, &aMsg);
 
@@ -2104,9 +2084,6 @@ void MessageChannel::DispatchSyncMessage(ActorLifecycleProxy* aProxy,
 
   MOZ_RELEASE_ASSERT(nestedLevel == IPC::Message::NOT_NESTED ||
                      NS_IsMainThread());
-#ifdef MOZ_TASK_TRACER
-  AutoScopedLabel autolabel("sync message %s", aMsg.name());
-#endif
 
   MessageChannel* dummy;
   MessageChannel*& blockingVar =

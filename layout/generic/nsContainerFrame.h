@@ -12,6 +12,7 @@
 #include "nsSplittableFrame.h"
 #include "nsFrameList.h"
 #include "nsLineBox.h"
+#include "nsTHashSet.h"
 
 class nsOverflowContinuationTracker;
 
@@ -758,7 +759,7 @@ class nsContainerFrame : public nsSplittableFrame {
    *
    * @return true if any items are moved; false otherwise.
    */
-  using FrameHashtable = nsTHashtable<nsPtrHashKey<nsIFrame>>;
+  using FrameHashtable = nsTHashSet<nsIFrame*>;
   bool PushIncompleteChildren(const FrameHashtable& aPushedItems,
                               const FrameHashtable& aIncompleteItems,
                               const FrameHashtable& aOverflowIncompleteItems);

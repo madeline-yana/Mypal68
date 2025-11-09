@@ -5,50 +5,62 @@
 #ifndef GFX_FONTENTRY_H
 #define GFX_FONTENTRY_H
 
-#include "gfxTypes.h"
-#include "nsString.h"
-#include "gfxFontConstants.h"
-#include "gfxFontFeatures.h"
+#include <math.h>
+#include <new>
+#include <utility>
 #include "gfxFontUtils.h"
 #include "gfxFontVariations.h"
-#include "nsTArray.h"
-#include "nsTHashtable.h"
-#include "mozilla/HashFunctions.h"
-#include "mozilla/MemoryReporting.h"
-#include "MainThreadUtils.h"
-#include "nsUnicodeScriptCodes.h"
-#include "nsDataHashtable.h"
+#include "gfxRect.h"
+#include "gfxTypes.h"
 #include "harfbuzz/hb.h"
+#include "ipc/EnumSerializer.h"
+#include "mozilla/AlreadyAddRefed.h"
+#include "mozilla/Assertions.h"
 #include "mozilla/FontPropertyTypes.h"
-#include "mozilla/gfx/2D.h"
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/TypedEnumBits.h"
 #include "mozilla/UniquePtr.h"
-#include "mozilla/WeakPtr.h"
-#include <math.h>
+#include "mozilla/intl/UnicodeScriptCodes.h"
+#include "nsTHashMap.h"
+#include "nsDebug.h"
+#include "nsHashKeys.h"
+#include "nsISupports.h"
+#include "nsStringFwd.h"
+#include "nsTArray.h"
+#include "nscore.h"
 
-typedef struct gr_face gr_face;
-typedef struct FT_MM_Var_ FT_MM_Var;
-
-#ifdef DEBUG
-#  include <stdio.h>
-#endif
-
-struct gfxFontStyle;
+class FontInfoData;
 class gfxContext;
 class gfxFont;
 class gfxFontFamily;
-class gfxUserFontData;
+class gfxPlatformFontList;
 class gfxSVGGlyphs;
-class FontInfoData;
-struct FontListSizes;
+class gfxUserFontData;
 class nsAtom;
+struct FontListSizes;
+struct gfxFontFeature;
+struct gfxFontStyle;
+enum class eFontPresentation : uint8_t;
+
+namespace IPC {
+template <class P>
+struct ParamTraits;
+}
 
 namespace mozilla {
 class SVGContextPaint;
 namespace fontlist {
-struct Family;
 struct Face;
+struct Family;
 }  // namespace fontlist
+namespace gfx {
+struct DeviceColor;
+}
 }  // namespace mozilla
+
+typedef struct gr_face gr_face;
+typedef struct FT_MM_Var_ FT_MM_Var;
 
 #define NO_FONT_LANGUAGE_OVERRIDE 0
 
@@ -117,7 +129,7 @@ struct gfxFontFeatureInfo {
 class gfxFontEntry {
  public:
   typedef mozilla::gfx::DrawTarget DrawTarget;
-  typedef mozilla::unicode::Script Script;
+  typedef mozilla::intl::Script Script;
   typedef mozilla::FontWeight FontWeight;
   typedef mozilla::FontSlantStyle FontSlantStyle;
   typedef mozilla::FontStretch FontStretch;
@@ -430,9 +442,8 @@ class gfxFontEntry {
   nsTArray<gfxFont*> mFontsUsingSVGGlyphs;
   nsTArray<gfxFontFeature> mFeatureSettings;
   nsTArray<gfxFontVariation> mVariationSettings;
-  mozilla::UniquePtr<nsDataHashtable<nsUint32HashKey, bool>> mSupportedFeatures;
-  mozilla::UniquePtr<nsDataHashtable<nsUint32HashKey, hb_set_t*>>
-      mFeatureInputs;
+  mozilla::UniquePtr<nsTHashMap<nsUint32HashKey, bool>> mSupportedFeatures;
+  mozilla::UniquePtr<nsTHashMap<nsUint32HashKey, hb_set_t*>> mFeatureInputs;
 
   // Color Layer font support
   hb_blob_t* mCOLR = nullptr;
@@ -552,6 +563,11 @@ class gfxFontEntry {
   // hasn't handled our SetCharacterMap message yet).
   bool TrySetShmemCharacterMap();
 
+  // Helper for gfxPlatformFontList::CreateFontEntry methods: set properties
+  // of the gfxFontEntry based on shared Face and Family records.
+  void InitializeFrom(mozilla::fontlist::Face* aFace,
+                      const mozilla::fontlist::Family* aFamily);
+
   // Shaper-specific face objects, shared by all instantiations of the same
   // physical font, regardless of size.
   // Usually, only one of these will actually be created for any given font
@@ -577,7 +593,7 @@ class gfxFontEntry {
 
   // hashtable to map raw table data ptr back to its owning blob, for use by
   // graphite table-release callback
-  nsDataHashtable<nsPtrHashKey<const void>, void*>* mGrTableMap = nullptr;
+  nsTHashMap<nsPtrHashKey<const void>, void*>* mGrTableMap = nullptr;
 
   // For AAT font, a strong reference to the 'trak' table (if present).
   hb_blob_t* const kTrakTableUninitialized = (hb_blob_t*)(intptr_t(-1));
@@ -739,13 +755,34 @@ struct GlobalFontMatch {
   float mMatchDistance = INFINITY;  // metric indicating closest match
 };
 
+// Installation status (base system / langpack / user-installed) may determine
+// whether the font is visible to CSS font-family or src:local() lookups.
+// (Exactly what these mean and how accurate they are may be vary across
+// platforms -- e.g. on Linux there is no clear "base" set of fonts.)
+enum class FontVisibility : uint8_t {
+  Unknown = 0,   // No categorization of families available on this system
+  Base = 1,      // Standard part of the base OS installation
+  LangPack = 2,  // From an optional OS component such as language support
+  User = 3,      // User-installed font (or installed by another app, etc)
+  Hidden = 4,    // Internal system font, should never exposed to users
+  Count = 5,     // Count of values, for IPC serialization
+};
+
+namespace IPC {
+template <>
+struct ParamTraits<FontVisibility>
+    : public ContiguousEnumSerializer<FontVisibility, FontVisibility::Unknown,
+                                      FontVisibility::Count> {};
+}  // namespace IPC
+
 class gfxFontFamily {
  public:
   // Used by stylo
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(gfxFontFamily)
 
-  explicit gfxFontFamily(const nsACString& aName)
+  gfxFontFamily(const nsACString& aName, FontVisibility aVisibility)
       : mName(aName),
+        mVisibility(aVisibility),
         mOtherFamilyNamesInitialized(false),
         mHasOtherFamilyNames(false),
         mFaceNamesInitialized(false),
@@ -896,6 +933,9 @@ class gfxFontFamily {
     return true;
   }
 
+  FontVisibility Visibility() const { return mVisibility; }
+  bool IsHidden() const { return Visibility() == FontVisibility::Hidden; }
+
  protected:
   // Protected destructor, to discourage deletion outside of Release():
   virtual ~gfxFontFamily();
@@ -917,6 +957,9 @@ class gfxFontFamily {
   nsCString mName;
   nsTArray<RefPtr<gfxFontEntry>> mAvailableFonts;
   gfxSparseBitSet mFamilyCharacterMap;
+
+  FontVisibility mVisibility;
+
   bool mOtherFamilyNamesInitialized : 1;
   bool mHasOtherFamilyNames : 1;
   bool mFaceNamesInitialized : 1;

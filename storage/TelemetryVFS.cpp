@@ -179,7 +179,7 @@ const char* DatabasePathFromWALPath(const char* zWALName) {
   nsDependentCSubstring dbPath(zWALName, strlen(zWALName));
 
   // Chop off the "-wal" suffix.
-  NS_NAMED_LITERAL_CSTRING(kWALSuffix, "-wal");
+  constexpr auto kWALSuffix = "-wal"_ns;
   MOZ_ASSERT(StringEndsWith(dbPath, kWALSuffix));
 
   dbPath.Rebind(zWALName, dbPath.Length() - kWALSuffix.Length());
@@ -399,7 +399,9 @@ int xWrite(sqlite3_file* pFile, const void* zBuf, int iAmt,
         "update its current size...");
     sqlite_int64 currentSize;
     if (xFileSize(pFile, &currentSize) == SQLITE_OK) {
-      p->quotaObject->MaybeUpdateSize(currentSize, /* aTruncate */ true);
+      DebugOnly<bool> res =
+          p->quotaObject->MaybeUpdateSize(currentSize, /* aTruncate */ true);
+      MOZ_ASSERT(res);
     }
   }
   return rc;
@@ -438,7 +440,9 @@ int xTruncate(sqlite3_file* pFile, sqlite_int64 size) {
           "xTruncate failed on a quota-controlled file, attempting to "
           "update its current size...");
       if (xFileSize(pFile, &size) == SQLITE_OK) {
-        p->quotaObject->MaybeUpdateSize(size, /* aTruncate */ true);
+        DebugOnly<bool> res =
+            p->quotaObject->MaybeUpdateSize(size, /* aTruncate */ true);
+        MOZ_ASSERT(res);
       }
     }
   }

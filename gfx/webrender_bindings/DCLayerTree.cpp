@@ -7,6 +7,7 @@
 #include "GLContext.h"
 #include "GLContextEGL.h"
 #include "mozilla/gfx/DeviceManagerDx.h"
+#include "mozilla/gfx/Logging.h"
 #include "mozilla/StaticPrefs_gfx.h"
 
 #undef _WIN32_WINNT

@@ -12,7 +12,7 @@
 
 #include "nsAutoPtr.h"
 #include "nsClassHashtable.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsIDocumentObserver.h"
 #include "nsIObserver.h"
 #include "nsIScrollPositionListener.h"
@@ -607,7 +607,7 @@ class DocAccessible : public HyperTextAccessibleWrap,
    * Cache of accessibles within this document accessible.
    */
   AccessibleHashtable mAccessibleCache;
-  nsDataHashtable<nsPtrHashKey<const nsINode>, Accessible*>
+  nsTHashMap<nsPtrHashKey<const nsINode>, Accessible*>
       mNodeToAccessibleMap;
 
   Document* mDocumentNode;

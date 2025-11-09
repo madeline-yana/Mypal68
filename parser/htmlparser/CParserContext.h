@@ -11,13 +11,13 @@
 #ifndef __CParserContext
 #define __CParserContext
 
+#include "mozilla/UniquePtr.h"
 #include "nsIParser.h"
 #include "nsIDTD.h"
 #include "nsIRequest.h"
 #include "nsScanner.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
 
 /**
  * Note that the parser is given FULL access to all
@@ -30,7 +30,6 @@ class CParserContext {
 
   CParserContext(CParserContext* aPrevContext, nsScanner* aScanner,
                  void* aKey = 0, eParserCommands aCommand = eViewNormal,
-                 nsIRequestObserver* aListener = 0,
                  eAutoDetectResult aStatus = eUnknownDetect,
                  bool aCopyUnused = false);
 
@@ -43,11 +42,10 @@ class CParserContext {
   nsCOMPtr<nsIRequest>
       mRequest;  // provided by necko to differnciate different input streams
                  // why is mRequest strongly referenced? see bug 102376.
-  nsCOMPtr<nsIRequestObserver> mListener;
   void* const mKey;
   nsCOMPtr<nsITokenizer> mTokenizer;
   CParserContext* const mPrevContext;
-  nsAutoPtr<nsScanner> mScanner;
+  mozilla::UniquePtr<nsScanner> mScanner;
 
   nsCString mMimeType;
   nsDTDMode mDTDMode;

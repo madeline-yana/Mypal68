@@ -1,6 +1,8 @@
 /** Test for Bug 1305950 **/
 
-ChromeUtils.import("resource://testing-common/MockRegistrar.jsm", this);
+const { MockRegistrar } = ChromeUtils.import(
+  "resource://testing-common/MockRegistrar.jsm"
+);
 
 // The mock idle service.
 var idleService = {
@@ -25,7 +27,7 @@ var idleService = {
     }
   },
 
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIIdleService]),
+  QueryInterface: ChromeUtils.generateQI(["nsIIdleService"]),
   idleTime: 19999,
 
   addIdleObserver(observer, time) {

@@ -11,7 +11,7 @@
 
 #include "gfxFont.h"
 #include "gfxUserFontSet.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsHashKeys.h"
 
 #include "mozilla/gfx/gfxVars.h"
@@ -94,7 +94,7 @@ class gfxDWriteFont : public gfxFont {
   Metrics* mMetrics;
 
   // cache of glyph widths in 16.16 fixed-point pixels
-  mozilla::UniquePtr<nsDataHashtable<nsUint32HashKey, int32_t>> mGlyphWidths;
+  mozilla::UniquePtr<nsTHashMap<nsUint32HashKey, int32_t>> mGlyphWidths;
 
   uint32_t mSpaceGlyph;
 

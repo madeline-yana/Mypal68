@@ -521,7 +521,7 @@ HistoryTracker.prototype = {
     }
   },
 
-  QueryInterface: ChromeUtils.generateQI([Ci.nsISupportsWeakReference]),
+  QueryInterface: ChromeUtils.generateQI(["nsISupportsWeakReference"]),
 
   handlePlacesEvents(aEvents) {
     this.asyncObserver.enqueueCall(() => this._handlePlacesEvents(aEvents));

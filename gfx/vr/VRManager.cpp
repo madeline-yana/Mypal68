@@ -166,11 +166,11 @@ void VRManager::AddVRManagerParent(VRManagerParent* aVRManagerParent) {
   if (mVRManagerParents.IsEmpty()) {
     Init();
   }
-  mVRManagerParents.PutEntry(aVRManagerParent);
+  mVRManagerParents.Insert(aVRManagerParent);
 }
 
 void VRManager::RemoveVRManagerParent(VRManagerParent* aVRManagerParent) {
-  mVRManagerParents.RemoveEntry(aVRManagerParent);
+  mVRManagerParents.Remove(aVRManagerParent);
   if (mVRManagerParents.IsEmpty()) {
     Destroy();
   }
@@ -181,8 +181,7 @@ void VRManager::UpdateRequestedDevices() {
   bool bHaveEventListenerNonFocus = false;
   bool bHaveControllerListener = false;
 
-  for (auto iter = mVRManagerParents.Iter(); !iter.Done(); iter.Next()) {
-    VRManagerParent* vmp = iter.Get()->GetKey();
+  for (VRManagerParent* vmp : mVRManagerParents) {
     bHaveEventListener |= vmp->HaveEventListener() && vmp->GetVRActiveStatus();
     bHaveEventListenerNonFocus |=
         vmp->HaveEventListener() && !vmp->GetVRActiveStatus();

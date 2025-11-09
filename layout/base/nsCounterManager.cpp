@@ -318,13 +318,11 @@ bool nsCounterManager::AddCounterChanges(nsIFrame* aFrame) {
 
 nsCounterList* nsCounterManager::CounterListFor(nsAtom* aCounterName) {
   MOZ_ASSERT(aCounterName);
-  return mNames.LookupForAdd(aCounterName).OrInsert([]() {
-    return new nsCounterList();
-  }).get();
+  return mNames.GetOrInsertNew(aCounterName);
 }
 
 void nsCounterManager::RecalcAll() {
-  for (auto iter = mNames.Iter(); !iter.Done(); iter.Next()) {
+  for (auto iter = mNames.ConstIter(); !iter.Done(); iter.Next()) {
     nsCounterList* list = iter.UserData();
     if (list->IsDirty()) {
       list->RecalcAll();
@@ -333,7 +331,7 @@ void nsCounterManager::RecalcAll() {
 }
 
 void nsCounterManager::SetAllDirty() {
-  for (auto iter = mNames.Iter(); !iter.Done(); iter.Next()) {
+  for (auto iter = mNames.ConstIter(); !iter.Done(); iter.Next()) {
     iter.UserData()->SetDirty();
   }
 }
@@ -342,7 +340,7 @@ bool nsCounterManager::DestroyNodesFor(nsIFrame* aFrame) {
   MOZ_ASSERT(aFrame->HasAnyStateBits(NS_FRAME_HAS_CSS_COUNTER_STYLE),
              "why call me?");
   bool destroyedAny = false;
-  for (auto iter = mNames.Iter(); !iter.Done(); iter.Next()) {
+  for (auto iter = mNames.ConstIter(); !iter.Done(); iter.Next()) {
     nsCounterList* list = iter.UserData();
     if (list->DestroyNodesFor(aFrame)) {
       destroyedAny = true;
@@ -355,10 +353,10 @@ bool nsCounterManager::DestroyNodesFor(nsIFrame* aFrame) {
 #ifdef DEBUG
 void nsCounterManager::Dump() {
   printf("\n\nCounter Manager Lists:\n");
-  for (auto iter = mNames.Iter(); !iter.Done(); iter.Next()) {
-    printf("Counter named \"%s\":\n", nsAtomCString(iter.Key()).get());
+  for (const auto& entry : mNames) {
+    printf("Counter named \"%s\":\n", nsAtomCString(entry.GetKey()).get());
 
-    nsCounterList* list = iter.UserData();
+    nsCounterList* list = entry.GetWeak();
     int32_t i = 0;
     for (nsCounterNode* node = list->First(); node; node = list->Next(node)) {
       const char* types[] = {"RESET", "INCREMENT", "SET", "USE"};

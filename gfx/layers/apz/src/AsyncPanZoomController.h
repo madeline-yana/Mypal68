@@ -900,9 +900,6 @@ class AsyncPanZoomController {
   void OnTouchEndOrCancel();
 
   LayersId mLayersId;
-#ifdef MOZ_BUILD_WEBRENDER
-  wr::RenderRoot mRenderRoot;
-#endif
   RefPtr<CompositorController> mCompositorController;
   RefPtr<MetricsSharingController> mMetricsSharingController;
 
@@ -1671,8 +1668,6 @@ class AsyncPanZoomController {
   LayersId GetLayersId() const { return mLayersId; }
 
 #ifdef MOZ_BUILD_WEBRENDER
-  wr::RenderRoot GetRenderRoot() const { return mRenderRoot; }
-
   bool IsAsyncZooming() const {
     return mState == PINCHING || mState == ANIMATING_ZOOM;
   }

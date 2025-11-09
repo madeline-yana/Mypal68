@@ -4,31 +4,19 @@
 
 // @flow
 
-import * as timings from "./timings";
 import { prefs, asyncStore, features } from "./prefs";
 import { isDevelopment, isTesting } from "devtools-environment";
 import { getDocument } from "./editor/source-documents";
-import type { URL } from "../types";
+import type { Source, URL } from "../types";
 
-function findSource(dbg: any, url: URL) {
+function findSource(dbg: any, url: URL): Source {
   const sources = dbg.selectors.getSourceList();
   return sources.find(s => (s.url || "").includes(url));
 }
 
-function findSources(dbg: any, url: URL) {
+function findSources(dbg: any, url: URL): Source[] {
   const sources = dbg.selectors.getSourceList();
   return sources.filter(s => (s.url || "").includes(url));
-}
-
-function sendPacket(dbg: any, packet: any) {
-  return dbg.client.sendPacket(packet);
-}
-
-function sendPacketToThread(dbg: Object, packet: any) {
-  return sendPacket(dbg, {
-    to: dbg.connection.tabConnection.threadFront.actor,
-    ...packet,
-  });
 }
 
 function evaluate(dbg: Object, expression: any) {
@@ -43,7 +31,7 @@ function bindSelectors(obj: Object): Object {
   }, {});
 }
 
-function getCM() {
+function getCM(): Object {
   const cm: any = document.querySelector(".CodeMirror");
   return cm?.CodeMirror;
 }
@@ -73,22 +61,21 @@ function getDocumentForUrl(dbg, url) {
   return getDocument(source.id);
 }
 
-export function setupHelper(obj: Object) {
+const diff = (a, b) => Object.keys(a).filter(key => !Object.is(a[key], b[key]));
+
+export function setupHelper(obj) {
   const selectors = bindSelectors(obj);
-  const dbg: Object = {
+  const dbg = {
     ...obj,
     selectors,
     prefs,
     asyncStore,
     features,
-    timings,
     getCM,
     helpers: {
       findSource: url => findSource(dbg, url),
       findSources: url => findSources(dbg, url),
       evaluate: expression => evaluate(dbg, expression),
-      sendPacketToThread: packet => sendPacketToThread(dbg, packet),
-      sendPacket: packet => sendPacket(dbg, packet),
       dumpThread: () => dbg.connection.tabConnection.threadFront.dumpThread(),
       getDocument: url => getDocumentForUrl(dbg, url),
     },
@@ -97,6 +84,7 @@ export function setupHelper(obj: Object) {
       mappedLocation: location => formatMappedLocation(location),
       selectedColumnBreakpoints: () => formatSelectedColumnBreakpoints(dbg),
     },
+    diff,
   };
 
   window.dbg = dbg;

@@ -10,6 +10,7 @@
 #include "nsClassHashtable.h"
 #include "nsComponentManagerUtils.h"
 #include "nsTArray.h"
+#include "nsTHashSet.h"
 #include "nsZipArchive.h"
 #include "nsITimer.h"
 #include "nsIMemoryReporter.h"
@@ -136,7 +137,7 @@ struct nsCStringHasher {
 // We don't want to refcount StartupCache, and ObserverService wants to
 // refcount its listeners, so we'll let it refcount this instead.
 class StartupCacheListener final : public nsIObserver {
-  ~StartupCacheListener() {}
+  ~StartupCacheListener() = default;
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
 };
@@ -241,7 +242,7 @@ class StartupCache : public nsIMemoryReporter {
   PRThread* mPrefetchThread;
   UniquePtr<Compression::LZ4FrameDecompressionContext> mDecompressionContext;
 #ifdef DEBUG
-  nsTHashtable<nsISupportsHashKey> mWriteObjectMap;
+  nsTHashSet<nsCOMPtr<nsISupports>> mWriteObjectMap;
 #endif
 };
 
@@ -250,13 +251,13 @@ class StartupCache : public nsIMemoryReporter {
 // is a singleton.
 #ifdef DEBUG
 class StartupCacheDebugOutputStream final : public nsIObjectOutputStream {
-  ~StartupCacheDebugOutputStream() {}
+  ~StartupCacheDebugOutputStream() = default;
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBJECTOUTPUTSTREAM
 
   StartupCacheDebugOutputStream(nsIObjectOutputStream* binaryStream,
-                                nsTHashtable<nsISupportsHashKey>* objectMap)
+                                nsTHashSet<nsCOMPtr<nsISupports>>* objectMap)
       : mBinaryStream(binaryStream), mObjectMap(objectMap) {}
 
   NS_FORWARD_SAFE_NSIBINARYOUTPUTSTREAM(mBinaryStream)
@@ -265,7 +266,7 @@ class StartupCacheDebugOutputStream final : public nsIObjectOutputStream {
   bool CheckReferences(nsISupports* aObject);
 
   nsCOMPtr<nsIObjectOutputStream> mBinaryStream;
-  nsTHashtable<nsISupportsHashKey>* mObjectMap;
+  nsTHashSet<nsCOMPtr<nsISupports>>* mObjectMap;
 };
 #endif  // DEBUG
 

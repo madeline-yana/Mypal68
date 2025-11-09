@@ -66,11 +66,11 @@ ContentParent* CanonicalBrowsingContext::GetContentParent() const {
   return cpm->GetContentProcessById(ContentParentId(mProcessId));
 }
 
-void CanonicalBrowsingContext::GetCurrentRemoteType(nsAString& aRemoteType,
+void CanonicalBrowsingContext::GetCurrentRemoteType(nsACString& aRemoteType,
                                                     ErrorResult& aRv) const {
   // If we're in the parent process, dump out the void string.
   if (mProcessId == 0) {
-    aRemoteType.Assign(VoidString());
+    aRemoteType.Assign(VoidCString());
     return;
   }
 
@@ -206,7 +206,7 @@ void CanonicalBrowsingContext::UpdateMediaControlKeysEvent(
 
 void CanonicalBrowsingContext::SetFieldEpochsForChild(
     ContentParent* aChild, const BrowsingContext::FieldEpochs& aEpochs) {
-  mChildFieldEpochs.Put(aChild->ChildID(), aEpochs);
+  mChildFieldEpochs.InsertOrUpdate(aChild->ChildID(), aEpochs);
 }
 
 const BrowsingContext::FieldEpochs&

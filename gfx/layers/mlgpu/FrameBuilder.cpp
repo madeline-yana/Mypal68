@@ -257,7 +257,7 @@ bool FrameBuilder::AddLayerToConstantBuffer(ItemInfo& aItem) {
   }
 
   if (aItem.geometry) {
-    mLayerBufferMap.Put(layer, aItem.layerIndex);
+    mLayerBufferMap.InsertOrUpdate(layer, aItem.layerIndex);
   }
   return true;
 }
@@ -307,7 +307,7 @@ MaskOperation* FrameBuilder::AddMaskOperation(LayerMLGPU* aLayer) {
   RefPtr<MLGTexture> wrapped = mDevice->CreateTexture(texture);
 
   op = new MaskOperation(this, wrapped);
-  mSingleTextureMasks.Put(texture, RefPtr{op});
+  mSingleTextureMasks.InsertOrUpdate(texture, RefPtr{op});
   return op;
 }
 

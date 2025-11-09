@@ -151,8 +151,10 @@
 
 #ifdef EARLY_BETA_OR_EARLIER
 #define IS_EARLY_BETA_OR_EARLIER true
+#define IS_NOT_EARLY_BETA_OR_EARLIER false
 #else
 #define IS_EARLY_BETA_OR_EARLIER false
+#define IS_NOT_EARLY_BETA_OR_EARLIER true
 #endif
 
 #ifdef ANDROID
@@ -943,6 +945,18 @@
   value: 2000
   mirror: always
 
+# Image document's automatic image sizing.
+- name: browser.enable_automatic_image_resizing
+  type: bool
+  value: true
+  mirror: always
+
+# Image document's click-to-resize.
+- name: browser.enable_click_image_resizing
+  type: bool
+  value: @IS_NOT_ANDROID@
+  mirror: always
+
 # Render animations and videos as a solid color
 - name: browser.measurement.render_anims_and_video_solid
   type: RelaxedAtomicBool
@@ -1229,11 +1243,6 @@
   value: true
   mirror: always
 
-- name: device.sensors.proximity.enabled
-  type: bool
-  value: false
-  mirror: always
-
 - name: device.sensors.test.events
   type: bool
   value: false
@@ -1442,13 +1451,16 @@
   value: true
   mirror: always
 
+# If set this to true, `Document.execCommand` may be performed nestedly.
+# Otherwise, nested calls just return false.
+- name: dom.document.exec_command.nested_calls_allowed
+  type: bool
+  value: false
+  mirror: always
+
 - name: dom.enable_window_print
   type: bool
-#ifdef ANDROID
-  value: false
-#else
-  value: true
-#endif
+  value: @IS_NOT_ANDROID@
   mirror: always
 
 # Is support for Performance.mozMemory enabled?
@@ -1479,7 +1491,7 @@
 # Whether event timing will be gathered and returned by performance observer*
 - name: dom.enable_event_timing
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Whether performance.GetEntries* will contain an entry for the active document
@@ -1595,6 +1607,7 @@
   mirror: always
 
 # Whether the Gamepad API is enabled
+#ifdef MOZ_GAMEPAD
 - name: dom.gamepad.enabled
   type: bool
   value: true
@@ -1621,6 +1634,7 @@
   type: bool
   value: false
   mirror: always
+#endif
 
 # W3C draft ImageCapture API
 - name: dom.imagecapture.enabled
@@ -1644,7 +1658,7 @@
 
 - name: dom.input_events.beforeinput.enabled
   type: bool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Whether we conform to Input Events Level 1 or Input Events Level 2.
@@ -1742,6 +1756,12 @@
   value: 0
   mirror: always
 
+# Is support for HTMLElement.autocapitalize enabled?
+- name: dom.forms.autocapitalize
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
 # Support for input type=month, type=week and type=datetime-local. By default,
 # disabled.
 - name: dom.forms.datetime.others
@@ -1785,13 +1805,21 @@
   value: true
   mirror: always
 
+# Whether to allow or disallow web apps to cancel `beforeinput` events caused
+# by MozEditableElement#setUserInput() which is used by autocomplete, autofill
+# and password manager.
+- name: dom.input_event.allow_to_cancel_set_user_input
+  type: bool
+  value: false
+  mirror: always
+
 # How long a content process can take before closing its IPC channel
 # after shutdown is initiated.  If the process exceeds the timeout,
 # we fear the worst and kill it.
 - name: dom.ipc.tabs.shutdownTimeoutSecs
   type: RelaxedAtomicUint32
 #if !defined(DEBUG) && !defined(MOZ_ASAN) && !defined(MOZ_VALGRIND) && !defined(MOZ_TSAN)
-  value: 5
+  value: 20
 #else
   value: 0
 #endif
@@ -1882,14 +1910,9 @@
   value: false
   mirror: always
 
-- name: dom.metaElement.setCookie.allowed
-  type: bool
-  value: false
-  mirror: always
-
 # Timeout clamp in ms for timeouts we clamp.
 - name: dom.min_timeout_value
-  type: int32_t
+  type: RelaxedAtomicInt32
   value: 4
   mirror: always
 
@@ -1903,6 +1926,12 @@
 - name: dom.moduleScripts.enabled
   type: bool
   value: true
+  mirror: always
+
+# Is support for import maps (<script type="importmap">) enabled for content?
+- name: dom.importMaps.enabled
+  type: bool
+  value: false
   mirror: always
 
 # Whether we disable triggering mutation events for changes to style
@@ -1998,39 +2027,6 @@
   value: true
   mirror: always
 
-# Presentation API
-- name: dom.presentation.enabled
-  type: bool
-#if defined(ANDROID)
-  value: @IS_NOT_RELEASE_OR_BETA@
-#else
-  value: false
-#endif
-  mirror: always
-
-- name: dom.presentation.controller.enabled
-  type: bool
-#if defined(ANDROID)
-  value: @IS_NOT_RELEASE_OR_BETA@
-#else
-  value: false
-#endif
-  mirror: always
-
-- name: dom.presentation.receiver.enabled
-  type: bool
-#if defined(ANDROID)
-  value: @IS_NOT_RELEASE_OR_BETA@
-#else
-  value: false
-#endif
-  mirror: always
-
-- name: dom.presentation.testing.simulate-receiver
-  type: bool
-  value: false
-  mirror: always
-
 # This currently only affects XHTML. For XUL the cache is always allowed.
 - name: dom.prototype_document_cache.enabled
   type: bool
@@ -2043,6 +2039,13 @@
   value: false
   mirror: always
 
+# Preference that is primarily used for testing of problematic file paths.
+# It can also be used for switching between different storage directories, but
+# such feature is not officially supported.
+- name: dom.quotaManager.storageName
+  type: String
+  value: "storage"
+  mirror: never
 
 # Should we try to load origin information from the cache?
 # See bug 1563023 for more details.
@@ -2090,6 +2093,23 @@
     value: true
     mirror: always
 #endif
+
+# How many times we should retry directory removal or renaming if access was
+# denied?
+- name: dom.quotaManager.directoryRemovalOrRenaming.maxRetries
+  type: RelaxedAtomicUint32
+#ifdef XP_WIN
+  value: 10
+#else
+  value: 0
+#endif
+  mirror: always
+
+# How long we should wait between retries (in milliseconds)?
+- name: dom.quotaManager.directoryRemovalOrRenaming.delayMs
+  type: RelaxedAtomicUint32
+  value: 200
+  mirror: always
 
 # Reporting API.
 #ifdef THE_REPORTING
@@ -2173,10 +2193,44 @@
   value: 0
   mirror: always
 
-# Force full parse on any external JS scripts that is being compiled off thread.
-- name: dom.script_loader.full_parse
-  type: bool
-  value: false
+# Select which parse/delazification strategy should be used while parsing
+# scripts off-main-thread. (see CompileOptions.h, DelazificationOption enum)
+#
+#   0: On-demand only. Delazification will be triggered only on the main thread
+#      before the execution of the function.
+#
+#   1: Compare on-demand delazification (= 0) with concurrent depth-first
+#      delazification (= 2).
+#
+#   2: Depth-first. Delazify all functions off-thread in the order of appearance
+#      in the source.
+#
+# 255: Parse everything eagerly, from the first parse. All functions are parsed
+#      at the same time as the top-level of a file.
+- name: dom.script_loader.delazification.strategy
+  type: uint32_t
+  value: 255
+  mirror: always
+
+# Maximum total size after which the delazification strategy, specified by
+# `dom.script_loader.delazification.strategy`, is no longer applied, and the
+# on-demand strategy is used by default.
+#
+# -1 disable the threshold, and delazification strategy is applied to all
+# scripts.
+#
+# Default value is 10MB for utf8 scripts.
+- name: dom.script_loader.delazification.max_size
+  type: int32_t
+  value: 10485760
+  mirror: always
+
+# Minimum memory, in GB, required to enable delazification strategy, specified
+# by `dom.script_loader.delazification.strategy`. Otherwise, the on-demand
+# delazification strategy is used.
+- name: dom.script_loader.delazification.min_mem
+  type: int32_t
+  value: 2
   mirror: always
 
 # Is support for decoding external (non-inline) classic or module DOM scripts
@@ -2330,6 +2384,41 @@
 #endif
   mirror: always
 
+# Whether the File System API is enabled
+- name: dom.fs.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Should we abort LocalStorage requests when a sync message from parent is
+# detected?
+#
+# LocalStorage is a synchronous API involving sync IPC from the child to the
+# parent. Accessibility interfaces currently also involve different forms of
+# synchronous parent-to-child communication. (See bug 1516136 comment 11 and
+# comment 15.) Although LocalStorage NextGen no longer needs to consult the
+# main thread, thereby eliminating the possibility of deadlock, the browser is
+# very complex and so we have retained a fail-safe mechanism that will cause
+# blocking LocalStorage operations to abort on synchronous IPC from the parent
+# to the child.
+#
+# We are disabling this fail-safe mechanism because it is fundamentally visible
+# to content when activated. When we abort the synchronous LocalStorage
+# operation we throw an error which has the potential to break web content.
+# This is not a hypothetical. In bug 1574569 content broke due to accessibility
+# path aborting the LS call, but the LS call didn't need to abort because it
+# was not at risk of deadlock.
+#
+# But we are retaining the preference in the event that regressions occur
+# anywhere in the code-base that could cause a cascade that would result in
+# deadlock. (There have been logic bugs in components that resulted in
+# PBackground synchronously blocking in a way that could result in deadlock.)
+# This allows us to re-enable the fail-safe with only a pref flip.
+- name: dom.storage.abort_on_sync_parent_to_child_messages
+  type: bool
+  value: false
+  mirror: always
+
 # LocalStorage data limit as determined by summing up the lengths of all string
 # keys and values. This is consistent with the legacy implementation and other
 # browser engines. This value should really only ever change in unit testing
@@ -2342,10 +2431,62 @@
   value: 5 * 1024
   mirror: always
 
+# Per-site quota for legacy LocalStorage implementation.
+- name: dom.storage.default_site_quota
+  type: RelaxedAtomicUint32
+  value: 25 * 1024
+  mirror: always
+
+# Whether or not LSNG (Next Generation Local Storage) is enabled.
+# See bug 1517090 for enabling this on Nightly.
+# See bug 1534736 for changing it to EARLY_BETA_OR_EARLIER.
+# See bug 1539835 for enabling this unconditionally.
+# See bug 1619948 for changing it back to EARLY_BETA_OR_EARLIER.
+- name: dom.storage.next_gen
+  type: RelaxedAtomicBool
+  value: @IS_EARLY_BETA_OR_EARLIER@
+  mirror: always
+  do_not_use_directly: true
+
 # Is support for Storage test APIs enabled?
 - name: dom.storage.testing
   type: bool
   value: false
+  mirror: always
+
+# DOM Streams Prefs
+
+## Exposure Prefs: To ensure the DOM Streams don't expose more
+# than existing JS Streams implementation, we want to hide some
+# interfaces from the global until later.
+- name: dom.streams.readable_stream_default_controller.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.streams.readable_stream_default_reader.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.streams.byte_streams.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: dom.streams.writable_streams.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.streams.transform_streams.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+- name: dom.streams.pipeTo.enabled
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # For area and anchor elements with target=_blank and no rel set to
@@ -2712,16 +2853,6 @@
 #endif
 # MOZ_VR
 
-# W3C draft pointer events
-- name: dom.w3c_pointer_events.enabled
-  type: RelaxedAtomicBool
-#ifdef ANDROID
-  value: false
-#else
-  value: true
-#endif
-  mirror: always
-
 #ifdef XP_WIN
   # Control firing WidgetMouseEvent by handling Windows pointer messages or
   # mouse messages.
@@ -2735,6 +2866,12 @@
 - name: dom.w3c_pointer_events.implicit_capture
   type: bool
   value: false
+  mirror: always
+
+# If the value is >= 0, it will be used for max touch points in child processes.
+- name: dom.maxtouchpoints.testing.value
+  type: int32_t
+  value: -1
   mirror: always
 
 # Is support for Navigator.webdriver enabled?
@@ -2766,11 +2903,29 @@
 #endif
   mirror: always
 
+# Is the 'assign' API for slot element enabled?
+- name: dom.shadowdom.slot.assign.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # NOTE: This preference is used in unit tests. If it is removed or its default
 # value changes, please update test_sharedMap_var_caches.js accordingly.
 - name: dom.webcomponents.shadowdom.report_usage
   type: bool
   value: false
+  mirror: always
+
+# Is support for custom element disabledFeatures enabled?
+- name: dom.webcomponents.disabledFeatures.enabled
+  type: bool
+  value: true
+  mirror: always
+
+# Is support for custom element elementInternals enabled?
+- name: dom.webcomponents.elementInternals.enabled
+  type: bool
+  value: true
   mirror: always
 
 # Is support for form-associated custom element enabled?
@@ -2899,6 +3054,15 @@
 # Prefs starting with "editor"
 #---------------------------------------------------------------------------
 
+# Allow or disallow to delete `<hr>` element when caret is at start of
+# following line of the element.  If false, Backspace from start of following
+# line of an `<hr>` element causes moving caret to immediatly after the `<hr>`
+# element, and then, another Backspace can delete it.
+- name: editor.hr_element.allow_to_delete_from_following_line
+  type: bool
+  value: false
+  mirror: always
+
 # Delay to mask last input character in password fields.
 # If negative value, to use platform's default behavior.
 # If 0, no delay to mask password.
@@ -2947,12 +3111,19 @@
 # * 2: Replace newlines with spaces (default of Firefox).
 # * 3: Remove newlines from the string.
 # * 4: Replace newlines with commas (default of Thunderbird).
-# * 5: Collapse newlines and surrounding whitespace characters and
+# * 5: Collapse newlines and surrounding white space characters and
 #      remove them from the string.
 # Other values are treated as 1.
 - name: editor.singleLine.pasteNewlines
   type: int32_t
   value: 2
+  mirror: always
+
+# Whether enabling blink compatible white-space normalizer or keep using
+# Gecko's traditional white-space normalizer.
+- name: editor.white_space_normalization.blink_compatible
+  type: bool
+  value: false
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -4199,6 +4370,15 @@
   mirror: always
   do_not_use_directly: true
 
+# Whether the megamorphic property lookup cache is enabled.
+#
+# NOTE: This must match JitOptions defaults.
+- name: javascript.options.watchtower.megamorphic
+  type: bool
+  value: true
+  mirror: always  # LoadStartupJSPrefs
+  do_not_use_directly: true
+
 - name: javascript.options.compact_on_user_inactive
   type: bool
   value: true
@@ -4239,6 +4419,12 @@
     type: bool
     value: false
     mirror: always
+
+  # Experimental support for Array Grouping in JavaScript.
+-   name: javascript.options.experimental.array_grouping
+    type: bool
+    value: true
+    mirror: always
 #endif  // NIGHTLY_BUILD
 
 # Experimental support for class static blocks in JavaScript.
@@ -4246,6 +4432,14 @@
     type: bool
     value: true
     mirror: always
+
+#ifdef NIGHTLY_BUILD
+  # Experimental support for Import Assertions in JavaScript.
+-   name: javascript.options.experimental.import_assertions
+    type: bool
+    value: false
+    mirror: always
+#endif  // NIGHTLY_BUILD
 
   # Support for Private Fields in JavaScript.
 - name: javascript.options.experimental.private_fields
@@ -4264,6 +4458,20 @@
   type: bool
   value: true
   mirror: always
+
+  # Experimental support for change-array-by-copy methods
+- name: javascript.options.experimental.enable_change_array_by_copy
+  type: bool
+  value: false
+  mirror: always
+
+#if defined(ENABLE_NEW_SET_METHODS)
+  # Experimental support for New Set methods
+- name: javascript.options.experimental.enable_new_set_methods
+  type: bool
+  value: false
+  mirror: always
+#endif
 
   # Experimental support for Top-level Await in JavaScript.
 - name: javascript.options.experimental.top_level_await
@@ -4331,7 +4539,7 @@
   mirror: always  # LoadStartupJSPrefs
   do_not_use_directly: true
 
-# Streams API.
+# Streams API. This only applies to JS Streams
 - name: javascript.options.streams
   type: RelaxedAtomicBool
   value: true
@@ -4358,29 +4566,20 @@
 
 - name: javascript.options.wasm_optimizingjit
   type: bool
-#if defined(MOZ_AARCH64) && !defined(NIGHTLY_BUILD)
-  value: false
-#else
   value: true
-#endif
   mirror: always
 
-# SIMD is supported only on x86 and x64, with arm64 support imminent.
 #if defined(ENABLE_WASM_SIMD)
 -   name: javascript.options.wasm_simd
     type: bool
-#if defined(MOZ_AARCH64)
-    value: @IS_NIGHTLY_BUILD@
-#else
     value: true
-#endif
     mirror: always
 #endif  // defined(ENABLE_WASM_SIMD)
 
 #if defined(ENABLE_WASM_RELAXED_SIMD)
 -   name: javascript.options.wasm_relaxed_simd
     type: bool
-    value: false
+    value: @IS_NIGHTLY_BUILD@
     mirror: always
 #endif  // defined(ENABLE_WASM_RELAXED_SIMD)
 
@@ -4401,7 +4600,7 @@
 #if defined(ENABLE_WASM_EXCEPTIONS)
 -   name: javascript.options.wasm_exceptions
     type: bool
-    value: false
+    value: true
     mirror: always
 #endif // defined(ENABLE_WASM_EXCEPTIONS)
 
@@ -4430,10 +4629,21 @@
     mirror: always
 #endif
 
+#if defined(ENABLE_WASM_SIMD)
+#if defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_X86)
+  # Enables AVX instructions support on X86/X64 platforms.
+  # Changing these prefs requires a restart.
+-   name: javascript.options.wasm_simd_avx
+    type: bool
+    value: @IS_NIGHTLY_BUILD@
+    mirror: always
+#endif
+#endif
+
 #if defined(ENABLE_WASM_MEMORY64)
 -   name: javascript.options.wasm_memory64
     type: bool
-    value: true
+    value: @IS_NIGHTLY_BUILD@
     mirror: always
 #endif  // defined(ENABLE_WASM_MEMORY64)
 
@@ -5373,6 +5583,15 @@
   mirror: always
   rust: true
 
+# Visibility level of font families available to CSS font-matching:
+#   1 - only base system fonts
+#   2 - also fonts from optional language packs
+#   3 - also user-installed fonts
+- name: layout.css.font-visibility.level
+  type: RelaxedAtomicInt32
+  value: 3
+  mirror: always
+
 # Is support for GeometryUtils.getBoxQuads enabled?
 - name: layout.css.getBoxQuads.enabled
   type: bool
@@ -5989,9 +6208,30 @@
 # Prefs starting with "mathml."
 #---------------------------------------------------------------------------
 
+# Whether to disable deprecated style attributes background, color, fontfamily,
+# fontsize, fontstyle and fontweight.
+- name: mathml.deprecated_style_attributes.disabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
+# Whether to disable legacy MathML number values that are not valid CSS numbers
+# (e.g. "1234.")
+- name: mathml.legacy_number_syntax.disabled
+  type: bool
+  value: true
+  mirror: always
+
 # Whether to disable legacy names "small", "normal" and "big" for the
 # mathsize attribute.
 - name: mathml.mathsize_names.disabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
+# Whether to disable legacy names "thickmathspace", "mediummathspace",
+# "thickmathspace" etc for length attributes.
+- name: mathml.mathspace_names.disabled
   type: bool
   value: @IS_NIGHTLY_BUILD@
   mirror: always
@@ -7211,9 +7451,20 @@
   value: 2000
   mirror: always
 
+# The proxy type. See nsIProtocolProxyService.idl
+#     PROXYCONFIG_DIRECT   = 0
+#     PROXYCONFIG_MANUAL   = 1
+#     PROXYCONFIG_PAC      = 2
+#     PROXYCONFIG_WPAD     = 4
+#     PROXYCONFIG_SYSTEM   = 5
+- name: network.proxy.type
+  type: RelaxedAtomicUint32
+  value: 5
+  mirror: always
+
 # Whether the SOCKS proxy should be in charge of DNS resolution.
 - name: network.proxy.socks_remote_dns
-  type: bool
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
@@ -7258,26 +7509,46 @@
 
 # Single TRR request timeout, in milliseconds
 - name: network.trr.request_timeout_ms
-  type: uint32_t
+  type: RelaxedAtomicUint32
   value: 1500
   mirror: always
 
 # Single TRR request timeout, in milliseconds for mode 3
 - name: network.trr.request_timeout_mode_trronly_ms
-  type: uint32_t
+  type: RelaxedAtomicUint32
   value: 30000
   mirror: always
 
 # Whether to send the Accept-Language header for TRR requests
 - name: network.trr.send_accept-language_headers
-  type: bool
+  type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# Whether to send an empty Accept-Encoding header for TRR requests
+- name: network.trr.send_empty_accept-encoding_headers
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # Whether to send the User-Agent header for TRR requests
 - name: network.trr.send_user-agent_headers
-  type: bool
+  type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# This pref controls if TRR will still be enabled when a VPN is detected on
+# the system. Detection is not foolproof, and some VPNs may not be detected.
+# See bug 1565004 comment 3 for details.
+- name: network.trr.enable_when_vpn_detected
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# This pref controls whether to use TRRServiceChannel off main thread.
+- name: network.trr.fetch_off_main_thread
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -7294,6 +7565,11 @@
 # BasicLayers (other layer managers always update the entire widget area).
 - name: nglayout.debug.widget_update_flashing
   type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+- name: nglayout.debug.disable_xul_cache
+  type: bool
   value: false
   mirror: always
 
@@ -7588,6 +7864,16 @@
   value: 480
   mirror: always
 
+# Bitfield for selectively disabling RFP
+#   0 for no new behavior
+#   1 for disabling RFP if it's a WebExtension
+#   2 for disabling RFP if we are not in PBM
+#   4 for disabling RFP on specific domains (see privacy.resistFingerprinting.exemptedDomains)
+- name: privacy.resistFingerprinting.testGranularityMask
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
 # Anti-tracking permission expiration.
 - name: privacy.restrict3rdpartystorage.expiration
   type: uint32_t
@@ -7658,6 +7944,11 @@
 - name: privacy.clearOnShutdown.cache
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+- name: privacy.partition.network_state
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -7745,12 +8036,6 @@
 
 # Whether strict file origin policy is in effect. "False" is traditional.
 - name: security.fileuri.strict_origin_policy
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# If true, all FTP subresource loads will be blocked.
-- name: security.block_ftp_subresources
   type: RelaxedAtomicBool
   value: true
   mirror: always

@@ -471,7 +471,7 @@ void SVGUtils::DetermineMaskUsage(nsIFrame* aFrame, bool aHandleOpacity,
 
 class MixModeBlender {
  public:
-  typedef mozilla::gfx::Factory Factory;
+  using Factory = gfx::Factory;
 
   MixModeBlender(nsIFrame* aFrame, gfxContext* aContext)
       : mFrame(aFrame), mSourceCtx(aContext) {

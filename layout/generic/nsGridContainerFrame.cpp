@@ -25,7 +25,7 @@
 #include "nsBoxLayoutState.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsCSSFrameConstructor.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsDisplayList.h"
 #include "nsHashKeys.h"
 #include "nsFieldSetFrame.h"
@@ -3884,7 +3884,7 @@ void nsGridContainerFrame::AddImplicitNamedAreas(
   // http://dev.w3.org/csswg/css-grid/#implicit-named-areas
   // Note: recording these names for fast lookup later is just an optimization.
   const uint32_t len = std::min(aLineNameLists.Length(), size_t(kMaxLine));
-  nsTHashtable<nsStringHashKey> currentStarts;
+  nsTHashSet<nsString> currentStarts;
   ImplicitNamedAreas* areas = GetImplicitNamedAreas();
   for (uint32_t i = 0; i < len; ++i) {
     for (const auto& nameIdent : aLineNameLists[i].AsSpan()) {
@@ -4628,7 +4628,7 @@ void nsGridContainerFrame::Grid::PlaceGridItems(
   uint32_t clampMaxRowLine = rowLineNameMap.mClampMaxLine + offsetToRowZero;
   // We need 1 cursor per row (or column) if placement is sparse.
   {
-    Maybe<nsDataHashtable<nsUint32HashKey, uint32_t>> cursors;
+    Maybe<nsTHashMap<nsUint32HashKey, uint32_t>> cursors;
     if (isSparse) {
       cursors.emplace();
     }
@@ -4643,10 +4643,7 @@ void nsGridContainerFrame::Grid::PlaceGridItems(
       LineRange& minor = isRowOrder ? area.mCols : area.mRows;
       if (major.IsDefinite() && minor.IsAuto()) {
         // Items with 'auto' in the minor dimension only.
-        uint32_t cursor = 0;
-        if (isSparse) {
-          cursors->Get(major.mStart, &cursor);
-        }
+        const uint32_t cursor = isSparse ? cursors->Get(major.mStart) : 0;
         (this->*placeAutoMinorFunc)(cursor, &area, clampMaxLine);
         if (isMasonry) {
           item.MaybeInhibitSubgridInMasonry(aState.mFrame, gridAxisTrackCount);
@@ -4658,7 +4655,7 @@ void nsGridContainerFrame::Grid::PlaceGridItems(
         mCellMap.Fill(area);
         SetSubgridChildEdgeBits(item);
         if (isSparse) {
-          cursors->Put(major.mStart, minor.mEnd);
+          cursors->InsertOrUpdate(major.mStart, minor.mEnd);
         }
       }
       InflateGridFor(area);  // Step 2, inflating for auto items too
@@ -7672,7 +7669,7 @@ nscoord nsGridContainerFrame::ReflowRowsInFragmentainer(
     MOZ_ASSERT(child->GetPrevInFlow() ? row < aStartRow : row >= aStartRow,
                "unexpected child start row");
     if (row >= aEndRow) {
-      pushedItems.PutEntry(child);
+      pushedItems.Insert(child);
       continue;
     }
 
@@ -7797,9 +7794,9 @@ nscoord nsGridContainerFrame::ReflowRowsInFragmentainer(
     MOZ_ASSERT(!childStatus.IsInlineBreakBefore(),
                "should've handled InlineBreak::Before above");
     if (childStatus.IsIncomplete()) {
-      incompleteItems.PutEntry(child);
+      incompleteItems.Insert(child);
     } else if (!childStatus.IsFullyComplete()) {
-      overflowIncompleteItems.PutEntry(child);
+      overflowIncompleteItems.Insert(child);
     }
     if (isColMasonry) {
       auto childWM = child->GetWritingMode();
@@ -8103,14 +8100,14 @@ nscoord nsGridContainerFrame::MasonryLayout(GridReflowInput& aState,
       }
       if (aChildStatus.IsInlineBreakBefore()) {
         aStatus.SetIncomplete();
-        pushedItems.PutEntry(child);
+        pushedItems.Insert(child);
       } else if (aChildStatus.IsIncomplete()) {
         recordAutoPlacement(aItem, gridAxis);
         aStatus.SetIncomplete();
-        incompleteItems.PutEntry(child);
+        incompleteItems.Insert(child);
       } else if (!aChildStatus.IsFullyComplete()) {
         recordAutoPlacement(aItem, gridAxis);
-        overflowIncompleteItems.PutEntry(child);
+        overflowIncompleteItems.Insert(child);
       }
     }
     return result;

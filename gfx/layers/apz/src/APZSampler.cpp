@@ -77,11 +77,10 @@ void APZSampler::SetSamplerThread(const wr::WrWindowId& aWindowId) {
 
 /*static*/
 void APZSampler::SampleForWebRender(const wr::WrWindowId& aWindowId,
-                                    wr::Transaction* aTransaction,
-                                    const wr::DocumentId& aRenderRootId) {
+                                    wr::Transaction* aTransaction) {
   if (RefPtr<APZSampler> sampler = GetSampler(aWindowId)) {
     wr::TransactionWrapper txn(aTransaction);
-    sampler->SampleForWebRender(txn, wr::RenderRootFromId(aRenderRootId));
+    sampler->SampleForWebRender(txn);
   }
 }
 
@@ -91,8 +90,7 @@ void APZSampler::SetSampleTime(const TimeStamp& aSampleTime) {
   mSampleTime = aSampleTime;
 }
 
-void APZSampler::SampleForWebRender(wr::TransactionWrapper& aTxn,
-                                    wr::RenderRoot aRenderRoot) {
+void APZSampler::SampleForWebRender(wr::TransactionWrapper& aTxn) {
   AssertOnSamplerThread();
   TimeStamp sampleTime;
   {  // scope lock
@@ -104,7 +102,7 @@ void APZSampler::SampleForWebRender(wr::TransactionWrapper& aTxn,
     // anyway, so using Timestamp::Now() should be fine.
     sampleTime = mSampleTime.IsNull() ? TimeStamp::Now() : mSampleTime;
   }
-  mApz->SampleForWebRender(aTxn, sampleTime, aRenderRoot);
+  mApz->SampleForWebRender(aTxn, sampleTime);
 }
 #endif  // MOZ_BUILD_WEBRENDER
 
@@ -269,10 +267,8 @@ void apz_register_sampler(mozilla::wr::WrWindowId aWindowId) {
 }
 
 void apz_sample_transforms(mozilla::wr::WrWindowId aWindowId,
-                           mozilla::wr::Transaction* aTransaction,
-                           mozilla::wr::DocumentId aDocumentId) {
-  mozilla::layers::APZSampler::SampleForWebRender(aWindowId, aTransaction,
-                                                  aDocumentId);
+                           mozilla::wr::Transaction* aTransaction) {
+  mozilla::layers::APZSampler::SampleForWebRender(aWindowId, aTransaction);
 }
 
 void apz_deregister_sampler(mozilla::wr::WrWindowId aWindowId) {}

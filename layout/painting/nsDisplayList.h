@@ -49,7 +49,8 @@
 #include "RetainedDisplayListHelpers.h"
 
 #include <stdint.h>
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
+#include "nsTHashMap.h"
 
 #include <stdlib.h>
 #include <algorithm>
@@ -976,7 +977,8 @@ class nsDisplayListBuilder {
       return;
     }
 
-    nsTArray<ThemeGeometry>* geometries = mThemeGeometries.LookupOrAdd(aItem);
+    nsTArray<ThemeGeometry>* geometries =
+        mThemeGeometries.GetOrInsertNew(aItem);
     geometries->AppendElement(ThemeGeometry(aWidgetType, aRect));
   }
 
@@ -1772,7 +1774,7 @@ class nsDisplayListBuilder {
       void* mFrame;
     };
 
-    nsTHashtable<nsPtrHashKey<void>> mFrameSet;
+    nsTHashSet<void*> mFrameSet;
     nsTArray<WeakFrameWrapper> mFrames;
     nsTArray<pixman_box32_t> mRects;
 
@@ -1782,7 +1784,7 @@ class nsDisplayListBuilder {
         return;
       }
 
-      mFrameSet.PutEntry(aFrame);
+      mFrameSet.Insert(aFrame);
       mFrames.AppendElement(WeakFrameWrapper(aFrame));
       mRects.AppendElement(nsRegion::RectToBox(aRect));
     }
@@ -1840,7 +1842,7 @@ class nsDisplayListBuilder {
       nsIFrame* aAnimatedGeometryRoot, bool aIsAsync,
       AnimatedGeometryRoot* aParent = nullptr);
 
-  nsDataHashtable<nsPtrHashKey<nsIFrame>, RefPtr<AnimatedGeometryRoot>>
+  nsTHashMap<nsIFrame*, RefPtr<AnimatedGeometryRoot>>
       mFrameToAnimatedGeometryRootMap;
 
   /**
@@ -1917,12 +1919,12 @@ class nsDisplayListBuilder {
 
   // will-change budget tracker
   typedef uint32_t DocumentWillChangeBudget;
-  nsDataHashtable<nsPtrHashKey<const nsPresContext>, DocumentWillChangeBudget>
+  nsTHashMap<nsPtrHashKey<const nsPresContext>, DocumentWillChangeBudget>
       mDocumentWillChangeBudgets;
 
   // Any frame listed in this set is already counted in the budget
   // and thus is in-budget.
-  nsDataHashtable<nsPtrHashKey<const nsIFrame>, FrameWillChangeBudget>
+  nsTHashMap<nsPtrHashKey<const nsIFrame>, FrameWillChangeBudget>
       mFrameWillChangeBudgets;
 
   uint8_t mBuildingExtraPagesForPageNum;
@@ -1930,7 +1932,7 @@ class nsDisplayListBuilder {
   // Area of animated geometry root budget already allocated
   uint32_t mUsedAGRBudget;
   // Set of frames already counted in budget
-  nsTHashtable<nsPtrHashKey<nsIFrame>> mAGRBudgetSet;
+  nsTHashSet<nsIFrame*> mAGRBudgetSet;
 
   // Relative to mCurrentFrame.
   nsRect mVisibleRect;
@@ -5646,13 +5648,13 @@ class nsDisplayOpacity : public nsDisplayWrapList {
  private:
   NS_DISPLAY_ALLOW_CLONING()
 
-  bool ApplyOpacityToChildren(nsDisplayListBuilder* aBuilder);
-  bool IsEffectsWrapper() const;
+  bool ApplyToChildren(nsDisplayListBuilder* aBuilder);
+  bool ApplyToFilterOrMask(const bool aUsingLayers);
 
   float mOpacity;
   bool mForEventsAndPluginsOnly : 1;
   enum class ChildOpacityState : uint8_t {
-    // Our child list has changed since the last time ApplyOpacityToChildren was
+    // Our child list has changed since the last time ApplyToChildren was
     // called.
     Unknown,
     // Our children defer opacity handling to us.
@@ -6434,7 +6436,10 @@ class nsDisplayEffectsBase : public nsDisplayWrapList {
     return false;
   }
 
-  void SetHandleOpacity() { mHandleOpacity = true; }
+  virtual void SelectOpacityOptimization(const bool /* aUsingLayers */) {
+    SetHandleOpacity();
+  }
+
   bool ShouldHandleOpacity() const { return mHandleOpacity; }
 
   gfxRect BBoxInUserSpace() const;
@@ -6445,6 +6450,7 @@ class nsDisplayEffectsBase : public nsDisplayWrapList {
                                  nsRegion* aInvalidRegion) const override;
 
  protected:
+  void SetHandleOpacity() { mHandleOpacity = true; }
   bool ValidateSVGFrame();
 
   // relative to mFrame
@@ -6531,6 +6537,8 @@ class nsDisplayMasksAndClipPaths : public nsDisplayEffectsBase {
 
   const nsTArray<nsRect>& GetDestRects() { return mDestRects; }
 
+  void SelectOpacityOptimization(const bool aUsingLayers) override;
+
 #ifdef MOZ_BUILD_WEBRENDER
   bool CreateWebRenderCommands(
       mozilla::wr::DisplayListBuilder& aBuilder,
@@ -6552,6 +6560,7 @@ class nsDisplayMasksAndClipPaths : public nsDisplayEffectsBase {
   bool CanPaintOnMaskLayer(LayerManager* aManager);
 
   nsTArray<nsRect> mDestRects;
+  bool mApplyOpacityWithSimpleClipPath;
 };
 
 #ifdef MOZ_BUILD_WEBRENDER

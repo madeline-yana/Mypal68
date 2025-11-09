@@ -706,7 +706,7 @@ class NativeAllocationMarkerPayload : public ProfilerMarkerPayload {
 class IPCMarkerPayload : public ProfilerMarkerPayload {
  public:
   IPCMarkerPayload(int32_t aOtherPid, int32_t aMessageSeqno,
-                   IPC::Message::msgid_t aMessageType, mozilla::ipc::Side aSide,
+                   IPC::Message::msgid_t aMessageType, mozilla::ipc::MsgSide aSide,
                    mozilla::ipc::MessageDirection aDirection,
                    mozilla::ipc::MessagePhase aPhase, bool aSync,
                    const mozilla::TimeStamp& aStartTime)
@@ -724,7 +724,7 @@ class IPCMarkerPayload : public ProfilerMarkerPayload {
  private:
   IPCMarkerPayload(CommonProps&& aCommonProps, int32_t aOtherPid,
                    int32_t aMessageSeqno, IPC::Message::msgid_t aMessageType,
-                   mozilla::ipc::Side aSide,
+                   mozilla::ipc::MsgSide aSide,
                    mozilla::ipc::MessageDirection aDirection,
                    mozilla::ipc::MessagePhase aPhase, bool aSync)
       : ProfilerMarkerPayload(std::move(aCommonProps)),
@@ -739,7 +739,7 @@ class IPCMarkerPayload : public ProfilerMarkerPayload {
   int32_t mOtherPid;
   int32_t mMessageSeqno;
   IPC::Message::msgid_t mMessageType;
-  mozilla::ipc::Side mSide;
+  mozilla::ipc::MsgSide mSide;
   mozilla::ipc::MessageDirection mDirection;
   mozilla::ipc::MessagePhase mPhase;
   bool mSync;

@@ -10,7 +10,7 @@
 #include "gfxFont.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/UnscaledFontFreeType.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsHashKeys.h"
 
 class gfxFT2FontBase : public gfxFont {
@@ -63,7 +63,7 @@ class gfxFT2FontBase : public gfxFont {
   // range reported by the face.
   nsTArray<FT_Fixed> mCoords;
 
-  mozilla::UniquePtr<nsDataHashtable<nsUint32HashKey, int32_t>> mGlyphWidths;
+  mozilla::UniquePtr<nsTHashMap<nsUint32HashKey, int32_t>> mGlyphWidths;
 };
 
 #endif /* GFX_FT2FONTBASE_H */

@@ -179,18 +179,10 @@ inline DocAccessible::AttrRelProviders* DocAccessible::GetOrCreateRelProviders(
     dom::Element* aElement, const nsAString& aID) {
   dom::DocumentOrShadowRoot* docOrShadowRoot =
       aElement->GetUncomposedDocOrConnectedShadowRoot();
-  DependentIDsHashtable* hash = mDependentIDsHashes.Get(docOrShadowRoot);
-  if (!hash) {
-    hash = new DependentIDsHashtable();
-    mDependentIDsHashes.Put(docOrShadowRoot, hash);
-  }
+  DependentIDsHashtable* hash =
+      mDependentIDsHashes.GetOrInsertNew(docOrShadowRoot);
 
-  AttrRelProviders* providers = hash->Get(aID);
-  if (!providers) {
-    providers = new AttrRelProviders();
-    hash->Put(aID, providers);
-  }
-  return providers;
+  return hash->GetOrInsertNew(aID);
 }
 
 inline void DocAccessible::RemoveRelProvidersIfEmpty(dom::Element* aElement,

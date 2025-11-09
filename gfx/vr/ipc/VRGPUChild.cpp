@@ -4,6 +4,8 @@
 
 #include "VRGPUChild.h"
 
+#include "mozilla/ipc/Endpoint.h"
+
 namespace mozilla {
 namespace gfx {
 

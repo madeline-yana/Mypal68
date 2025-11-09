@@ -60,8 +60,8 @@ DocAccessible* DocManager::GetDocAccessible(Document* aDocument) {
 }
 
 Accessible* DocManager::FindAccessibleInCache(nsINode* aNode) const {
-  for (auto iter = mDocAccessibleCache.ConstIter(); !iter.Done(); iter.Next()) {
-    DocAccessible* docAccessible = iter.UserData();
+  for (const auto& entry : mDocAccessibleCache) {
+    DocAccessible* docAccessible = entry.GetData().get();
     NS_ASSERTION(docAccessible,
                  "No doc accessible for the object in doc accessible cache!");
 
@@ -122,12 +122,7 @@ void DocManager::NotifyOfRemoteDocShutdown(DocAccessibleParent* aDoc) {
 xpcAccessibleDocument* DocManager::GetXPCDocument(DocAccessible* aDocument) {
   if (!aDocument) return nullptr;
 
-  xpcAccessibleDocument* xpcDoc = mXPCDocumentCache.GetWeak(aDocument);
-  if (!xpcDoc) {
-    xpcDoc = new xpcAccessibleDocument(aDocument);
-    mXPCDocumentCache.Put(aDocument, RefPtr{xpcDoc});
-  }
-  return xpcDoc;
+  return mXPCDocumentCache.GetOrInsertNew(aDocument, aDocument);
 }
 
 xpcAccessibleDocument* DocManager::GetXPCDocument(DocAccessibleParent* aDoc) {
@@ -144,15 +139,15 @@ xpcAccessibleDocument* DocManager::GetXPCDocument(DocAccessibleParent* aDoc) {
 
   doc = new xpcAccessibleDocument(aDoc,
                                   Interfaces::DOCUMENT | Interfaces::HYPERTEXT);
-  sRemoteXPCDocumentCache->Put(aDoc, RefPtr{doc});
+  sRemoteXPCDocumentCache->InsertOrUpdate(aDoc, RefPtr{doc});
 
   return doc;
 }
 
 #ifdef DEBUG
 bool DocManager::IsProcessingRefreshDriverNotification() const {
-  for (auto iter = mDocAccessibleCache.ConstIter(); !iter.Done(); iter.Next()) {
-    DocAccessible* docAccessible = iter.UserData();
+  for (const auto& entry : mDocAccessibleCache) {
+    DocAccessible* docAccessible = entry.GetWeak();
     NS_ASSERTION(docAccessible,
                  "No doc accessible for the object in doc accessible cache!");
 
@@ -457,7 +452,7 @@ DocAccessible* DocManager::CreateDocOrRootAccessible(Document* aDocument) {
                 : new DocAccessibleWrap(aDocument, presShell);
 
   // Cache the document accessible into document cache.
-  mDocAccessibleCache.Put(aDocument, RefPtr{docAcc});
+  mDocAccessibleCache.InsertOrUpdate(aDocument, RefPtr{docAcc});
 
   // Initialize the document accessible.
   docAcc->Init();

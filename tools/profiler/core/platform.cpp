@@ -90,10 +90,6 @@
 #include <sstream>
 #include <type_traits>
 
-#ifdef MOZ_TASK_TRACER
-#  include "GeckoTaskTracer.h"
-#endif
-
 #if defined(GP_OS_android)
 #  include "GeneratedJNINatives.h"
 #  include "GeneratedJNIWrappers.h"
@@ -240,9 +236,6 @@ static uint32_t AvailableFeatures() {
 #endif
 #if !defined(HAVE_NATIVE_UNWIND)
   ProfilerFeature::ClearStackWalk(features);
-#endif
-#if !defined(MOZ_TASK_TRACER)
-  ProfilerFeature::ClearTaskTracer(features);
 #endif
 #if defined(MOZ_REPLACE_MALLOC) && defined(MOZ_PROFILER_MEMORY)
   if (getenv("XPCOM_MEM_BLOAT_LOG")) {
@@ -2103,54 +2096,6 @@ void AppendSharedLibraries(JSONWriter& aWriter) {
   }
 }
 
-#ifdef MOZ_TASK_TRACER
-static void StreamNameAndThreadId(JSONWriter& aWriter, const char* aName,
-                                  int aThreadId) {
-  aWriter.StartObjectElement();
-  {
-    if (XRE_GetProcessType() == GeckoProcessType_Plugin) {
-      // TODO Add the proper plugin name
-      aWriter.StringProperty("name", "Plugin");
-    } else {
-      aWriter.StringProperty("name", aName);
-    }
-    aWriter.IntProperty("tid", aThreadId);
-  }
-  aWriter.EndObject();
-}
-#endif
-
-static void StreamTaskTracer(PSLockRef aLock, SpliceableJSONWriter& aWriter) {
-#ifdef MOZ_TASK_TRACER
-  MOZ_RELEASE_ASSERT(CorePS::Exists() && ActivePS::Exists(aLock));
-
-  aWriter.StartArrayProperty("data");
-  {
-    UniquePtr<Vector<nsCString>> data =
-        tasktracer::GetLoggedData(CorePS::ProcessStartTime());
-    for (const nsCString& dataString : *data) {
-      aWriter.StringElement(dataString.get());
-    }
-  }
-  aWriter.EndArray();
-
-  aWriter.StartArrayProperty("threads");
-  {
-    ActivePS::DiscardExpiredDeadProfiledThreads(aLock);
-    Vector<std::pair<RegisteredThread*, ProfiledThreadData*>> threads =
-        ActivePS::ProfiledThreads(aLock);
-    for (auto& thread : threads) {
-      RefPtr<ThreadInfo> info = thread.second->Info();
-      StreamNameAndThreadId(aWriter, info->Name(), info->ThreadId());
-    }
-  }
-  aWriter.EndArray();
-
-  aWriter.DoubleProperty("start",
-                         static_cast<double>(tasktracer::GetStartTime()));
-#endif
-}
-
 static void StreamCategories(SpliceableJSONWriter& aWriter) {
   // Same order as ProfilingCategory. Format:
   // [
@@ -2606,13 +2551,6 @@ static void locked_profiler_stream_json_for_this_process(
   buffer.StreamProfilerOverheadToJSON(aWriter, CorePS::ProcessStartTime(),
                                       aSinceTime);
   buffer.StreamCountersToJSON(aWriter, CorePS::ProcessStartTime(), aSinceTime);
-
-  // Data of TaskTracer doesn't belong in the circular buffer.
-  if (ActivePS::FeatureTaskTracer(aLock)) {
-    aWriter.StartObjectProperty("tasktracer");
-    StreamTaskTracer(aLock, aWriter);
-    aWriter.EndObject();
-  }
 
   // Lists the samples for each thread profile
   aWriter.StartArrayProperty("threads");
@@ -3762,10 +3700,6 @@ void profiler_init(void* aStackTop) {
     // Platform-specific initialization.
     PlatformInit(lock);
 
-#ifdef MOZ_TASK_TRACER
-    tasktracer::InitTaskTracer();
-#endif
-
 #if defined(GP_OS_android)
     if (jni::IsAvailable()) {
       GeckoJavaSampler::Init();
@@ -3933,10 +3867,6 @@ void profiler_shutdown() {
     // We just destroyed CorePS and the ThreadInfos it contains, so we can
     // clear this thread's TLSRegisteredThread.
     TLSRegisteredThread::SetRegisteredThread(lock, nullptr);
-
-#ifdef MOZ_TASK_TRACER
-    tasktracer::ShutdownTaskTracer();
-#endif
   }
 
   // We do these operations with gPSMutex unlocked. The comments in
@@ -4351,12 +4281,6 @@ static void locked_profiler_start(PSLockRef aLock, PowerOfTwo32 aCapacity,
   // Setup support for pushing/popping labels in mozglue.
   RegisterProfilerLabelEnterExit(MozGlueLabelEnter, MozGlueLabelExit);
 
-#ifdef MOZ_TASK_TRACER
-  if (ActivePS::FeatureTaskTracer(aLock)) {
-    tasktracer::StartLogging();
-  }
-#endif
-
 #if defined(GP_OS_android)
   if (ActivePS::FeatureJava(aLock)) {
     int javaInterval = interval;
@@ -4493,12 +4417,6 @@ void profiler_ensure_started(PowerOfTwo32 aCapacity, double aInterval,
 #if defined(GP_OS_android)
   if (ActivePS::FeatureJava(aLock)) {
     java::GeckoJavaSampler::Stop();
-  }
-#endif
-
-#ifdef MOZ_TASK_TRACER
-  if (ActivePS::FeatureTaskTracer(aLock)) {
-    tasktracer::StopLogging();
   }
 #endif
 
@@ -5158,13 +5076,17 @@ void profiler_add_js_allocation_marker(JS::RecordAllocationInfo&& info) {
 bool profiler_is_locked_on_current_thread() {
   // This function is used to help users avoid calling `profiler_...` functions
   // when the profiler may already have a lock in place, which would prevent a
-  // 2nd recursive lock (resulting in a crash or a never-ending wait).
-  // So we must return `true` for any of:
+  // 2nd recursive lock (resulting in a crash or a never-ending wait), or a
+  // deadlock between any two mutexes. So we must return `true` for any of:
   // - The main profiler mutex, used by most functions, and/or
   // - The buffer mutex, used directly in some functions without locking the
   //   main mutex, e.g., marker-related functions.
+  // - The ProfilerParent or ProfilerChild mutex, used to store and process
+  //   buffer chunk updates.
   return gPSMutex.IsLockedOnCurrentThread() ||
-         CorePS::CoreBuffer().IsThreadSafeAndLockedOnCurrentThread();
+         CorePS::CoreBuffer().IsThreadSafeAndLockedOnCurrentThread() ||
+         ProfilerParent::IsLockedOnCurrentThread() ||
+         ProfilerChild::IsLockedOnCurrentThread();
 }
 
 void profiler_add_network_marker(

@@ -1300,7 +1300,7 @@ void RestyleManager::ProcessRestyledFrames(nsStyleChangeList& aChangeList) {
 
   MaybeClearDestroyedFrames maybeClear(mDestroyedFrames);
   if (!mDestroyedFrames) {
-    mDestroyedFrames = MakeUnique<nsTHashtable<nsPtrHashKey<const nsIFrame>>>();
+    mDestroyedFrames = MakeUnique<nsTHashSet<const nsIFrame*>>();
   }
 
   AUTO_PROFILER_LABEL("RestyleManager::ProcessRestyledFrames", LAYOUT);
@@ -2949,7 +2949,8 @@ ServoElementSnapshot& RestyleManager::SnapshotFor(Element& aElement) {
   MOZ_ASSERT(aElement.HasServoData());
   MOZ_ASSERT(!aElement.HasFlag(ELEMENT_HANDLED_SNAPSHOT));
 
-  ServoElementSnapshot* snapshot = mSnapshots.LookupOrAdd(&aElement, aElement);
+  ServoElementSnapshot* snapshot =
+      mSnapshots.GetOrInsertNew(&aElement, aElement);
   aElement.SetFlags(ELEMENT_HAS_SNAPSHOT);
 
   // Now that we have a snapshot, make sure a restyle is triggered.

@@ -181,14 +181,14 @@ nsresult StartupCache::Init() {
       return rv;
     }
 
-    rv = file->AppendNative(NS_LITERAL_CSTRING("startupCache"));
+    rv = file->AppendNative("startupCache"_ns);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Try to create the directory if it's not there yet
     rv = file->Create(nsIFile::DIRECTORY_TYPE, 0777);
     if (NS_FAILED(rv) && rv != NS_ERROR_FILE_ALREADY_EXISTS) return rv;
 
-    rv = file->AppendNative(NS_LITERAL_CSTRING(STARTUP_CACHE_NAME));
+    rv = file->AppendNative(nsLiteralCString(STARTUP_CACHE_NAME));
 
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -812,16 +812,14 @@ bool StartupCacheDebugOutputStream::CheckReferences(nsISupports* aObject) {
   NS_ENSURE_SUCCESS(rv, false);
   if (flags & nsIClassInfo::SINGLETON) return true;
 
-  nsISupportsHashKey* key = mObjectMap->GetEntry(aObject);
-  if (key) {
+  bool inserted = mObjectMap->EnsureInserted(aObject);
+  if (!inserted) {
     NS_ERROR(
         "non-singleton aObject is referenced multiple times in this"
         "serialization, we don't support that.");
-    return false;
   }
 
-  mObjectMap->PutEntry(aObject);
-  return true;
+  return inserted;
 }
 
 // nsIObjectOutputStream implementation

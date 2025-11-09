@@ -645,7 +645,7 @@ bool nsFilePicker::ShowXPFilePicker(const nsString& aInitialDir) {
     ofn.Flags |= OFN_DONTADDTORECENT;
   }
 
-  NS_NAMED_LITERAL_STRING(htmExt, "html");
+  constexpr auto htmExt = u"html"_ns;
 
   if (!mDefaultExtension.IsEmpty()) {
     ofn.lpstrDefExt = mDefaultExtension.get();
@@ -872,7 +872,7 @@ bool nsFilePicker::ShowFilePicker(const nsString& aInitialDir,
     dialog->SetFileName(mDefaultFilename.get());
   }
 
-  NS_NAMED_LITERAL_STRING(htmExt, "html");
+  constexpr auto htmExt = u"html"_ns;
 
   // default extension to append to new files
   if (!mDefaultExtension.IsEmpty()) {
@@ -1198,9 +1198,8 @@ bool nsFilePicker::IsDefaultPathLink() {
   NS_ConvertUTF16toUTF8 ext(mDefaultFilePath);
   ext.Trim(" .", false, true);  // watch out for trailing space and dots
   ToLowerCase(ext);
-  if (StringEndsWith(ext, NS_LITERAL_CSTRING(".lnk")) ||
-      StringEndsWith(ext, NS_LITERAL_CSTRING(".pif")) ||
-      StringEndsWith(ext, NS_LITERAL_CSTRING(".url")))
+  if (StringEndsWith(ext, ".lnk"_ns) || StringEndsWith(ext, ".pif"_ns) ||
+      StringEndsWith(ext, ".url"_ns))
     return true;
   return false;
 }

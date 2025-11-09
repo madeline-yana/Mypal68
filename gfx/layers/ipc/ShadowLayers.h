@@ -22,6 +22,7 @@
 #include "nsCOMPtr.h"                // for already_AddRefed
 #include "nsRegion.h"                // for nsIntRegion
 #include "nsTArrayForwardDeclare.h"  // for nsTArray
+#include "nsTHashMap.h"
 #include "nsIWidget.h"
 #include <vector>
 
@@ -216,12 +217,7 @@ class ShadowLayerForwarder final : public LayersIPCActor,
   bool DestroyInTransaction(const CompositableHandle& aHandle);
 
   void RemoveTextureFromCompositable(CompositableClient* aCompositable,
-                                     TextureClient* aTexture
-#ifdef MOZ_BUILD_WEBRENDER
-                                     ,
-                                     const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-                                     ) override;
+                                     TextureClient* aTexture) override;
 
   /**
    * Communicate to the compositor that aRegion in the texture identified by
@@ -235,12 +231,7 @@ class ShadowLayerForwarder final : public LayersIPCActor,
    * See CompositableForwarder::UseTextures
    */
   void UseTextures(CompositableClient* aCompositable,
-                   const nsTArray<TimedTextureClient>& aTextures
-#ifdef MOZ_BUILD_WEBRENDER
-                   ,
-                   const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-                   ) override;
+                   const nsTArray<TimedTextureClient>& aTextures) override;
   void UseComponentAlphaTextures(CompositableClient* aCompositable,
                                  TextureClient* aClientOnBlack,
                                  TextureClient* aClientOnWhite) override;
@@ -434,7 +425,7 @@ class ShadowLayerForwarder final : public LayersIPCActor,
   nsTArray<PluginWindowData> mPluginWindowData;
   UniquePtr<ActiveResourceTracker> mActiveResourceTracker;
   uint64_t mNextLayerHandle;
-  nsDataHashtable<nsUint64HashKey, CompositableClient*> mCompositables;
+  nsTHashMap<nsUint64HashKey, CompositableClient*> mCompositables;
   PaintTiming mPaintTiming;
   /**
    * ShadowLayerForwarder might dispatch tasks to main while puppet widget and

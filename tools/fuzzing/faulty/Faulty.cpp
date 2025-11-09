@@ -164,7 +164,7 @@ Faulty::Faulty()
       mIsValidProcessType(IsValidProcessType()) {
   if (mIsValidProcessType) {
     FAULTY_LOG("Initializing for new process of type '%s' with pid %u.",
-               XRE_GeckoProcessTypeToString(XRE_GetProcessType()), getpid());
+               XRE_GetProcessTypeString(), getpid());
 
     /* Setup random seed. */
     const char* userSeed = PR_GetEnv("FAULTY_SEED");
@@ -228,7 +228,7 @@ bool Faulty::IsValidProcessType(void) {
 
   if (!isValidProcessType) {
     FAULTY_LOG("Disabled for this process of type '%s' with pid %d.",
-               XRE_GeckoProcessTypeToString(XRE_GetProcessType()), getpid());
+               XRE_GetProcessTypeString(), getpid());
   }
 
   return isValidProcessType;
@@ -701,7 +701,7 @@ UniquePtr<IPC::Message> Faulty::MutateIPCMessage(const char* aChannel,
   std::vector<uint8_t> data(GetDataFromIPCMessage(aMsg.get()));
 
   /* Check if there is enough data in the message to fuzz. */
-  uint32_t headerSize = aMsg->HeaderSizeFromData(nullptr, nullptr);
+  uint32_t headerSize = aMsg->HeaderSize();
   if (headerSize == data.size()) {
     FAULTY_LOG("IGNORING: %s", aMsg->name());
     return aMsg;

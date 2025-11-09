@@ -7,6 +7,7 @@
 
 #include "mozilla/ipc/PInProcessParent.h"
 #include "mozilla/StaticPtr.h"
+#include "nsIObserver.h" //MY
 
 namespace mozilla {
 namespace dom {

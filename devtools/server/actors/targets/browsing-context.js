@@ -295,12 +295,6 @@ const browsingContextTargetPrototype = {
   // filter console messages by addonID), set to an empty (no options) object by default.
   consoleAPIListenerOptions: {},
 
-  // Optional TabSources filter function (e.g. used by the WebExtensionActor to filter
-  // sources by addonID), allow all sources by default.
-  _allowSource() {
-    return true;
-  },
-
   get exited() {
     return this._exited;
   },
@@ -488,7 +482,7 @@ const browsingContextTargetPrototype = {
 
   get sources() {
     if (!this._sources) {
-      this._sources = new TabSources(this.threadActor, this._allowSource);
+      this._sources = new TabSources(this.threadActor);
     }
     return this._sources;
   },
@@ -1573,8 +1567,8 @@ function DebuggerProgressListener(targetActor) {
 
 DebuggerProgressListener.prototype = {
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIWebProgressListener,
-    Ci.nsISupportsWeakReference,
+    "nsIWebProgressListener",
+    "nsISupportsWeakReference",
   ]),
 
   destroy() {

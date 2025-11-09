@@ -17,9 +17,12 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Compiler.h"
-#include "mozilla/TypeTraits.h"
 
-#include <atomic>
+#ifdef __wasi__
+#  include "mozilla/WasiAtomic.h"
+#else
+#  include <atomic>
+#endif  // __wasi__
 
 #include <stdint.h>
 #include <type_traits>

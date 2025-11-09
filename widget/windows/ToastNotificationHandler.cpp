@@ -95,7 +95,7 @@ static bool AddActionNode(IXmlDocument* toastXml, IXmlNode* actionsNode,
   }
   if (NS_WARN_IF(!SetAttribute(action.Get(),
                                HStringReference(L"placement").Get(),
-                               NS_LITERAL_STRING("contextmenu")))) {
+                               u"contextmenu"_ns))) {
     return false;
   }
 
@@ -302,7 +302,7 @@ bool ToastNotificationHandler::ShowAlert() {
       if (SUCCEEDED(hr)) {
         // placement is supported on Windows 10 Anniversary Update or later
         SetAttribute(placementText.Get(), HStringReference(L"placement").Get(),
-                     NS_LITERAL_STRING("attribution"));
+                     u"attribution"_ns);
       }
     }
 
@@ -311,13 +311,13 @@ bool ToastNotificationHandler::ShowAlert() {
                                  formatStrings, disableButtonTitle);
 
     AddActionNode(toastXml.Get(), actionsNode.Get(), disableButtonTitle,
-                  NS_LITERAL_STRING("snooze"));
+                  u"snooze"_ns);
   }
 
   nsAutoString settingsButtonTitle;
   bundle->GetStringFromName("webActions.settings.label", settingsButtonTitle);
   AddActionNode(toastXml.Get(), actionsNode.Get(), settingsButtonTitle,
-                NS_LITERAL_STRING("settings"));
+                u"settings"_ns);
 
   IXmlNode* appendedChild;
   hr = toastNodeRoot->AppendChild(actionsNode.Get(), &appendedChild);
@@ -489,7 +489,7 @@ nsresult ToastNotificationHandler::AsyncSaveImage(imgIRequest* aRequest) {
     return rv;
   }
 
-  rv = mImageFile->Append(NS_LITERAL_STRING("notificationimages"));
+  rv = mImageFile->Append(u"notificationimages"_ns);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }

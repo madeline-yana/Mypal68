@@ -162,9 +162,8 @@ nsresult nsManifestCheck::Begin() {
         new mozilla::dom::ReferrerInfo(mReferrerURI);
     rv = httpChannel->SetReferrerInfoWithoutClone(referrerInfo);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
-    rv = httpChannel->SetRequestHeader(NS_LITERAL_CSTRING("X-Moz"),
-                                       NS_LITERAL_CSTRING("offline-resource"),
-                                       false);
+    rv =
+        httpChannel->SetRequestHeader("X-Moz"_ns, "offline-resource"_ns, false);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
   }
 
@@ -343,9 +342,8 @@ nsresult nsOfflineCacheUpdateItem::OpenChannel(nsOfflineCacheUpdate* aUpdate) {
         new mozilla::dom::ReferrerInfo(mReferrerURI);
     rv = httpChannel->SetReferrerInfoWithoutClone(referrerInfo);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
-    rv = httpChannel->SetRequestHeader(NS_LITERAL_CSTRING("X-Moz"),
-                                       NS_LITERAL_CSTRING("offline-resource"),
-                                       false);
+    rv =
+        httpChannel->SetRequestHeader("X-Moz"_ns, "offline-resource"_ns, false);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
   }
 
@@ -508,9 +506,7 @@ nsOfflineCacheUpdateItem::AsyncOnChannelRedirect(
   nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(aNewChannel);
   NS_ENSURE_STATE(httpChannel);
 
-  rv = httpChannel->SetRequestHeader(NS_LITERAL_CSTRING("X-Moz"),
-                                     NS_LITERAL_CSTRING("offline-resource"),
-                                     false);
+  rv = httpChannel->SetRequestHeader("X-Moz"_ns, "offline-resource"_ns, false);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
 
   mChannel = aNewChannel;
@@ -913,8 +909,8 @@ nsresult nsOfflineManifestItem::HandleManifestLine(
         // or not conforming any namespace.
         // We achive that simply by adding an 'empty' - i.e. universal
         // namespace of BYPASS type into the cache.
-        AddNamespace(nsIApplicationCacheNamespace::NAMESPACE_BYPASS,
-                     EmptyCString(), EmptyCString());
+        AddNamespace(nsIApplicationCacheNamespace::NAMESPACE_BYPASS, ""_ns,
+                     ""_ns);
         break;
       }
 
@@ -931,8 +927,7 @@ nsresult nsOfflineManifestItem::HandleManifestLine(
       nsCString spec;
       if (NS_FAILED(bypassURI->GetAsciiSpec(spec))) break;
 
-      AddNamespace(nsIApplicationCacheNamespace::NAMESPACE_BYPASS, spec,
-                   EmptyCString());
+      AddNamespace(nsIApplicationCacheNamespace::NAMESPACE_BYPASS, spec, ""_ns);
       break;
     }
   }

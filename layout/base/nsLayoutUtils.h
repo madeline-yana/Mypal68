@@ -2161,8 +2161,8 @@ class nsLayoutUtils {
    */
   typedef nsTArray<mozilla::UniquePtr<mozilla::dom::InspectorFontFace>>
       UsedFontFaceList;
-  typedef nsDataHashtable<nsPtrHashKey<gfxFontEntry>,
-                          mozilla::dom::InspectorFontFace*>
+  typedef nsTHashMap<nsPtrHashKey<gfxFontEntry>,
+                     mozilla::dom::InspectorFontFace*>
       UsedFontFaceTable;
 
   /**
@@ -2721,7 +2721,7 @@ class nsLayoutUtils {
    *
    * @param aSel      Selection to check
    */
-  static nsRect GetSelectionBoundingRect(mozilla::dom::Selection* aSel);
+  static nsRect GetSelectionBoundingRect(const mozilla::dom::Selection* aSel);
 
   /**
    * Calculate the bounding rect of |aContent|, relative to the origin

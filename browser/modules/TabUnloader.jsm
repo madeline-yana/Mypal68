@@ -30,8 +30,8 @@ var TabUnloader = {
   },
 
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIObserver,
-    Ci.nsISupportsWeakReference,
+    "nsIObserver",
+    "nsISupportsWeakReference",
   ]),
 };
 

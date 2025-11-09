@@ -117,7 +117,7 @@ add_task(async function testRevoked() {
         [
           {
             QueryInterface: ChromeUtils.generateQI([
-              Ci.nsISubjectAndPubKeyRevocationState,
+              "nsISubjectAndPubKeyRevocationState",
             ]),
             subject: "MBIxEDAOBgNVBAMMB3Jldm9rZWQ=", // CN=revoked
             pubKey: "VCIlmPM9NkgFQtrs4Oa5TeFcDu6MWRTKSNdePEhOgD8=", // hash of the shared key

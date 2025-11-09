@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-include('build/moz.configure/init.configure')
+include("build/moz.configure/init.configure")
 
 # Note:
 # - Gecko-specific options and rules should go in toolkit/moz.configure.
@@ -12,135 +12,169 @@ include('build/moz.configure/init.configure')
 # - Spidermonkey-specific options and rules should go in js/moz.configure.
 # - etc.
 
-option('--enable-artifact-builds', env='MOZ_ARTIFACT_BUILDS',
-       help='Download and use prebuilt binary artifacts.')
+option(
+    "--enable-artifact-builds",
+    env="MOZ_ARTIFACT_BUILDS",
+    help="Download and use prebuilt binary artifacts.",
+)
 
-@depends('--enable-artifact-builds')
+
+@depends("--enable-artifact-builds")
 def artifact_builds(value):
     if value:
         return True
 
-set_config('MOZ_ARTIFACT_BUILDS', artifact_builds)
 
-imply_option('--enable-artifact-build-symbols',
-             depends(artifact_builds)(lambda v: False if v is None else None),
-             reason='--disable-artifact-builds')
+set_config("MOZ_ARTIFACT_BUILDS", artifact_builds)
 
-option('--enable-artifact-build-symbols', nargs='?', choices=('full',),
-       help='Download symbols when artifact builds are enabled.')
+imply_option(
+    "--enable-artifact-build-symbols",
+    depends(artifact_builds)(lambda v: False if v is None else None),
+    reason="--disable-artifact-builds",
+)
 
-@depends('--enable-artifact-build-symbols', 'MOZ_AUTOMATION', target)
+option(
+    "--enable-artifact-build-symbols",
+    nargs="?",
+    choices=("full",),
+    help="Download symbols when artifact builds are enabled.",
+)
+
+
+@depends("--enable-artifact-build-symbols", "MOZ_AUTOMATION", target)
 def enable_artifact_build_symbols(value, automation, target):
     if len(value):
         return value[0]
     if bool(value):
-        if target.os == 'Android' and not automation:
-            return 'full'
+        if target.os == "Android" and not automation:
+            return "full"
         return True
     return None
 
-set_config('MOZ_ARTIFACT_BUILD_SYMBOLS',
-           enable_artifact_build_symbols)
 
-@depends('--enable-artifact-builds')
+set_config("MOZ_ARTIFACT_BUILD_SYMBOLS", enable_artifact_build_symbols)
+
+
+@depends("--enable-artifact-builds")
 def imply_disable_compile_environment(value):
     if value:
         return False
 
-option(env='MOZ_COPY_PDBS',
-    help='For builds that do not support symbols in the normal fashion,'
-         ' generate and copy them into the resulting build archive.')
 
-set_config('MOZ_COPY_PDBS', depends_if('MOZ_COPY_PDBS')(lambda _: True))
+option(
+    env="MOZ_COPY_PDBS",
+    help="For builds that do not support symbols in the normal fashion,"
+    " generate and copy them into the resulting build archive.",
+)
 
-imply_option('--enable-compile-environment', imply_disable_compile_environment)
+set_config("MOZ_COPY_PDBS", depends_if("MOZ_COPY_PDBS")(lambda _: True))
 
-option('--disable-compile-environment',
-       help='Disable compiler/library checks')
+imply_option("--enable-compile-environment", imply_disable_compile_environment)
 
-@depends('--disable-compile-environment')
+option("--disable-compile-environment", help="Disable compiler/library checks")
+
+
+@depends("--disable-compile-environment")
 def compile_environment(compile_env):
     if compile_env:
         return True
 
-set_config('COMPILE_ENVIRONMENT', compile_environment)
-add_old_configure_assignment('COMPILE_ENVIRONMENT', compile_environment)
 
-option('--disable-tests',
-       help='Do not build test libraries & programs')
+set_config("COMPILE_ENVIRONMENT", compile_environment)
+add_old_configure_assignment("COMPILE_ENVIRONMENT", compile_environment)
 
-@depends('--disable-tests')
+option("--disable-tests", help="Do not build test libraries & programs")
+
+
+@depends("--disable-tests")
 def enable_tests(value):
     if value:
         return True
 
-set_config('ENABLE_TESTS', enable_tests)
-set_define('ENABLE_TESTS', enable_tests)
+
+set_config("ENABLE_TESTS", enable_tests)
+set_define("ENABLE_TESTS", enable_tests)
+
 
 @depends(enable_tests)
 def gtest_has_rtti(value):
     if value:
-        return '0'
+        return "0"
 
-set_define('GTEST_HAS_RTTI', gtest_has_rtti)
+
+set_define("GTEST_HAS_RTTI", gtest_has_rtti)
+
 
 @depends(target, enable_tests)
 def linux_gtest_defines(target, enable_tests):
-    if enable_tests and target.os == 'Android':
-        return namespace(os_linux_android=True,
-                         use_own_tr1_tuple=True,
-                         has_clone='0')
+    if enable_tests and target.os == "Android":
+        return namespace(os_linux_android=True, use_own_tr1_tuple=True, has_clone="0")
 
-set_define('GTEST_OS_LINUX_ANDROID',
-           linux_gtest_defines.os_linux_android)
-set_define('GTEST_USE_OWN_TR1_TUPLE',
-           linux_gtest_defines.use_own_tr1_tuple)
-set_define('GTEST_HAS_CLONE',
-           linux_gtest_defines.has_clone)
 
-option('--enable-debug',
-       nargs='?',
-       help='Enable building with developer debug info '
-            '(using the given compiler flags).')
+set_define("GTEST_OS_LINUX_ANDROID", linux_gtest_defines.os_linux_android)
+set_define("GTEST_USE_OWN_TR1_TUPLE", linux_gtest_defines.use_own_tr1_tuple)
+set_define("GTEST_HAS_CLONE", linux_gtest_defines.has_clone)
 
-@depends('--enable-debug')
+option(
+    "--enable-debug",
+    nargs="?",
+    help="Enable building with developer debug info "
+    "(using the given compiler flags).",
+)
+
+
+@depends("--enable-debug")
 def moz_debug(debug):
     if debug:
         return bool(debug)
 
-set_config('MOZ_DEBUG', moz_debug)
-set_define('MOZ_DEBUG', moz_debug)
+
+set_config("MOZ_DEBUG", moz_debug)
+set_define("MOZ_DEBUG", moz_debug)
 # Override any value MOZ_DEBUG may have from the environment when passing it
 # down to old-configure.
-add_old_configure_assignment('MOZ_DEBUG',
-                             depends('--enable-debug')(lambda x: bool(x)))
+add_old_configure_assignment("MOZ_DEBUG", depends("--enable-debug")(lambda x: bool(x)))
 
-option('--with-debug-label', nargs='+',
-       help='Debug DEBUG_<value> for each comma-separated value given')
+set_define(
+    "MOZ_DIAGNOSTIC_ASSERT_ENABLED",
+    True,
+    when=moz_debug | milestone.is_early_beta_or_earlier,
+)
 
-@depends(moz_debug, '--with-debug-label')
+option(
+    "--with-debug-label",
+    nargs="+",
+    help="Debug DEBUG_<value> for each comma-separated value given",
+)
+
+
+@depends(moz_debug, "--with-debug-label")
 def debug_defines(debug, labels):
     if debug:
-        return ['DEBUG'] + ['DEBUG_%s' % label for label in labels]
-    return ['NDEBUG', 'TRIMMED']
+        return ["DEBUG"] + ["DEBUG_%s" % label for label in labels]
+    return ["NDEBUG", "TRIMMED"]
 
-set_config('MOZ_DEBUG_DEFINES', debug_defines)
 
-option('--enable-rust-debug',
-       default=depends(when='--enable-debug')(lambda: True),
-       help='{Build|Do not build} Rust code with debug assertions turned '
-            'on.')
+set_config("MOZ_DEBUG_DEFINES", debug_defines)
 
-@depends(when='--enable-rust-debug')
+option(
+    "--enable-rust-debug",
+    default=depends(when="--enable-debug")(lambda: True),
+    help="{Build|Do not build} Rust code with debug assertions turned " "on.",
+)
+
+
+@depends(when="--enable-rust-debug")
 def debug_rust():
     return True
 
-set_config('MOZ_DEBUG_RUST', debug_rust)
-set_define('MOZ_DEBUG_RUST', debug_rust)
 
-option(env='MOZ_PGO', help='Build with profile guided optimizations')
+set_config("MOZ_DEBUG_RUST", debug_rust)
+set_define("MOZ_DEBUG_RUST", debug_rust)
 
-set_config('MOZ_PGO', depends('MOZ_PGO')(lambda x: bool(x)))
+option(env="MOZ_PGO", help="Build with profile guided optimizations")
+
+set_config("MOZ_PGO", depends("MOZ_PGO")(lambda x: bool(x)))
 
 include('build/moz.configure/toolchain.configure',
         when='--enable-compile-environment')

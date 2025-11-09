@@ -283,6 +283,10 @@ class RefreshDriverTimer {
   virtual void StopTimer() = 0;
   virtual void ScheduleNextTick(TimeStamp aNowTime) = 0;
 
+ public:
+  virtual bool IsTicking() const = 0;
+
+ protected:
   bool IsRootRefreshDriver(nsRefreshDriver* aDriver) {
     nsPresContext* pc = aDriver->GetPresContext();
     nsPresContext* rootContext = pc ? pc->GetRootPresContext() : nullptr;
@@ -734,6 +738,7 @@ class VsyncRefreshDriverTimer : public RefreshDriverTimer {
       Unused << mVsyncChild->SendObserve();
       mVsyncObserver->OnTimerStart();
     }
+    mIsTicking = true;
   }
 
   void StopTimer() override {
@@ -744,8 +749,13 @@ class VsyncRefreshDriverTimer : public RefreshDriverTimer {
     } else {
       Unused << mVsyncChild->SendUnobserve();
     }
+    mIsTicking = false;
   }
 
+ public:
+  bool IsTicking() const override { return mIsTicking; }
+
+ protected:
   void ScheduleNextTick(TimeStamp aNowTime) override {
     // Do nothing since we just wait for the next vsync from
     // RefreshDriverVsyncObserver.
@@ -763,6 +773,7 @@ class VsyncRefreshDriverTimer : public RefreshDriverTimer {
   // After ActorDestroy(), StartTimer() and StopTimer() calls will be non-op.
   RefPtr<VsyncChild> mVsyncChild;
   TimeDuration mVsyncRate;
+  bool mIsTicking = false;
 };  // VsyncRefreshDriverTimer
 
 NS_IMPL_ISUPPORTS_INHERITED(
@@ -798,6 +809,9 @@ class StartupRefreshDriverTimer : public SimpleTimerBasedRefreshDriverTimer {
         "StartupRefreshDriverTimer::ScheduleNextTick");
     mTargetTime = newTarget;
   }
+
+ public:
+  bool IsTicking() const override { return true; }
 };
 
 /*
@@ -864,9 +878,13 @@ class InactiveRefreshDriverTimer final
     mTimer->InitWithNamedFuncCallback(TimerTickOne, this, delay,
                                       nsITimer::TYPE_ONE_SHOT,
                                       "InactiveRefreshDriverTimer::StartTimer");
+    mIsTicking = true;
   }
 
-  void StopTimer() override { mTimer->Cancel(); }
+  void StopTimer() override {
+    mTimer->Cancel();
+    mIsTicking = false;
+  }
 
   void ScheduleNextTick(TimeStamp aNowTime) override {
     if (mDisableAfterMilliseconds > 0.0 &&
@@ -893,6 +911,10 @@ class InactiveRefreshDriverTimer final
         mNextTickDuration, mNextDriverIndex, GetRefreshDriverCount());
   }
 
+ public:
+  bool IsTicking() const override { return mIsTicking; }
+
+ protected:
   /* Runs just one driver's tick. */
   void TickOne() {
     TimeStamp now = TimeStamp::Now();
@@ -922,6 +944,7 @@ class InactiveRefreshDriverTimer final
   double mNextTickDuration;
   double mDisableAfterMilliseconds;
   uint32_t mNextDriverIndex;
+  bool mIsTicking = false;
 };
 
 }  // namespace mozilla
@@ -1244,11 +1267,10 @@ void nsRefreshDriver::RemovePostRefreshObserver(
 bool nsRefreshDriver::AddImageRequest(imgIRequest* aRequest) {
   uint32_t delay = GetFirstFrameDelay(aRequest);
   if (delay == 0) {
-    mRequests.PutEntry(aRequest);
+    mRequests.Insert(aRequest);
   } else {
-    const auto& start = mStartTable.LookupForAdd(delay).OrInsert(
-        []() { return new ImageStartData(); });
-    start->mEntries.PutEntry(aRequest);
+    auto* const start = mStartTable.GetOrInsertNew(delay);
+    start->mEntries.Insert(aRequest);
   }
 
   EnsureTimerStarted();
@@ -1259,12 +1281,12 @@ bool nsRefreshDriver::AddImageRequest(imgIRequest* aRequest) {
 void nsRefreshDriver::RemoveImageRequest(imgIRequest* aRequest) {
   // Try to remove from both places, just in case, because we can't tell
   // whether RemoveEntry() succeeds.
-  mRequests.RemoveEntry(aRequest);
+  mRequests.Remove(aRequest);
   uint32_t delay = GetFirstFrameDelay(aRequest);
   if (delay != 0) {
     ImageStartData* start = mStartTable.Get(delay);
     if (start) {
-      start->mEntries.RemoveEntry(aRequest);
+      start->mEntries.Remove(aRequest);
     }
   }
 }
@@ -2006,9 +2028,9 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime) {
    * for refresh events.
    */
 
-  for (auto iter = mStartTable.Iter(); !iter.Done(); iter.Next()) {
-    const uint32_t& delay = iter.Key();
-    ImageStartData* data = iter.UserData();
+  for (const auto& entry : mStartTable) {
+    const uint32_t& delay = entry.GetKey();
+    ImageStartData* data = entry.GetWeak();
 
     if (data->mStartTime) {
       TimeStamp& start = *data->mStartTime;
@@ -2042,9 +2064,8 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime) {
     // images to refresh, and then we refresh each image in that array.
     nsCOMArray<imgIContainer> imagesToRefresh(mRequests.Count());
 
-    for (auto iter = mRequests.Iter(); !iter.Done(); iter.Next()) {
-      nsISupportsHashKey* entry = iter.Get();
-      auto req = static_cast<imgIRequest*>(entry->GetKey());
+    for (nsISupports* entry : mRequests) {
+      auto* req = static_cast<imgIRequest*>(entry);
       MOZ_ASSERT(req, "Unable to retrieve the image request");
       nsCOMPtr<imgIContainer> image;
       if (NS_SUCCEEDED(req->GetImage(getter_AddRefs(image)))) {
@@ -2139,11 +2160,11 @@ void nsRefreshDriver::Tick(VsyncId aId, TimeStamp aNowTime) {
 
 void nsRefreshDriver::BeginRefreshingImages(RequestTable& aEntries,
                                             mozilla::TimeStamp aDesired) {
-  for (auto iter = aEntries.Iter(); !iter.Done(); iter.Next()) {
-    auto req = static_cast<imgIRequest*>(iter.Get()->GetKey());
+  for (const auto& key : aEntries) {
+    auto* req = static_cast<imgIRequest*>(key);
     MOZ_ASSERT(req, "Unable to retrieve the image request");
 
-    mRequests.PutEntry(req);
+    mRequests.Insert(req);
 
     nsCOMPtr<imgIContainer> image;
     if (NS_SUCCEEDED(req->GetImage(getter_AddRefs(image)))) {
@@ -2440,6 +2461,19 @@ Maybe<TimeStamp> nsRefreshDriver::GetNextTickHint() {
     return Nothing();
   }
   return sRegularRateTimer->GetNextTickHint();
+}
+
+/* static */
+bool nsRefreshDriver::IsRegularRateTimerTicking() {
+  MOZ_ASSERT(NS_IsMainThread());
+
+  if (sRegularRateTimer) {
+    if (sRegularRateTimer->IsTicking()) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 void nsRefreshDriver::Disconnect() {

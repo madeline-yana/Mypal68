@@ -4,6 +4,7 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Atomics.h"
+#include "mozilla/Sprintf.h"
 
 #include <stdarg.h>
 
@@ -33,8 +34,7 @@ MFBT_API MOZ_COLD MOZ_NEVER_INLINE MOZ_FORMAT_PRINTF(1, 2) const
   }
   va_list aArgs;
   va_start(aArgs, aFormat);
-  int ret =
-      vsnprintf(sPrintfCrashReason, sPrintfCrashReasonSize, aFormat, aArgs);
+  int ret = VsprintfLiteral(sPrintfCrashReason, aFormat, aArgs);
   va_end(aArgs);
   MOZ_RELEASE_ASSERT(
       ret >= 0 && size_t(ret) < sPrintfCrashReasonSize,
@@ -43,3 +43,9 @@ MFBT_API MOZ_COLD MOZ_NEVER_INLINE MOZ_FORMAT_PRINTF(1, 2) const
 }
 
 MOZ_END_EXTERN_C
+
+MFBT_API MOZ_NORETURN MOZ_COLD void mozilla::detail::InvalidArrayIndex_CRASH(
+    size_t aIndex, size_t aLength) {
+  MOZ_CRASH_UNSAFE_PRINTF("ElementAt(aIndex = %zu, aLength = %zu)", aIndex,
+                          aLength);
+}

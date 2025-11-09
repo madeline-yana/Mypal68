@@ -195,7 +195,6 @@ pref("browser.slowStartup.notificationDisabled", false);
 pref("browser.slowStartup.timeThreshold", 20000);
 pref("browser.slowStartup.maxSamples", 5);
 
-pref("browser.enable_automatic_image_resizing", true);
 pref("browser.chrome.site_icons", true);
 // browser.warnOnQuit == false will override all other possible prompts when quitting or restarting
 pref("browser.warnOnQuit", true);
@@ -1422,6 +1421,23 @@ pref("privacy.userContext.newTabContainerOnLeftClick.enabled", false);
 // Start the browser in e10s mode
 pref("browser.tabs.remote.autostart", true);
 pref("browser.tabs.remote.desktopbehavior", true);
+
+// Run media transport in a separate process?
+#ifdef NIGHTLY_BUILD
+pref("media.peerconnection.mtransport_process", true);
+#else
+pref("media.peerconnection.mtransport_process", false);
+#endif
+
+// Start a separate socket process. Performing networking on the socket process
+// is control by a sepparate pref
+// ("network.http.network_access_on_socket_process.enabled").
+// Changing these prefs requires a restart.
+#ifdef NIGHTLY_BUILD
+pref("network.process.enabled", true);
+#else
+pref("network.process.enabled", false);
+#endif
 
 // For speculatively warming up tabs to improve perceived
 // performance while using the async tab switcher.

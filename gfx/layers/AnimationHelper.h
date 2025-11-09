@@ -17,6 +17,7 @@
 #include "mozilla/Variant.h"
 #include "nsClassHashtable.h" //MY
 #include "X11UndefineNone.h"
+#include <unordered_map>
 
 namespace mozilla {
 struct AnimationValue;
@@ -69,6 +70,26 @@ struct AnimatedValue final {
 
   explicit AnimatedValue(nscolor aValue) : mValue(AsVariant(aValue)) {}
 
+  void SetTransform(gfx::Matrix4x4&& aTransformInDevSpace,
+                    gfx::Matrix4x4&& aFrameTransform,
+                    const TransformData& aData) {
+    MOZ_ASSERT(mValue.is<AnimationTransform>());
+    AnimationTransform& previous = mValue.as<AnimationTransform>();
+    previous.mTransformInDevSpace = std::move(aTransformInDevSpace);
+    previous.mFrameTransform = std::move(aFrameTransform);
+    if (previous.mData != aData) {
+      previous.mData = aData;
+    }
+  }
+  void SetOpacity(float aOpacity) {
+    MOZ_ASSERT(mValue.is<float>());
+    mValue.as<float>() = aOpacity;
+  }
+  void SetColor(nscolor aColor) {
+    MOZ_ASSERT(mValue.is<nscolor>());
+    mValue.as<nscolor>() = aColor;
+  }
+
  private:
   AnimatedValueType mValue;
 };
@@ -89,37 +110,34 @@ struct AnimatedValue final {
 // mechanism).
 class CompositorAnimationStorage final {
   typedef nsClassHashtable<nsUint64HashKey, AnimatedValue> AnimatedValueTable;
-  typedef nsDataHashtable<nsUint64HashKey, AnimationStorageData>
+  typedef std::unordered_map<uint64_t, std::unique_ptr<AnimationStorageData>>
       AnimationsTable;
-#ifdef MOZ_BUILD_WEBRENDER
-  typedef nsDataHashtable<nsUint64HashKey, wr::RenderRoot>
-      AnimationsRenderRootsTable;
-#endif
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CompositorAnimationStorage)
  public:
   /**
    * Set the animation transform based on the unique id and also
-   * set up |aFrameTransform| and |aData| for OMTA testing
+   * set up |aFrameTransform| and |aData| for OMTA testing.
+   * If |aPreviousValue| is not null, the animation transform replaces the value
+   * in the |aPreviousValue|.
+   * NOTE: |aPreviousValue| should be the value for the |aId|.
    */
-  void SetAnimatedValue(uint64_t aId, gfx::Matrix4x4&& aTransformInDevSpace,
+  void SetAnimatedValue(uint64_t aId, AnimatedValue* aPreviousValue,
+                        gfx::Matrix4x4&& aTransformInDevSpace,
                         gfx::Matrix4x4&& aFrameTransform,
                         const TransformData& aData);
 
   /**
-   * Set the animation transform in device pixel based on the unique id
+   * Similar to above but for opacity.
    */
-  void SetAnimatedValue(uint64_t aId, gfx::Matrix4x4&& aTransformInDevSpace);
+  void SetAnimatedValue(uint64_t aId, AnimatedValue* aPreviousValue,
+                        float aOpacity);
 
   /**
-   * Set the animation opacity based on the unique id
+   * Similar to above but for color.
    */
-  void SetAnimatedValue(uint64_t aId, const float& aOpacity);
-
-  /**
-   * Set the animation color based on the unique id
-   */
-  void SetAnimatedValue(uint64_t aId, nscolor aColor);
+  void SetAnimatedValue(uint64_t aId, AnimatedValue* aPreviousValue,
+                        nscolor aColor);
 
   /**
    * Return the animated value if a given id can map to its animated value
@@ -131,7 +149,7 @@ class CompositorAnimationStorage final {
   /**
    * Return the iterator of animated value table
    */
-  AnimatedValueTable::Iterator ConstAnimatedValueTableIter() const {
+  AnimatedValueTable::ConstIterator ConstAnimatedValueTableIter() const {
     return mAnimatedValues.ConstIter();
   }
 
@@ -140,27 +158,11 @@ class CompositorAnimationStorage final {
   /**
    * Set the animations based on the unique id
    */
-  void SetAnimations(uint64_t aId, const AnimationArray& aAnimations
-#ifdef MOZ_BUILD_WEBRENDER
-                     ,
-                     wr::RenderRoot aRenderRoot
-#endif
-  );
+  void SetAnimations(uint64_t aId, const AnimationArray& aAnimations);
 
-  /**
-   * Return the iterator of animations table
-   */
-  AnimationsTable::Iterator ConstAnimationsTableIter() const {
-    return mAnimations.ConstIter();
-  }
+  const AnimationsTable& Animations() const { return mAnimations; }
 
-  uint32_t AnimationsCount() const { return mAnimations.Count(); }
-
-#ifdef MOZ_BUILD_WEBRENDER
-  wr::RenderRoot AnimationRenderRoot(const uint64_t& aId) const {
-    return mAnimationRenderRoots.Get(aId);
-  }
-#endif
+  bool HasAnimations() const { return !mAnimations.empty(); }
 
   /**
    * Clear AnimatedValues and Animations data
@@ -170,13 +172,8 @@ class CompositorAnimationStorage final {
 
  private:
   ~CompositorAnimationStorage(){};
-
- private:
   AnimatedValueTable mAnimatedValues;
   AnimationsTable mAnimations;
-#ifdef MOZ_BUILD_WEBRENDER
-  AnimationsRenderRootsTable mAnimationRenderRoots;
-#endif
 };
 
 /**

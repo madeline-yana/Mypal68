@@ -302,7 +302,7 @@ void mozPersonalDictionary::SyncLoadInternal() {
         if ((NS_OK != convStream->Read(&c, 1, &nRead)) || (nRead != 1))
           done = true;
       }
-      mDictionaryTable.PutEntry(word);
+      mDictionaryTable.Insert(word);
     }
   } while (!done);
 }
@@ -349,15 +349,8 @@ NS_IMETHODIMP mozPersonalDictionary::Save() {
     return res;
   }
 
-  nsTArray<nsString> array;
-  nsString* elems = array.AppendElements(mDictionaryTable.Count());
-  for (auto iter = mDictionaryTable.Iter(); !iter.Done(); iter.Next()) {
-    elems->Assign(iter.Get()->GetKey());
-    elems++;
-  }
-
-  nsCOMPtr<nsIRunnable> runnable =
-      new mozPersonalDictionarySave(this, theFile, std::move(array));
+  nsCOMPtr<nsIRunnable> runnable = new mozPersonalDictionarySave(
+      this, theFile, mozilla::ToTArray<nsTArray<nsString>>(mDictionaryTable));
   res = target->Dispatch(runnable, NS_DISPATCH_NORMAL);
   if (NS_WARN_IF(NS_FAILED(res))) {
     return res;
@@ -371,12 +364,8 @@ NS_IMETHODIMP mozPersonalDictionary::GetWordList(nsIStringEnumerator** aWords) {
 
   WaitForLoad();
 
-  nsTArray<nsString>* array = new nsTArray<nsString>();
-  nsString* elems = array->AppendElements(mDictionaryTable.Count());
-  for (auto iter = mDictionaryTable.Iter(); !iter.Done(); iter.Next()) {
-    elems->Assign(iter.Get()->GetKey());
-    elems++;
-  }
+  nsTArray<nsString>* array = new nsTArray<nsString>(
+      mozilla::ToTArray<nsTArray<nsString>>(mDictionaryTable));
 
   array->Sort();
 
@@ -389,7 +378,7 @@ mozPersonalDictionary::Check(const nsAString& aWord, bool* aResult) {
 
   WaitForLoad();
 
-  *aResult = (mDictionaryTable.GetEntry(aWord) || mIgnoreTable.GetEntry(aWord));
+  *aResult = (mDictionaryTable.Contains(aWord) || mIgnoreTable.Contains(aWord));
   return NS_OK;
 }
 
@@ -398,7 +387,7 @@ mozPersonalDictionary::AddWord(const nsAString& aWord) {
   nsresult res;
   WaitForLoad();
 
-  mDictionaryTable.PutEntry(aWord);
+  mDictionaryTable.Insert(aWord);
   res = Save();
   return res;
 }
@@ -408,7 +397,7 @@ mozPersonalDictionary::RemoveWord(const nsAString& aWord) {
   nsresult res;
   WaitForLoad();
 
-  mDictionaryTable.RemoveEntry(aWord);
+  mDictionaryTable.Remove(aWord);
   res = Save();
   return res;
 }
@@ -416,7 +405,7 @@ mozPersonalDictionary::RemoveWord(const nsAString& aWord) {
 NS_IMETHODIMP
 mozPersonalDictionary::IgnoreWord(const nsAString& aWord) {
   // avoid adding duplicate words to the ignore list
-  if (!mIgnoreTable.GetEntry(aWord)) mIgnoreTable.PutEntry(aWord);
+  mIgnoreTable.EnsureInserted(aWord);
   return NS_OK;
 }
 

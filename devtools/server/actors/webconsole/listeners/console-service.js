@@ -32,7 +32,7 @@ function ConsoleServiceListener(window, listener) {
 exports.ConsoleServiceListener = ConsoleServiceListener;
 
 ConsoleServiceListener.prototype = {
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIConsoleListener]),
+  QueryInterface: ChromeUtils.generateQI(["nsIConsoleListener"]),
 
   /**
    * The content window for which we listen to page errors.

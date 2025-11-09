@@ -2333,14 +2333,14 @@ struct cs_info* get_current_cs(const std::string& es) {
       uint32_t result;
       size_t read;
       size_t written;
-      Tie(result, read, written) =
+      std::tie(result, read, written) =
         decoder->DecodeToUTF16WithoutReplacement(src1, dst1, true);
       if (result != kInputEmpty || read != 1 || written != 1) {
         break;
       }
 
       uniCased = ToLowerCase(uni[0]);
-      Tie(result, read, written) =
+      std::tie(result, read, written) =
         encoder->EncodeFromUTF16WithoutReplacement(src2, dst2, true);
       if (result != kInputEmpty || read != 1 || written != 1) {
         break;
@@ -2348,7 +2348,7 @@ struct cs_info* get_current_cs(const std::string& es) {
       lower = destination[0];
 
       uniCased = ToUpperCase(uni[0]);
-      Tie(result, read, written) =
+      std::tie(result, read, written) =
         encoder->EncodeFromUTF16WithoutReplacement(src2, dst2, true);
       if (result != kInputEmpty || read != 1 || written != 1) {
         break;

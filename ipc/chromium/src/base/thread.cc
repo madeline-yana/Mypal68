@@ -14,10 +14,6 @@
 #include "nsThreadUtils.h"
 #include "nsThreadManager.h"
 
-#ifdef MOZ_TASK_TRACER
-#  include "GeckoTaskTracer.h"
-#endif
-
 namespace base {
 
 // This task is used to trigger the message loop to exit.
@@ -196,10 +192,6 @@ void Thread::ThreadMain() {
   DCHECK(GetThreadWasQuitProperly());
 
   mozilla::IOInterposer::UnregisterCurrentThread();
-
-#ifdef MOZ_TASK_TRACER
-  mozilla::tasktracer::FreeTraceInfo();
-#endif
 
   // We can't receive messages anymore.
   message_loop_ = NULL;

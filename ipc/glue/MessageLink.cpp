@@ -59,7 +59,7 @@ ProcessLink::~ProcessLink() {
 }
 
 void ProcessLink::Open(UniquePtr<Transport> aTransport, MessageLoop* aIOLoop,
-                       Side aSide) {
+                       MsgSide aSide) {
   mChan->AssertWorkerThread();
 
   MOZ_ASSERT(aTransport, "need transport layer");

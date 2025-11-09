@@ -56,7 +56,7 @@ function checkPopupHide() {
 }
 
 var gObserver = {
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIFormSubmitObserver]),
+  QueryInterface: ChromeUtils.generateQI(["nsIFormSubmitObserver"]),
 
   notifyInvalidSubmit(aFormElement, aInvalidElements) {},
 };

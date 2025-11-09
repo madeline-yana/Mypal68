@@ -14,7 +14,6 @@ obj*/
 # dom/ exclusions which should be removed (aka ESLint enabled)
 dom/media/test/
 !dom/media/test/marionette/yttest/*.js
-dom/xhr/
 
 # build/ third-party code
 build/pgo/js-input/
@@ -169,9 +168,6 @@ dom/workers/test/invalid.js
 dom/workers/test/threadErrors_worker1.js
 
 # Third-party
-editor/libeditor/tests/browserscope/
-
-# Third-party
 gfx/ots/
 gfx/skia/
 gfx/wr/
@@ -194,6 +190,9 @@ js/src/octane/
 js/src/jit-test/
 js/src/tests/
 js/src/Y.js
+
+# Fuzzing code for testing only, targeting the JS shell
+js/src/fuzz-tests/
 
 # Third-party
 media/webrtc/trunk/

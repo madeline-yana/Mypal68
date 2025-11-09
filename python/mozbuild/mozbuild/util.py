@@ -214,13 +214,16 @@ class FileAvoidWrite(BytesIO):
     still occur, as well as diff capture if requested.
     """
 
-    def __init__(self, filename, capture_diff=False, dry_run=False, mode='rU'):
+    def __init__(self, filename, capture_diff=False, dry_run=False, readmode='rU'):
         BytesIO.__init__(self)
         self.name = filename
+        assert type(capture_diff) == bool
+        assert type(dry_run) == bool
+        assert 'r' in readmode
         self._capture_diff = capture_diff
         self._write_to_file = not dry_run
         self.diff = None
-        self.mode = mode
+        self.mode = readmode
 
     def write(self, buf):
         if isinstance(buf, six.text_type):
@@ -1141,6 +1144,20 @@ def pair(iterable):
     '''
     i = iter(iterable)
     return itertools.izip_longest(i, i)
+
+
+def pairwise(iterable):
+    '''Given an iterable, returns an iterable of overlapped pairs of
+    its items. Based on the Python itertools documentation.
+
+    For example,
+        list(pairwise([1,2,3,4,5,6]))
+    returns
+        [(1,2), (2,3), (3,4), (4,5), (5,6)]
+    '''
+    a, b = itertools.tee(iterable)
+    next(b, None)
+    return zip(a, b)
 
 
 VARIABLES_RE = re.compile('\$\((\w+)\)')

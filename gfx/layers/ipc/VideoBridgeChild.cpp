@@ -6,6 +6,7 @@
 #include "VideoBridgeParent.h"
 #include "CompositorThread.h"
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mtransport/runnable_utils.h"
 #include "SynchronousTask.h"
 

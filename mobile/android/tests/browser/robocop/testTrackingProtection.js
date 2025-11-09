@@ -80,7 +80,7 @@ function doUpdate() {
   return new Promise((resolve, reject) => {
     let listener = {
       QueryInterface: ChromeUtils.generateQI([
-        Ci.nsIUrlClassifierUpdateObserver,
+        "nsIUrlClassifierUpdateObserver",
       ]),
       updateUrlRequested: function(url) {},
       streamFinished: function(status) {},

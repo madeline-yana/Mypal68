@@ -31,7 +31,7 @@ class Observer {
     this.dispatch = dispatch;
     this.QueryInterface = ChromeUtils.generateQI([
       observerInterface,
-      Ci.nsISupportsWeakReference,
+      "nsISupportsWeakReference",
     ]);
   }
 }

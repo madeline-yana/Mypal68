@@ -432,17 +432,21 @@ Accessible* XULTreeAccessible::GetTreeItemAccessible(int32_t aRow) const {
   if (NS_FAILED(rv) || aRow >= rowCount) return nullptr;
 
   void* key = reinterpret_cast<void*>(intptr_t(aRow));
-  Accessible* cachedTreeItem = mAccessibleCache.GetWeak(key);
-  if (cachedTreeItem) return cachedTreeItem;
+  return mAccessibleCache.WithEntryHandle(
+      key, [&](auto&& entry) -> LocalAccessible* {
+        if (entry) {
+          return entry->get();
+        }
 
-  RefPtr<Accessible> treeItem = CreateTreeItemAccessible(aRow);
-  if (treeItem) {
-    mAccessibleCache.Put(key, RefPtr{treeItem});
-    Document()->BindToDocument(treeItem, nullptr);
-    return treeItem;
-  }
+        RefPtr<Accessible> treeItem = CreateTreeItemAccessible(aRow);
+        if (treeItem) {
+          entry.Insert(RefPtr{treeItem});
+          Document()->BindToDocument(treeItem, nullptr);
+          return treeItem.get();
+        }
 
-  return nullptr;
+        return nullptr;
+      });
 }
 
 void XULTreeAccessible::InvalidateCache(int32_t aRow, int32_t aCount) {

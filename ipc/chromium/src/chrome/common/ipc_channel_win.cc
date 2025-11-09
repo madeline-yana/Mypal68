@@ -7,15 +7,18 @@
 #include <windows.h>
 #include <sstream>
 
+#include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/process_util.h"
 #include "base/rand_util.h"
 #include "base/string_util.h"
 #include "base/win_util.h"
+#include "chrome/common/chrome_switches.h"
 #include "chrome/common/ipc_channel_utils.h"
 #include "chrome/common/ipc_message_utils.h"
 #include "mozilla/ipc/ProtocolUtils.h"
+#include "mozilla/Atomics.h"
 
 #ifdef FUZZING
 #  include "mozilla/ipc/Faulty.h"
@@ -50,7 +53,7 @@ Channel::ChannelImpl::State::~State() {
 
 //------------------------------------------------------------------------------
 
-Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id, Mode mode,
+Channel::ChannelImpl::ChannelImpl(const ChannelId& channel_id, Mode mode,
                                   Listener* listener)
     : ALLOW_THIS_IN_INITIALIZER_LIST(input_state_(this)),
       ALLOW_THIS_IN_INITIALIZER_LIST(output_state_(this)),
@@ -67,7 +70,7 @@ Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id, Mode mode,
   }
 }
 
-Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id,
+Channel::ChannelImpl::ChannelImpl(const ChannelId& channel_id,
                                   HANDLE server_pipe, Mode mode,
                                   Listener* listener)
     : ALLOW_THIS_IN_INITIALIZER_LIST(input_state_(this)),
@@ -93,6 +96,9 @@ Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id,
 }
 
 void Channel::ChannelImpl::Init(Mode mode, Listener* listener) {
+  // Verify that we fit in a "quantum-spaced" jemalloc bucket.
+  static_assert(sizeof(*this) <= 512, "Exceeded expected size class");
+
   pipe_ = INVALID_HANDLE_VALUE;
   listener_ = listener;
   waiting_connect_ = (mode == MODE_SERVER);
@@ -100,6 +106,7 @@ void Channel::ChannelImpl::Init(Mode mode, Listener* listener) {
   closed_ = false;
   output_queue_length_ = 0;
   input_buf_offset_ = 0;
+  input_buf_ = mozilla::MakeUnique<char[]>(Channel::kReadBufferSize);
 }
 
 void Channel::ChannelImpl::OutputQueuePush(mozilla::UniquePtr<Message> msg) {
@@ -178,8 +185,8 @@ bool Channel::ChannelImpl::Send(mozilla::UniquePtr<Message> message) {
   return true;
 }
 
-const std::wstring Channel::ChannelImpl::PipeName(
-    const std::wstring& channel_id, int32_t* secret) const {
+const Channel::ChannelId Channel::ChannelImpl::PipeName(
+    const ChannelId& channel_id, int32_t* secret) const {
   MOZ_ASSERT(secret);
 
   std::wostringstream ss;
@@ -198,10 +205,9 @@ const std::wstring Channel::ChannelImpl::PipeName(
   return ss.str();
 }
 
-bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
-                                      Mode mode) {
+bool Channel::ChannelImpl::CreatePipe(const ChannelId& channel_id, Mode mode) {
   DCHECK(pipe_ == INVALID_HANDLE_VALUE);
-  const std::wstring pipe_name = PipeName(channel_id, &shared_secret_);
+  const ChannelId pipe_name = PipeName(channel_id, &shared_secret_);
   if (mode == MODE_SERVER) {
     waiting_for_shared_secret_ = !!shared_secret_;
     pipe_ = CreateNamedPipeW(pipe_name.c_str(),
@@ -334,7 +340,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages(
       if (INVALID_HANDLE_VALUE == pipe_) return false;
 
       // Read from pipe...
-      BOOL ok = ReadFile(pipe_, input_buf_ + input_buf_offset_,
+      BOOL ok = ReadFile(pipe_, input_buf_.get() + input_buf_offset_,
                          Channel::kReadBufferSize - input_buf_offset_,
                          &bytes_read, &input_state_.context.overlapped);
       if (!ok) {
@@ -355,8 +361,8 @@ bool Channel::ChannelImpl::ProcessIncomingMessages(
 
     // Process messages from input buffer.
 
-    const char* p = input_buf_;
-    const char* end = input_buf_ + input_buf_offset_ + bytes_read;
+    const char* p = input_buf_.get();
+    const char* end = input_buf_.get() + input_buf_offset_ + bytes_read;
 
     while (p < end) {
       // Try to figure out how big the message is. Size is 0 if we haven't read
@@ -375,7 +381,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages(
         // Move everything we have to the start of the buffer. We'll finish
         // reading this message when we get more data. For now we leave it in
         // input_buf_.
-        memmove(input_buf_, p, end - p);
+        memmove(input_buf_.get(), p, end - p);
         input_buf_offset_ = end - p;
 
         break;
@@ -574,12 +580,12 @@ uint32_t Channel::ChannelImpl::Unsound_NumQueuedMessages() const {
 
 //------------------------------------------------------------------------------
 // Channel's methods simply call through to ChannelImpl.
-Channel::Channel(const std::wstring& channel_id, Mode mode, Listener* listener)
+Channel::Channel(const ChannelId& channel_id, Mode mode, Listener* listener)
     : channel_impl_(new ChannelImpl(channel_id, mode, listener)) {
   MOZ_COUNT_CTOR(IPC::Channel);
 }
 
-Channel::Channel(const std::wstring& channel_id, void* server_pipe, Mode mode,
+Channel::Channel(const ChannelId& channel_id, void* server_pipe, Mode mode,
                  Listener* listener)
     : channel_impl_(new ChannelImpl(channel_id, server_pipe, mode, listener)) {
   MOZ_COUNT_CTOR(IPC::Channel);
@@ -614,20 +620,32 @@ uint32_t Channel::Unsound_NumQueuedMessages() const {
   return channel_impl_->Unsound_NumQueuedMessages();
 }
 
+namespace {
+
+// Global atomic used to guarantee channel IDs are unique.
+mozilla::Atomic<int> g_last_id;
+
+}  // namespace
+
 // static
-std::wstring Channel::GenerateVerifiedChannelID(const std::wstring& prefix) {
+Channel::ChannelId Channel::GenerateVerifiedChannelID() {
   // Windows pipes can be enumerated by low-privileged processes. So, we
   // append a strong random value after the \ character. This value is not
   // included in the pipe name, but sent as part of the client hello, to
   // prevent hijacking the pipe name to spoof the client.
-  std::wstring id = prefix;
-  if (!id.empty()) id.append(L".");
   int secret;
   do {  // Guarantee we get a non-zero value.
     secret = base::RandInt(0, std::numeric_limits<int>::max());
   } while (secret == 0);
-  id.append(GenerateUniqueRandomChannelID());
-  return id.append(StringPrintf(L"\\%d", secret));
+  return StringPrintf(L"%d.%u.%d\\%d", base::GetCurrentProcId(), g_last_id++,
+                      base::RandInt(0, std::numeric_limits<int32_t>::max()),
+                      secret);
+}
+
+// static
+Channel::ChannelId Channel::ChannelIDForCurrentProcess() {
+  return CommandLine::ForCurrentProcess()->GetSwitchValue(
+      switches::kProcessChannelID);
 }
 
 }  // namespace IPC

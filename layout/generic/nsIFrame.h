@@ -52,6 +52,7 @@
 #include "LayoutConstants.h"
 #include "mozilla/layout/FrameChildList.h"
 #include "mozilla/AspectRatio.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Result.h"
 #include "mozilla/SmallPointerArray.h"
@@ -72,6 +73,7 @@
 #include "mozilla/EnumSet.h"
 #include "mozilla/gfx/CompositorHitTestInfo.h"
 #include "mozilla/gfx/MatrixFwd.h"
+#include "mozilla/intl/BidiEmbeddingLevel.h"
 #include "nsDisplayItemTypes.h"
 
 #ifdef ACCESSIBILITY
@@ -368,76 +370,6 @@ std::ostream& operator<<(std::ostream& aStream, const nsReflowStatus& aStatus);
 // overflow is stored as a separate rect property
 #define NS_FRAME_OVERFLOW_LARGE 0x000000ff
 
-/**
- * nsBidiLevel is the type of the level values in our Unicode Bidi
- * implementation.
- * It holds an embedding level and indicates the visual direction
- * by its bit 0 (even/odd value).<p>
- *
- * <li><code>aParaLevel</code> can be set to the
- * pseudo-level values <code>NSBIDI_DEFAULT_LTR</code>
- * and <code>NSBIDI_DEFAULT_RTL</code>.</li></ul>
- *
- * @see nsBidi::SetPara
- *
- * <p>The related constants are not real, valid level values.
- * <code>NSBIDI_DEFAULT_XXX</code> can be used to specify
- * a default for the paragraph level for
- * when the <code>SetPara</code> function
- * shall determine it but there is no
- * strongly typed character in the input.<p>
- *
- * Note that the value for <code>NSBIDI_DEFAULT_LTR</code> is even
- * and the one for <code>NSBIDI_DEFAULT_RTL</code> is odd,
- * just like with normal LTR and RTL level values -
- * these special values are designed that way. Also, the implementation
- * assumes that NSBIDI_MAX_EXPLICIT_LEVEL is odd.
- *
- * @see NSBIDI_DEFAULT_LTR
- * @see NSBIDI_DEFAULT_RTL
- * @see NSBIDI_LEVEL_OVERRIDE
- * @see NSBIDI_MAX_EXPLICIT_LEVEL
- */
-typedef uint8_t nsBidiLevel;
-
-/**
- * Paragraph level setting.
- * If there is no strong character, then set the paragraph level to 0
- * (left-to-right).
- */
-#define NSBIDI_DEFAULT_LTR 0xfe
-
-/**
- * Paragraph level setting.
- * If there is no strong character, then set the paragraph level to 1
- * (right-to-left).
- */
-#define NSBIDI_DEFAULT_RTL 0xff
-
-/**
- * Maximum explicit embedding level.
- * (The maximum resolved level can be up to
- * <code>NSBIDI_MAX_EXPLICIT_LEVEL+1</code>).
- */
-#define NSBIDI_MAX_EXPLICIT_LEVEL 125
-
-/** Bit flag for level input.
- *  Overrides directional properties.
- */
-#define NSBIDI_LEVEL_OVERRIDE 0x80
-
-/**
- * <code>nsBidiDirection</code> values indicate the text direction.
- */
-enum nsBidiDirection {
-  /** All left-to-right text This is a 0 value. */
-  NSBIDI_LTR,
-  /** All right-to-left text This is a 1 value. */
-  NSBIDI_RTL,
-  /** Mixed-directional text. */
-  NSBIDI_MIXED
-};
-
 namespace mozilla {
 
 // https://drafts.csswg.org/css-align-3/#baseline-sharing-group
@@ -482,15 +414,16 @@ struct IntrinsicSize {
 };
 
 // Pseudo bidi embedding level indicating nonexistence.
-static const nsBidiLevel kBidiLevelNone = 0xff;
+static const mozilla::intl::BidiEmbeddingLevel kBidiLevelNone =
+    mozilla::intl::BidiEmbeddingLevel(0xff);
 
 struct FrameBidiData {
-  nsBidiLevel baseLevel;
-  nsBidiLevel embeddingLevel;
+  mozilla::intl::BidiEmbeddingLevel baseLevel;
+  mozilla::intl::BidiEmbeddingLevel embeddingLevel;
   // The embedding level of virtual bidi formatting character before
   // this frame if any. kBidiLevelNone is used to indicate nonexistence
   // or unnecessity of such virtual character.
-  nsBidiLevel precedingControl;
+  mozilla::intl::BidiEmbeddingLevel precedingControl;
 };
 
 }  // namespace mozilla
@@ -860,7 +793,7 @@ class nsIFrame : public nsQueryFrame {
    * Get the offsets of the frame. most will be 0,0
    *
    */
-  virtual nsresult GetOffsets(int32_t& start, int32_t& end) const;
+  virtual std::pair<int32_t, int32_t> GetOffsets() const;
 
   /**
    * Reset the offsets when splitting frames during Bidi reordering
@@ -1406,9 +1339,13 @@ class nsIFrame : public nsQueryFrame {
     return bidiData;
   }
 
-  nsBidiLevel GetBaseLevel() const { return GetBidiData().baseLevel; }
+  mozilla::intl::BidiEmbeddingLevel GetBaseLevel() const {
+    return GetBidiData().baseLevel;
+  }
 
-  nsBidiLevel GetEmbeddingLevel() const { return GetBidiData().embeddingLevel; }
+  mozilla::intl::BidiEmbeddingLevel GetEmbeddingLevel() const {
+    return GetBidiData().embeddingLevel;
+  }
 
   /**
    * Return the distance between the border edge of the frame and the
@@ -2132,16 +2069,26 @@ class nsIFrame : public nsQueryFrame {
                                mozilla::WidgetGUIEvent* aEvent,
                                nsEventStatus* aEventStatus);
 
-  nsresult SelectByTypeAtPoint(nsPresContext* aPresContext,
-                               const nsPoint& aPoint,
-                               nsSelectionAmount aBeginAmountType,
-                               nsSelectionAmount aEndAmountType,
-                               uint32_t aSelectFlags);
+  /**
+   * Search for selectable content at point and attempt to select
+   * based on the start and end selection behaviours.
+   *
+   * @param aPresContext Presentation context
+   * @param aPoint Point at which selection will occur. Coordinates
+   * should be relative to this frame.
+   * @param aBeginAmountType, aEndAmountType Selection behavior, see
+   * nsIFrame for definitions.
+   * @param aSelectFlags Selection flags defined in nsIFrame.h.
+   * @return success or failure at finding suitable content to select.
+   */
+  MOZ_CAN_RUN_SCRIPT nsresult
+  SelectByTypeAtPoint(nsPresContext* aPresContext, const nsPoint& aPoint,
+                      nsSelectionAmount aBeginAmountType,
+                      nsSelectionAmount aEndAmountType, uint32_t aSelectFlags);
 
-  nsresult PeekBackwardAndForward(nsSelectionAmount aAmountBack,
-                                  nsSelectionAmount aAmountForward,
-                                  int32_t aStartPos, bool aJumpLines,
-                                  uint32_t aSelectFlags);
+  MOZ_CAN_RUN_SCRIPT nsresult PeekBackwardAndForward(
+      nsSelectionAmount aAmountBack, nsSelectionAmount aAmountForward,
+      int32_t aStartPos, bool aJumpLines, uint32_t aSelectFlags);
 
   enum { SELECT_ACCUMULATE = 0x01 };
 
@@ -2152,23 +2099,22 @@ class nsIFrame : public nsQueryFrame {
 
   // Selection Methods
 
-  NS_IMETHOD HandlePress(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHOD
+  HandlePress(nsPresContext* aPresContext, mozilla::WidgetGUIEvent* aEvent,
+              nsEventStatus* aEventStatus);
 
-  NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
-                                 mozilla::WidgetGUIEvent* aEvent,
-                                 nsEventStatus* aEventStatus,
-                                 bool aControlHeld);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHOD HandleMultiplePress(
+      nsPresContext* aPresContext, mozilla::WidgetGUIEvent* aEvent,
+      nsEventStatus* aEventStatus, bool aControlHeld);
 
   MOZ_CAN_RUN_SCRIPT
   NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
                         mozilla::WidgetGUIEvent* aEvent,
                         nsEventStatus* aEventStatus);
 
-  NS_IMETHOD HandleRelease(nsPresContext* aPresContext,
-                           mozilla::WidgetGUIEvent* aEvent,
-                           nsEventStatus* aEventStatus);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHOD
+  HandleRelease(nsPresContext* aPresContext, mozilla::WidgetGUIEvent* aEvent,
+                nsEventStatus* aEventStatus);
 
   // Test if we are selecting a table object:
   //  Most table/cell selection requires that Ctrl (Cmd on Mac) key is down
@@ -4230,6 +4176,17 @@ class nsIFrame : public nsQueryFrame {
                                     const nsStyleEffects* aEffects,
                                     const nsSize& aSize) const;
 
+  struct Focusable {
+    bool mFocusable = false;
+    // The computed tab index:
+    //         < 0 if not tabbable
+    //         == 0 if in normal tab order
+    //         > 0 can be tabbed to in the order specified by this value
+    int32_t mTabIndex = -1;
+
+    explicit operator bool() const { return mFocusable; }
+  };
+
   /**
    * Check if this frame is focusable and in the current tab order.
    * Tabbable is indicated by a nonnegative tabindex & is a subset of focusable.
@@ -4241,15 +4198,10 @@ class nsIFrame : public nsQueryFrame {
    * Also, depending on the pref accessibility.tabfocus some widgets may be
    * focusable but removed from the tab order. This is the default on
    * Mac OS X, where fewer items are focusable.
-   * @param  [in, optional] aTabIndex the computed tab index
-   *         < 0 if not tabbable
-   *         == 0 if in normal tab order
-   *         > 0 can be tabbed to in the order specified by this value
    * @param  [in, optional] aWithMouse, is this focus query for mouse clicking
    * @return whether the frame is focusable via mouse, kbd or script.
    */
-  virtual bool IsFocusable(int32_t* aTabIndex = nullptr,
-                           bool aWithMouse = false);
+  [[nodiscard]] Focusable IsFocusable(bool aWithMouse = false);
 
   // BOX LAYOUT METHODS
   // These methods have been migrated from nsIBox and are in the process of
@@ -4352,6 +4304,9 @@ class nsIFrame : public nsQueryFrame {
   static nsIFrame* GetParentXULBox(const nsIFrame* aFrame);
 
  protected:
+  // Helper for IsFocusable.
+  bool IsFocusableDueToScrollFrame();
+
   /**
    * Returns true if this box clips its children, e.g., if this box is an
    * scrollbox.

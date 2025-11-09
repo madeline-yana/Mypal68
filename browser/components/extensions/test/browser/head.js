@@ -49,13 +49,11 @@ const { Preferences } = ChromeUtils.import(
   "resource://gre/modules/Preferences.jsm"
 );
 
-XPCOMUtils.defineLazyGetter(this, "Management", () => {
-  const { Management } = ChromeUtils.import(
-    "resource://gre/modules/Extension.jsm",
-    null
-  );
-  return Management;
-});
+ChromeUtils.defineModuleGetter(
+  this,
+  "Management",
+  "resource://gre/modules/Extension.jsm"
+);
 
 // The extension tests can run a lot slower under ASAN.
 if (AppConstants.ASAN) {

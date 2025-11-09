@@ -17,6 +17,7 @@
 #include "nsContainerFrame.h"
 #include "nsGkAtoms.h"
 #include "nsNameSpaceManager.h"
+#include "mozilla/intl/BidiEmbeddingLevel.h"
 #include "mozilla/dom/DocumentInlines.h"
 #include "mozilla/gfx/gfxVars.h"
 #include "nsFontMetrics.h"
@@ -3405,8 +3406,8 @@ static bool ShouldBeClippedByFrame(nsIFrame* aClipFrame,
 static void ClipItemsExceptCaret(
     nsDisplayList* aList, nsDisplayListBuilder* aBuilder, nsIFrame* aClipFrame,
     const DisplayItemClipChain* aExtraClip,
-    nsDataHashtable<nsPtrHashKey<const DisplayItemClipChain>,
-                    const DisplayItemClipChain*>& aCache) {
+    nsTHashMap<nsPtrHashKey<const DisplayItemClipChain>,
+               const DisplayItemClipChain*>& aCache) {
   for (nsDisplayItem* i = aList->GetBottom(); i; i = i->GetAbove()) {
     if (!ShouldBeClippedByFrame(aClipFrame, i->Frame())) {
       continue;
@@ -3421,7 +3422,7 @@ static void ClipItemsExceptCaret(
         i->SetClipChain(intersection, true);
       } else {
         i->IntersectClip(aBuilder, aExtraClip, true);
-        aCache.Put(clip, i->GetClipChain());
+        aCache.InsertOrUpdate(clip, i->GetClipChain());
       }
     }
     nsDisplayList* children = i->GetSameCoordinateSystemChildren();
@@ -3435,8 +3436,8 @@ static void ClipListsExceptCaret(nsDisplayListCollection* aLists,
                                  nsDisplayListBuilder* aBuilder,
                                  nsIFrame* aClipFrame,
                                  const DisplayItemClipChain* aExtraClip) {
-  nsDataHashtable<nsPtrHashKey<const DisplayItemClipChain>,
-                  const DisplayItemClipChain*>
+  nsTHashMap<nsPtrHashKey<const DisplayItemClipChain>,
+             const DisplayItemClipChain*>
       cache;
   ClipItemsExceptCaret(aLists->BorderBackground(), aBuilder, aClipFrame,
                        aExtraClip, cache);
@@ -6778,7 +6779,8 @@ StyleDirection ScrollFrameHelper::GetScrolledFrameDir() const {
   if (mScrolledFrame->StyleTextReset()->mUnicodeBidi &
       NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
     if (nsIFrame* child = mScrolledFrame->PrincipalChildList().FirstChild()) {
-      return nsBidiPresUtils::ParagraphDirection(child) == NSBIDI_LTR
+      return nsBidiPresUtils::ParagraphDirection(child) ==
+                     mozilla::intl::BidiDirection::LTR
                  ? StyleDirection::Ltr
                  : StyleDirection::Rtl;
     }

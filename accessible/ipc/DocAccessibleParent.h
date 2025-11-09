@@ -40,7 +40,7 @@ class DocAccessibleParent : public ProxyAccessible,
     sMaxDocID++;
     mActorID = sMaxDocID;
     MOZ_ASSERT(!LiveDocs().Get(mActorID));
-    LiveDocs().Put(mActorID, this);
+    LiveDocs().InsertOrUpdate(mActorID, this);
   }
 
   ~DocAccessibleParent() {
@@ -292,8 +292,8 @@ class DocAccessibleParent : public ProxyAccessible,
   bool mShutdown;
 
   static uint64_t sMaxDocID;
-  static nsDataHashtable<nsUint64HashKey, DocAccessibleParent*>& LiveDocs() {
-    static nsDataHashtable<nsUint64HashKey, DocAccessibleParent*> sLiveDocs;
+  static nsTHashMap<nsUint64HashKey, DocAccessibleParent*>& LiveDocs() {
+    static nsTHashMap<nsUint64HashKey, DocAccessibleParent*> sLiveDocs;
     return sLiveDocs;
   }
 };

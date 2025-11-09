@@ -26,7 +26,7 @@ class OpenVRControllerManifestManager {
 
   void SetOpenVRControllerManifestPath(OpenVRControllerType aType,
                                        const nsCString& aPath) {
-    mManifest.Put(static_cast<uint32_t>(aType), aPath);
+    mManifest.InsertOrUpdate(static_cast<uint32_t>(aType), aPath);
   }
 
   bool GetActionPath(nsCString* aPath) {
@@ -58,7 +58,7 @@ class OpenVRControllerManifestManager {
   }
 
   nsCString mAction;
-  nsDataHashtable<nsUint32HashKey, nsCString> mManifest;
+  nsTHashMap<nsUint32HashKey, nsCString> mManifest;
   DISALLOW_COPY_AND_ASSIGN(OpenVRControllerManifestManager);
 };
 

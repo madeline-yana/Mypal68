@@ -6,12 +6,15 @@
 #define PreloadService_h__
 
 #include "nsIContentPolicy.h"
-#include "nsIReferrerInfo.h"
 #include "nsIURI.h"
 #include "nsRefPtrHashtable.h"
-#include "PreloaderBase.h"
+#include "mozilla/PreloadHashKey.h"
+
+class nsINode;
 
 namespace mozilla {
+
+class PreloaderBase;
 
 namespace dom {
 
@@ -30,7 +33,8 @@ enum class ReferrerPolicy : uint8_t;
  */
 class PreloadService {
  public:
-  explicit PreloadService(dom::Document* aDocument) : mDocument(aDocument) {}
+  explicit PreloadService(dom::Document*);
+  ~PreloadService();
 
   // Called by resource loaders to register a running resource load.  This is
   // called for a speculative load when it's started the first time, being it
@@ -38,34 +42,34 @@ class PreloadService {
   //
   // Returns false and does nothing if a preload is already registered under
   // this key, true otherwise.
-  bool RegisterPreload(PreloadHashKey* aKey, PreloaderBase* aPreload);
+  bool RegisterPreload(const PreloadHashKey& aKey, PreloaderBase* aPreload);
 
   // Called when the load is about to be cancelled.  Exact behavior is to be
   // determined yet.
-  void DeregisterPreload(PreloadHashKey* aKey);
+  void DeregisterPreload(const PreloadHashKey& aKey);
 
   // Called when the scope is to go away.
   void ClearAllPreloads();
 
   // True when there is a preload registered under the key.
-  bool PreloadExists(PreloadHashKey* aKey);
+  bool PreloadExists(const PreloadHashKey& aKey);
 
   // Returns an existing preload under the key or null, when there is none
   // registered under the key.
-  already_AddRefed<PreloaderBase> LookupPreload(PreloadHashKey* aKey) const;
+  already_AddRefed<PreloaderBase> LookupPreload(
+      const PreloadHashKey& aKey) const;
 
   void SetSpeculationBase(nsIURI* aURI) { mSpeculationBaseURI = aURI; }
   already_AddRefed<nsIURI> GetPreloadURI(const nsAString& aURL);
 
   already_AddRefed<PreloaderBase> PreloadLinkElement(
-      dom::HTMLLinkElement* aLinkElement, nsContentPolicyType aPolicyType,
-      nsIReferrerInfo* aReferrerInfo);
+      dom::HTMLLinkElement* aLinkElement, nsContentPolicyType aPolicyType);
 
   already_AddRefed<PreloaderBase> PreloadLinkHeader(
       nsIURI* aURI, const nsAString& aURL, nsContentPolicyType aPolicyType,
       const nsAString& aAs, const nsAString& aType, const nsAString& aIntegrity,
       const nsAString& aSrcset, const nsAString& aSizes, const nsAString& aCORS,
-      const nsAString& aReferrerPolicy, nsIReferrerInfo* aReferrerInfo);
+      const nsAString& aReferrerPolicy);
 
   void PreloadScript(nsIURI* aURI, const nsAString& aType,
                      const nsAString& aCharset, const nsAString& aCrossOrigin,
@@ -90,7 +94,6 @@ class PreloadService {
 
  private:
   dom::ReferrerPolicy PreloadReferrerPolicy(const nsAString& aReferrerPolicy);
-  bool CheckReferrerURIScheme(nsIReferrerInfo* aReferrerInfo);
   nsIURI* BaseURIForPreload();
 
   already_AddRefed<PreloaderBase> PreloadOrCoalesce(

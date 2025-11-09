@@ -15,6 +15,7 @@
 #include "mozilla/layers/ScrollableLayerGuid.h"
 #include "mozilla/layers/SyncObject.h"
 #include "mozilla/layers/WebRenderCompositionRecorder.h"
+#include "mozilla/MozPromise.h"
 #include "mozilla/Range.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/webrender/webrender_ffi.h"
@@ -22,6 +23,7 @@
 #include "GLTypes.h"
 #include "Units.h"
 
+class gfxContext;
 class nsDisplayItem;
 class nsDisplayTransform;
 
@@ -37,6 +39,7 @@ namespace layers {
 class CompositorBridgeParent;
 class WebRenderBridgeParent;
 class RenderRootStateManager;
+class StackingContextHelper;
 struct RenderRootDisplayListData;
 }  // namespace layers
 
@@ -214,14 +217,6 @@ class WebRenderAPI final {
       RefPtr<widget::CompositorWidget>&& aWidget,
       const wr::WrWindowId& aWindowId, LayoutDeviceIntSize aSize);
 
-  static void SendTransactions(
-      const RenderRootArray<RefPtr<WebRenderAPI>>& aApis,
-      RenderRootArray<TransactionBuilder*>& aTxns);
-
-  already_AddRefed<WebRenderAPI> CreateDocument(LayoutDeviceIntSize aSize,
-                                                int8_t aLayerIndex,
-                                                wr::RenderRoot aRenderRoot);
-
   already_AddRefed<WebRenderAPI> Clone();
 
   wr::WindowId GetId() const { return mId; }
@@ -252,7 +247,6 @@ class WebRenderAPI final {
   void AccumulateMemoryReport(wr::MemoryReport*);
 
   wr::WrIdNamespace GetNamespace();
-  wr::RenderRoot GetRenderRoot() const { return mRenderRoot; }
   uint32_t GetMaxTextureSize() const { return mMaxTextureSize; }
   bool GetUseANGLE() const { return mUseANGLE; }
   bool GetUseDComp() const { return mUseDComp; }
@@ -274,8 +268,7 @@ class WebRenderAPI final {
  protected:
   WebRenderAPI(wr::DocumentHandle* aHandle, wr::WindowId aId,
                uint32_t aMaxTextureSize, bool aUseANGLE, bool aUseDComp,
-               bool aUseTripleBuffering, layers::SyncHandle aSyncHandle,
-               wr::RenderRoot aRenderRoot);
+               bool aUseTripleBuffering, layers::SyncHandle aSyncHandle);
 
   ~WebRenderAPI();
   // Should be used only for shutdown handling
@@ -291,7 +284,6 @@ class WebRenderAPI final {
   bool mUseTripleBuffering;
   layers::SyncHandle mSyncHandle;
   wr::DebugFlags mDebugFlags;
-  wr::RenderRoot mRenderRoot;
 
   // We maintain alive the root api to know when to shut the render backend
   // down, and the root api for the document to know when to delete the
@@ -371,8 +363,7 @@ struct MOZ_STACK_CLASS StackingContextParams : public WrStackingContextParams {
 class DisplayListBuilder final {
  public:
   DisplayListBuilder(wr::PipelineId aId, const wr::LayoutSize& aContentSize,
-                     size_t aCapacity = 0,
-                     RenderRoot aRenderRoot = RenderRoot::Default);
+                     size_t aCapacity = 0);
   DisplayListBuilder(DisplayListBuilder&&) = default;
 
   ~DisplayListBuilder();
@@ -386,8 +377,6 @@ class DisplayListBuilder final {
   void Finalize(wr::LayoutSize& aOutContentSizes,
                 wr::BuiltDisplayList& aOutDisplayList);
   void Finalize(layers::RenderRootDisplayListData& aOutTransaction);
-
-  RenderRoot GetRenderRoot() const { return mRenderRoot; }
 
   Maybe<wr::WrSpatialId> PushStackingContext(
       const StackingContextParams& aParams, const wr::LayoutRect& aBounds,
@@ -636,7 +625,6 @@ class DisplayListBuilder final {
   wr::LayoutSize mContentSize;
 
   nsTArray<wr::PipelineId> mRemotePipelineIds;
-  RenderRoot mRenderRoot;
 
   friend class WebRenderAPI;
   friend class SpaceAndClipChainHelper;

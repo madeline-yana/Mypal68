@@ -58,6 +58,7 @@
 #include "nsPresContext.h"
 #include "nsPrintfCString.h"
 #include "nsTransitionManager.h"
+#include "nsTHashMap.h"
 
 using namespace mozilla::layers;
 using namespace mozilla::gfx;
@@ -72,7 +73,7 @@ namespace mozilla {
 
 class PaintedDisplayItemLayerUserData;
 
-static nsTHashtable<nsPtrHashKey<DisplayItemData>>* sAliveDisplayItemDatas;
+static nsTHashSet<DisplayItemData*>* sAliveDisplayItemDatas;
 
 // DO NOT MODIFY THE ARRAY RETURNED BY THIS FUNCTION.
 // It might be the static empty array.
@@ -242,10 +243,10 @@ DisplayItemData::DisplayItemData(LayerManagerData* aParent, uint32_t aKey,
   MOZ_COUNT_CTOR(DisplayItemData);
 
   if (!sAliveDisplayItemDatas) {
-    sAliveDisplayItemDatas = new nsTHashtable<nsPtrHashKey<DisplayItemData>>();
+    sAliveDisplayItemDatas = new nsTHashSet<DisplayItemData*>();
   }
   MOZ_RELEASE_ASSERT(!sAliveDisplayItemDatas->Contains(this));
-  sAliveDisplayItemDatas->PutEntry(this);
+  sAliveDisplayItemDatas->Insert(this);
 
   MOZ_RELEASE_ASSERT(mLayer);
   if (aFrame) {
@@ -384,11 +385,8 @@ DisplayItemData::~DisplayItemData() {
   }
 
   MOZ_RELEASE_ASSERT(sAliveDisplayItemDatas);
-  nsPtrHashKey<mozilla::DisplayItemData>* entry =
-      sAliveDisplayItemDatas->GetEntry(this);
-  MOZ_RELEASE_ASSERT(entry);
-
-  sAliveDisplayItemDatas->RemoveEntry(entry);
+  const bool removed = sAliveDisplayItemDatas->EnsureRemoved(this);
+  MOZ_RELEASE_ASSERT(removed);
 
   if (sAliveDisplayItemDatas->Count() == 0) {
     delete sAliveDisplayItemDatas;
@@ -1195,8 +1193,7 @@ class PaintedLayerDataTree {
    * A hash map for quick access the node belonging to a particular animated
    * geometry root.
    */
-  nsDataHashtable<nsPtrHashKey<AnimatedGeometryRoot>, PaintedLayerDataNode*>
-      mNodes;
+  nsTHashMap<nsPtrHashKey<AnimatedGeometryRoot>, PaintedLayerDataNode*> mNodes;
 
   bool mForInactiveLayer;
 };
@@ -1595,8 +1592,7 @@ class ContainerState {
    */
   typedef AutoTArray<NewLayerEntry, 1> AutoLayersArray;
   AutoLayersArray mNewChildLayers;
-  nsTHashtable<nsRefPtrHashKey<PaintedLayer>>
-      mPaintedLayersAvailableForRecycling;
+  nsTHashSet<RefPtr<PaintedLayer>> mPaintedLayersAvailableForRecycling;
   nscoord mAppUnitsPerDevPixel;
   bool mSnappingEnabled;
 
@@ -1618,7 +1614,7 @@ class ContainerState {
     Maybe<size_t> mAncestorIndex;
   };
 
-  nsDataHashtable<nsGenericHashKey<MaskLayerKey>, RefPtr<ImageLayer>>
+  nsTHashMap<nsGenericHashKey<MaskLayerKey>, RefPtr<ImageLayer>>
       mRecycledMaskImageLayers;
   // Keep display port of AGR to avoid wasting time on doing the same
   // thing repeatly.
@@ -3271,7 +3267,7 @@ PaintedLayerDataNode* PaintedLayerDataTree::EnsureNodeFor(
     node = parentNode->AddChildNodeFor(aAnimatedGeometryRoot);
   }
   MOZ_ASSERT(node);
-  mNodes.Put(aAnimatedGeometryRoot, node);
+  mNodes.InsertOrUpdate(aAnimatedGeometryRoot, node);
   return node;
 }
 
@@ -5541,23 +5537,25 @@ void ContainerState::CollectOldLayers() {
                  "Mask layers should not be part of the layer tree.");
     if (layer->HasUserData(&gPaintedDisplayItemLayerUserData)) {
       NS_ASSERTION(layer->AsPaintedLayer(), "Wrong layer type");
-      mPaintedLayersAvailableForRecycling.PutEntry(
+      mPaintedLayersAvailableForRecycling.Insert(
           static_cast<PaintedLayer*>(layer));
     }
 
     if (Layer* maskLayer = layer->GetMaskLayer()) {
       NS_ASSERTION(maskLayer->GetType() == Layer::TYPE_IMAGE,
                    "Could not recycle mask layer, unsupported layer type.");
-      mRecycledMaskImageLayers.Put(MaskLayerKey(layer, Nothing()),
-                                   static_cast<ImageLayer*>(maskLayer));
+      mRecycledMaskImageLayers.InsertOrUpdate(
+          MaskLayerKey(layer, Nothing()),
+          RefPtr{static_cast<ImageLayer*>(maskLayer)});
     }
     for (size_t i = 0; i < layer->GetAncestorMaskLayerCount(); i++) {
       Layer* maskLayer = layer->GetAncestorMaskLayerAt(i);
 
       NS_ASSERTION(maskLayer->GetType() == Layer::TYPE_IMAGE,
                    "Could not recycle mask layer, unsupported layer type.");
-      mRecycledMaskImageLayers.Put(MaskLayerKey(layer, Some(i)),
-                                   static_cast<ImageLayer*>(maskLayer));
+      mRecycledMaskImageLayers.InsertOrUpdate(
+          MaskLayerKey(layer, Some(i)),
+          RefPtr{static_cast<ImageLayer*>(maskLayer)});
     }
   }
 }

@@ -163,7 +163,7 @@ nsresult CertBlocklist::Init() {
     mBackingFile = nullptr;
     return NS_OK;
   }
-  rv = mBackingFile->Append(NS_LITERAL_STRING("revocations.txt"));
+  rv = mBackingFile->Append(u"revocations.txt"_ns);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -402,8 +402,7 @@ CertBlocklist::SaveEntries() {
     return rv;
   }
 
-  rv = WriteLine(outputStream,
-                 NS_LITERAL_CSTRING("# Auto generated contents. Do not edit."));
+  rv = WriteLine(outputStream, "# Auto generated contents. Do not edit."_ns);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -428,17 +427,18 @@ CertBlocklist::SaveEntries() {
     // If it's a subject / public key block, write it straight out
     if (item.mItemMechanism == BlockBySubjectAndPubKey) {
       WriteLine(outputStream, encDN);
-      WriteLine(outputStream, NS_LITERAL_CSTRING("\t") + encOther);
+      WriteLine(outputStream, "\t"_ns + encOther);
       continue;
     }
 
     // Otherwise, we have to group entries by issuer
     issuers.PutEntry(encDN);
-    BlocklistStringSet* issuerSet = issuerTable.Get(encDN);
-    if (!issuerSet) {
-      issuerSet = new BlocklistStringSet();
-      issuerTable.Put(encDN, issuerSet);
-    }
+    BlocklistStringSet* const issuerSet =
+        issuerTable
+            .LookupOrInsertWith(
+                encDN, [] { return MakeUnique<BlocklistStringSet>(); })
+            .get();
+
     issuerSet->PutEntry(encOther);
   }
 
@@ -454,8 +454,7 @@ CertBlocklist::SaveEntries() {
 
     // Write serial data to the output stream
     for (auto iter = issuerSet->Iter(); !iter.Done(); iter.Next()) {
-      nsresult rv = WriteLine(outputStream,
-                              NS_LITERAL_CSTRING(" ") + iter.Get()->GetKey());
+      nsresult rv = WriteLine(outputStream, " "_ns + iter.Get()->GetKey());
       if (NS_FAILED(rv)) {
         MOZ_LOG(gCertBlockPRLog, LogLevel::Warning,
                 ("CertBlocklist::SaveEntries writing revocation data failed"));

@@ -1,8 +1,6 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-ChromeUtils.import("resource://testing-common/LoginTestUtils.jsm", this);
-
 /**
  * Waits for the master password prompt and performs an action.
  * @param {string} action Set to "authenticate" to log in or "cancel" to

@@ -8,6 +8,7 @@
 
 #include "base/eintr_wrapper.h"
 
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/Transport.h"
 #include "mozilla/ipc/FileDescriptor.h"
 #include "ProtocolUtils.h"
@@ -19,7 +20,7 @@ namespace ipc {
 
 nsresult CreateTransport(base::ProcessId aProcIdOne, TransportDescriptor* aOne,
                          TransportDescriptor* aTwo) {
-  std::wstring id = IPC::Channel::GenerateVerifiedChannelID(std::wstring());
+  auto id = IPC::Channel::GenerateVerifiedChannelID();
   // Use MODE_SERVER to force creation of the socketpair
   Transport t(id, Transport::MODE_SERVER, nullptr);
   int fd1 = t.GetFileDescriptor();

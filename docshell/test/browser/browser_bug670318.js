@@ -61,8 +61,8 @@ add_task(async function test() {
           },
 
           QueryInterface: ChromeUtils.generateQI([
-            Ci.nsISHistoryListener,
-            Ci.nsISupportsWeakReference,
+            "nsISHistoryListener",
+            "nsISupportsWeakReference",
           ]),
         };
 

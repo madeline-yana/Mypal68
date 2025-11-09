@@ -61,7 +61,7 @@ static nsresult GetExtensionFromWindowsMimeDatabase(const nsACString& aMimeType,
                    nsIWindowsRegKey::ACCESS_QUERY_VALUE);
 
   if (NS_SUCCEEDED(rv))
-    regKey->ReadStringValue(NS_LITERAL_STRING("Extension"), aFileExtension);
+    regKey->ReadStringValue(u"Extension"_ns, aFileExtension);
 
   return NS_OK;
 }
@@ -253,7 +253,7 @@ bool nsOSHelperAppService::typeFromExtEquals(const char16_t* aExt,
   if (NS_FAILED(rv)) return eq;
 
   nsAutoString type;
-  rv = regKey->ReadStringValue(NS_LITERAL_STRING("Content Type"), type);
+  rv = regKey->ReadStringValue(u"Content Type"_ns, type);
   if (NS_SUCCEEDED(rv)) eq = type.EqualsASCII(aType);
 
   return eq;
@@ -309,8 +309,7 @@ nsresult nsOSHelperAppService::GetDefaultAppInfo(
     if (NS_FAILED(rv)) {
       // Check if there is a DelegateExecute string
       nsAutoString delegateExecute;
-      rv = regKey->ReadStringValue(NS_LITERAL_STRING("DelegateExecute"),
-                                   delegateExecute);
+      rv = regKey->ReadStringValue(u"DelegateExecute"_ns, delegateExecute);
       NS_ENSURE_SUCCESS(rv, rv);
 
       // Look for InProcServer32
@@ -578,8 +577,7 @@ bool nsOSHelperAppService::GetMIMETypeFromOSForExtension(
   if (NS_FAILED(rv)) return false;
 
   nsAutoString mimeType;
-  if (NS_FAILED(regKey->ReadStringValue(NS_LITERAL_STRING("Content Type"),
-                                        mimeType)) ||
+  if (NS_FAILED(regKey->ReadStringValue(u"Content Type"_ns, mimeType)) ||
       mimeType.IsEmpty()) {
     return false;
   }

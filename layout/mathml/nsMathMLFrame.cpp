@@ -11,7 +11,7 @@
 #include "nsNameSpaceManager.h"
 #include "nsMathMLChar.h"
 #include "nsCSSPseudoElements.h"
-#include "nsMathMLElement.h"
+#include "mozilla/dom/MathMLElement.h"
 #include "gfxMathTable.h"
 #include "nsPresContextInlines.h"
 
@@ -230,8 +230,8 @@ void nsMathMLFrame::ParseNumericValue(const nsString& aString,
                                       float aFontSizeInflation) {
   nsCSSValue cssValue;
 
-  if (!nsMathMLElement::ParseNumericValue(aString, cssValue, aFlags,
-                                          aPresContext->Document())) {
+  if (!dom::MathMLElement::ParseNumericValue(aString, cssValue, aFlags,
+                                             aPresContext->Document())) {
     // Invalid attribute value. aLengthValue remains unchanged, so the default
     // length value is used.
     return;

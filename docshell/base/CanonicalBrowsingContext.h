@@ -10,6 +10,7 @@
 #include "mozilla/RefPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
+#include "nsTHashMap.h" //MY
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 
@@ -36,7 +37,7 @@ class CanonicalBrowsingContext final : public BrowsingContext {
   uint64_t OwnerProcessId() const { return mProcessId; }
   ContentParent* GetContentParent() const;
 
-  void GetCurrentRemoteType(nsAString& aRemoteType, ErrorResult& aRv) const;
+  void GetCurrentRemoteType(nsACString& aRemoteType, ErrorResult& aRv) const;
 
   void SetOwnerProcessId(uint64_t aProcessId) { mProcessId = aProcessId; }
 
@@ -123,7 +124,7 @@ class CanonicalBrowsingContext final : public BrowsingContext {
 
   // Generation information for each content process which has interacted with
   // this CanonicalBrowsingContext, by ChildID.
-  nsDataHashtable<nsUint64HashKey, FieldEpochs> mChildFieldEpochs;
+  nsTHashMap<nsUint64HashKey, FieldEpochs> mChildFieldEpochs;
 
   // Tab media controller is used to control all media existing in the same
   // browsing context tree, so it would only exist in the top level browsing

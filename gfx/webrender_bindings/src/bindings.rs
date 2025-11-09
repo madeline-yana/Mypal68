@@ -437,17 +437,13 @@ pub struct WrAnimationProperty {
 /// cbindgen:derive-eq=false
 #[repr(C)]
 #[derive(Debug)]
-pub struct WrTransformProperty {
+pub struct WrAnimationPropertyValue<T> {
     pub id: u64,
-    pub transform: LayoutTransform,
+    pub value: T,
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub struct WrOpacityProperty {
-    pub id: u64,
-    pub opacity: f32,
-}
+pub type WrTransformProperty = WrAnimationPropertyValue<LayoutTransform>;
+pub type WrOpacityProperty = WrAnimationPropertyValue<f32>;
 
 /// cbindgen:field-names=[mHandle]
 /// cbindgen:derive-lt=true
@@ -516,16 +512,13 @@ extern "C" {
     fn wr_notifier_wake_up(window_id: WrWindowId);
     fn wr_notifier_new_frame_ready(window_id: WrWindowId);
     fn wr_notifier_nop_frame_done(window_id: WrWindowId);
-    fn wr_notifier_external_event(window_id: WrWindowId,
-                                  raw_event: usize);
-    fn wr_schedule_render(window_id: WrWindowId,
-                          document_id_array: *const WrDocumentId,
-                          document_id_count: usize);
+    fn wr_notifier_external_event(window_id: WrWindowId, raw_event: usize);
+    fn wr_schedule_render(window_id: WrWindowId);
     // NOTE: This moves away from pipeline_info.
-    fn wr_finished_scene_build(window_id: WrWindowId,
-                               document_id_array: *const WrDocumentId,
-                               document_id_count: usize,
-                               pipeline_info: &mut WrPipelineInfo);
+    fn wr_finished_scene_build(
+        window_id: WrWindowId,
+        pipeline_info: &mut WrPipelineInfo,
+    );
 
     fn wr_transaction_notification_notified(handler: usize, when: Checkpoint);
 }
@@ -859,8 +852,10 @@ extern "C" {
     // These callbacks are invoked from the render backend thread (aka the APZ
     // sampler thread)
     fn apz_register_sampler(window_id: WrWindowId);
-    fn apz_sample_transforms(window_id: WrWindowId, transaction: &mut Transaction,
-                             document_id: WrDocumentId);
+    fn apz_sample_transforms(
+        window_id: WrWindowId,
+        transaction: &mut Transaction,
+    );
     fn apz_deregister_sampler(window_id: WrWindowId);
 }
 
@@ -892,7 +887,7 @@ impl SceneBuilderHooks for APZCallbacks {
         }
     }
 
-    fn post_scene_swap(&self, document_ids: &Vec<DocumentId>, info: PipelineInfo, sceneswap_time: u64) {
+    fn post_scene_swap(&self, _document_ids: &Vec<DocumentId>, info: PipelineInfo, sceneswap_time: u64) {
         let mut info = WrPipelineInfo::new(&info);
         unsafe {
             record_telemetry_time(TelemetryProbe::SceneSwapTime, sceneswap_time);
@@ -902,17 +897,23 @@ impl SceneBuilderHooks for APZCallbacks {
         // After a scene swap we should schedule a render for the next vsync,
         // otherwise there's no guarantee that the new scene will get rendered
         // anytime soon
-        unsafe { wr_finished_scene_build(self.window_id, document_ids.as_ptr(), document_ids.len(), &mut info) }
-        unsafe { gecko_profiler_end_marker(b"SceneBuilding\0".as_ptr() as *const c_char); }
+        unsafe { wr_finished_scene_build(self.window_id, &mut info) }
+        unsafe {
+            gecko_profiler_end_marker(b"SceneBuilding\0".as_ptr() as *const c_char);
+        }
     }
 
-    fn post_resource_update(&self, document_ids: &Vec<DocumentId>) {
-        unsafe { wr_schedule_render(self.window_id, document_ids.as_ptr(), document_ids.len()) }
-        unsafe { gecko_profiler_end_marker(b"SceneBuilding\0".as_ptr() as *const c_char); }
+    fn post_resource_update(&self, _document_ids: &Vec<DocumentId>) {
+        unsafe { wr_schedule_render(self.window_id) }
+        unsafe {
+            gecko_profiler_end_marker(b"SceneBuilding\0".as_ptr() as *const c_char);
+        }
     }
 
     fn post_empty_scene_build(&self) {
-        unsafe { gecko_profiler_end_marker(b"SceneBuilding\0".as_ptr() as *const c_char); }
+        unsafe {
+            gecko_profiler_end_marker(b"SceneBuilding\0".as_ptr() as *const c_char);
+        }
     }
 
     fn poke(&self) {
@@ -941,9 +942,14 @@ impl AsyncPropertySampler for SamplerCallback {
         unsafe { apz_register_sampler(self.window_id) }
     }
 
-    fn sample(&self, document_id: DocumentId) -> Vec<FrameMsg> {
+    fn sample(&self, _document_id: DocumentId) -> Vec<FrameMsg> {
         let mut transaction = Transaction::new();
-        unsafe { apz_sample_transforms(self.window_id, &mut transaction, document_id) };
+        unsafe {
+            apz_sample_transforms(
+                self.window_id,
+                &mut transaction,
+            )
+        };
         // TODO: also omta_sample_transforms(...)
         transaction.get_frame_ops()
     }
@@ -1590,6 +1596,31 @@ pub extern "C" fn wr_transaction_invalidate_rendered_frame(txn: &mut Transaction
     txn.invalidate_rendered_frame();
 }
 
+fn wr_animation_properties_into_vec<T>(
+    animation_array: *const WrAnimationPropertyValue<T>,
+    array_count: usize,
+    vec: &mut Vec<PropertyValue<T>>,
+) where
+    T: Copy,
+{
+    if array_count > 0 {
+        debug_assert!(
+            vec.capacity() - vec.len() >= array_count,
+            "The Vec should have fufficient free capacity"
+        );
+        let slice = unsafe { make_slice(animation_array, array_count) };
+
+        for element in slice.iter() {
+            let prop = PropertyValue {
+                key: PropertyBindingKey::new(element.id),
+                value: element.value,
+            };
+
+            vec.push(prop);
+        }
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn wr_transaction_update_dynamic_properties(
     txn: &mut Transaction,
@@ -1599,36 +1630,13 @@ pub extern "C" fn wr_transaction_update_dynamic_properties(
     transform_count: usize,
 ) {
     let mut properties = DynamicProperties {
-        transforms: Vec::new(),
-        floats: Vec::new(),
+        transforms: Vec::with_capacity(transform_count),
+        floats: Vec::with_capacity(opacity_count),
     };
 
-    if transform_count > 0 {
-        let transform_slice = unsafe { make_slice(transform_array, transform_count) };
+    wr_animation_properties_into_vec(transform_array, transform_count, &mut properties.transforms);
 
-        properties.transforms.reserve(transform_slice.len());
-        for element in transform_slice.iter() {
-            let prop = PropertyValue {
-                key: PropertyBindingKey::new(element.id),
-                value: element.transform.into(),
-            };
-
-            properties.transforms.push(prop);
-        }
-    }
-
-    if opacity_count > 0 {
-        let opacity_slice = unsafe { make_slice(opacity_array, opacity_count) };
-
-        properties.floats.reserve(opacity_slice.len());
-        for element in opacity_slice.iter() {
-            let prop = PropertyValue {
-                key: PropertyBindingKey::new(element.id),
-                value: element.opacity,
-            };
-            properties.floats.push(prop);
-        }
-    }
+    wr_animation_properties_into_vec(opacity_array, opacity_count, &mut properties.floats);
 
     txn.update_dynamic_properties(properties);
 }
@@ -1643,23 +1651,10 @@ pub extern "C" fn wr_transaction_append_transform_properties(
         return;
     }
 
-    let mut properties = DynamicProperties {
-        transforms: Vec::new(),
-        floats: Vec::new(),
-    };
+    let mut transforms = Vec::with_capacity(transform_count);
+    wr_animation_properties_into_vec(transform_array, transform_count, &mut transforms);
 
-    let transform_slice = unsafe { make_slice(transform_array, transform_count) };
-    properties.transforms.reserve(transform_slice.len());
-    for element in transform_slice.iter() {
-        let prop = PropertyValue {
-            key: PropertyBindingKey::new(element.id),
-            value: element.transform.into(),
-        };
-
-        properties.transforms.push(prop);
-    }
-
-    txn.append_dynamic_properties(properties);
+    txn.append_dynamic_transform_properties(transforms);
 }
 
 #[no_mangle]

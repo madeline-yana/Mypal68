@@ -14,7 +14,7 @@
 #include "mozilla/RefPtr.h"
 #include "mozilla/ipc/TransportSecurityInfoUtils.h"
 #include "mozpkix/pkixtypes.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsIClassInfo.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsITransportSecurityInfo.h"
@@ -151,7 +151,7 @@ class RememberCertErrorsTable {
     bool mIsNotValidAtThisTime;
     bool mIsUntrusted;
   };
-  nsDataHashtable<nsCStringHashKey, CertStateBits> mErrorHosts;
+  nsTHashMap<nsCStringHashKey, CertStateBits> mErrorHosts;
 
  public:
   void RememberCertHasError(TransportSecurityInfo* infoObject,

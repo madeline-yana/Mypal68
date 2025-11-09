@@ -37,7 +37,8 @@
 #include "mozilla/layers/TextureClient.h"  // for TextureClient
 #include "mozilla/mozalloc.h"              // for operator new, etc
 #include "nsTArray.h"                      // for AutoTArray, nsTArray, etc
-#include "nsXULAppAPI.h"                   // for XRE_GetProcessType, etc
+#include "nsTHashSet.h"
+#include "nsXULAppAPI.h"  // for XRE_GetProcessType, etc
 #include "mozilla/ReentrantMonitor.h"
 
 namespace mozilla {
@@ -55,7 +56,7 @@ class ClientTiledLayerBuffer;
 
 typedef nsTArray<SurfaceDescriptor> BufferArray;
 typedef nsTArray<Edit> EditVector;
-typedef nsTHashtable<nsPtrHashKey<ShadowableLayer>> ShadowableLayerSet;
+typedef nsTHashSet<ShadowableLayer*> ShadowableLayerSet;
 typedef nsTArray<OpDestroy> OpDestroyVector;
 
 class Transaction {
@@ -92,11 +93,11 @@ class Transaction {
   }
   void AddMutant(ShadowableLayer* aLayer) {
     MOZ_ASSERT(!Finished(), "forgot BeginTransaction?");
-    mMutants.PutEntry(aLayer);
+    mMutants.Insert(aLayer);
   }
   void AddSimpleMutant(ShadowableLayer* aLayer) {
     MOZ_ASSERT(!Finished(), "forgot BeginTransaction?");
-    mSimpleMutants.PutEntry(aLayer);
+    mSimpleMutants.Insert(aLayer);
   }
   void End() {
     mCset.Clear();
@@ -402,12 +403,7 @@ void ShadowLayerForwarder::UpdateTextureRegion(
 
 void ShadowLayerForwarder::UseTextures(
     CompositableClient* aCompositable,
-    const nsTArray<TimedTextureClient>& aTextures
-#ifdef MOZ_BUILD_WEBRENDER
-    ,
-    const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-) {
+    const nsTArray<TimedTextureClient>& aTextures) {
   MOZ_ASSERT(aCompositable);
 
   if (!aCompositable->IsConnected()) {
@@ -486,12 +482,7 @@ bool ShadowLayerForwarder::DestroyInTransaction(
 }
 
 void ShadowLayerForwarder::RemoveTextureFromCompositable(
-    CompositableClient* aCompositable, TextureClient* aTexture
-#ifdef MOZ_BUILD_WEBRENDER
-    ,
-    const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-) {
+    CompositableClient* aCompositable, TextureClient* aTexture) {
   MOZ_ASSERT(aCompositable);
   MOZ_ASSERT(aTexture);
   MOZ_ASSERT(aTexture->GetIPDLActor());
@@ -596,9 +587,7 @@ bool ShadowLayerForwarder::EndTransaction(
   MOZ_LAYERS_LOG(("[LayersForwarder] building transaction..."));
 
   nsTArray<OpSetSimpleLayerAttributes> setSimpleAttrs;
-  for (ShadowableLayerSet::Iterator it(&mTxn->mSimpleMutants); !it.Done();
-       it.Next()) {
-    ShadowableLayer* shadow = it.Get()->GetKey();
+  for (ShadowableLayer* shadow : mTxn->mSimpleMutants) {
     if (!shadow->HasShadow()) {
       continue;
     }
@@ -615,10 +604,7 @@ bool ShadowLayerForwarder::EndTransaction(
   // attribute changes before new pixels arrive, which can be useful
   // for setting up back/front buffers.
   RenderTraceScope rendertrace2("Foward Transaction", "000092");
-  for (ShadowableLayerSet::Iterator it(&mTxn->mMutants); !it.Done();
-       it.Next()) {
-    ShadowableLayer* shadow = it.Get()->GetKey();
-
+  for (ShadowableLayer* shadow : mTxn->mMutants) {
     if (!shadow->HasShadow()) {
       continue;
     }
@@ -816,7 +802,7 @@ void ShadowLayerForwarder::Connect(CompositableClient* aCompositable,
   static uint64_t sNextID = 1;
   uint64_t id = sNextID++;
 
-  mCompositables.Put(id, aCompositable);
+  mCompositables.InsertOrUpdate(id, aCompositable);
 
   CompositableHandle handle(id);
   aCompositable->InitIPDL(handle);

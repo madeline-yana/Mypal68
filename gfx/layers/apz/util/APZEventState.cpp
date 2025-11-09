@@ -389,8 +389,7 @@ void APZEventState::ProcessTouchEvent(const WidgetTouchEvent& aEvent,
   }
 
   if (sentContentResponse && !isTouchPrevented &&
-      aApzResponse == nsEventStatus_eConsumeDoDefault &&
-      StaticPrefs::dom_w3c_pointer_events_enabled()) {
+      aApzResponse == nsEventStatus_eConsumeDoDefault) {
     WidgetTouchEvent cancelEvent(aEvent);
     cancelEvent.mMessage = eTouchPointerCancel;
     cancelEvent.mFlags.mCancelable = false;  // mMessage != eTouchCancel;

@@ -41,7 +41,7 @@ class CertInfo {
   }
 }
 if (AppConstants.MOZ_NEW_CERT_STORAGE) {
-  CertInfo.prototype.QueryInterface = ChromeUtils.generateQI([Ci.nsICertInfo]);
+  CertInfo.prototype.QueryInterface = ChromeUtils.generateQI(["nsICertInfo"]);
 }
 
 add_task(

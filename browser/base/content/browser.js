@@ -6099,7 +6099,7 @@ var TabsProgressListener = {
 function nsBrowserAccess() {}
 
 nsBrowserAccess.prototype = {
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIBrowserDOMWindow]),
+  QueryInterface: ChromeUtils.generateQI(["nsIBrowserDOMWindow"]),
 
   _openURIInNewTab(
     aURI,
@@ -8609,8 +8609,8 @@ var RestoreLastSessionObserver = {
   },
 
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIObserver,
-    Ci.nsISupportsWeakReference,
+    "nsIObserver",
+    "nsISupportsWeakReference",
   ]),
 };
 

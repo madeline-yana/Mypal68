@@ -5,8 +5,7 @@
 /**
  * ChildSHistory represents a view of session history from a child process. It
  * exposes getters for some cached history state, and mutators which are
- * implemented by communicating with the actual history storage in
- * ParentSHistory.
+ * implemented by communicating with the actual history storage.
  *
  * NOTE: Currently session history is in transition, meaning that we're still
  * using the legacy nsSHistory class internally. The API exposed from this class
@@ -31,11 +30,8 @@ class nsIGlobalObject;
 namespace mozilla {
 namespace dom {
 
-class ParentSHistory;
-
 class ChildSHistory : public nsISupports, public nsWrapperCache {
  public:
-  friend class ParentSHistory;
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(ChildSHistory)
@@ -67,8 +63,6 @@ class ChildSHistory : public nsISupports, public nsWrapperCache {
   void EvictLocalContentViewers();
 
   nsISHistory* LegacySHistory();
-
-  ParentSHistory* GetParentIfSameProcess();
 
  private:
   virtual ~ChildSHistory();

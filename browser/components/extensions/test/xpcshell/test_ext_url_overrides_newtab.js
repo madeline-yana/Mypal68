@@ -1,18 +1,15 @@
 "use strict";
 
-XPCOMUtils.defineLazyGetter(this, "Management", () => {
-  // eslint-disable-next-line no-shadow
-  const { Management } = ChromeUtils.import(
-    "resource://gre/modules/Extension.jsm",
-    null
-  );
-  return Management;
-});
-
 ChromeUtils.defineModuleGetter(
   this,
   "AddonManager",
   "resource://gre/modules/AddonManager.jsm"
+);
+
+ChromeUtils.defineModuleGetter(
+  this,
+  "Management",
+  "resource://gre/modules/Extension.jsm"
 );
 
 XPCOMUtils.defineLazyServiceGetter(

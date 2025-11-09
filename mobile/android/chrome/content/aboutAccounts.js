@@ -138,8 +138,8 @@ var wrapper = {
 
   iframeListener: {
     QueryInterface: ChromeUtils.generateQI([
-      Ci.nsIWebProgressListener,
-      Ci.nsISupportsWeakReference,
+      "nsIWebProgressListener",
+      "nsISupportsWeakReference",
     ]),
 
     onStateChange: function(aWebProgress, aRequest, aState, aStatus) {

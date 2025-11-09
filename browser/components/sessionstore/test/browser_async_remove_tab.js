@@ -49,8 +49,8 @@ function promiseNewLocationAndHistoryEntryReplaced(browser, snippet) {
         },
 
         QueryInterface: ChromeUtils.generateQI([
-          Ci.nsISHistoryListener,
-          Ci.nsISupportsWeakReference,
+          "nsISHistoryListener",
+          "nsISupportsWeakReference",
         ]),
       };
 

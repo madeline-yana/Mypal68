@@ -84,7 +84,7 @@ mozilla::ipc::IPCResult VRParent::RecvOpenVRControllerActionPathToVR(
 
 mozilla::ipc::IPCResult VRParent::RecvOpenVRControllerManifestPathToVR(
     const OpenVRControllerType& aType, const nsCString& aPath) {
-  mOpenVRControllerManifest.Put(static_cast<uint32_t>(aType), aPath);
+  mOpenVRControllerManifest.InsertOrUpdate(static_cast<uint32_t>(aType), aPath);
   return IPC_OK();
 }
 

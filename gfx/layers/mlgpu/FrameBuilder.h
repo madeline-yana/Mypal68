@@ -10,7 +10,7 @@
 #include "mozilla/gfx/Types.h"
 #include "MaskOperation.h"
 #include "MLGDevice.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsRefPtrHashtable.h"
 #include "ShaderDefinitionsMLGPU.h"
 #include "SharedBufferMLGPU.h"
@@ -99,7 +99,7 @@ class FrameBuilder final {
   // one and clear the map.
   nsTArray<ConstantBufferSection> mLayerBuffers;
   nsTArray<mlg::LayerConstants> mCurrentLayerBuffer;
-  nsDataHashtable<nsPtrHashKey<LayerMLGPU>, uint32_t> mLayerBufferMap;
+  nsTHashMap<nsPtrHashKey<LayerMLGPU>, uint32_t> mLayerBufferMap;
 
   // We keep mask rects in a separate buffer since they're rare.
   nsTArray<ConstantBufferSection> mMaskRectBuffers;

@@ -160,14 +160,13 @@ SharedLibraryInfo SharedLibraryInfo::GetInfoForSelf() {
     if (moduleNameStr.LowerCaseEqualsLiteral("detoured.dll") &&
         !mozilla::IsWin8OrLater() && ::GetModuleHandle(L"nvd3d9wrapx.dll") &&
         !::GetModuleHandle(L"nvinitx.dll")) {
-      NS_NAMED_LITERAL_STRING(pdbNameStr, "detoured.pdb");
-      SharedLibrary shlib(
-          (uintptr_t)module.lpBaseOfDll,
-          (uintptr_t)module.lpBaseOfDll + module.SizeOfImage,
-          0,  // DLLs are always mapped at offset 0 on Windows
-          NS_LITERAL_CSTRING("000000000000000000000000000000000"),
-          moduleNameStr, modulePathStr, pdbNameStr, pdbNameStr,
-          GetVersion(modulePath), "");
+      constexpr auto pdbNameStr = u"detoured.pdb"_ns;
+      SharedLibrary shlib((uintptr_t)module.lpBaseOfDll,
+                          (uintptr_t)module.lpBaseOfDll + module.SizeOfImage,
+                          0,  // DLLs are always mapped at offset 0 on Windows
+                          "000000000000000000000000000000000"_ns, moduleNameStr,
+                          modulePathStr, pdbNameStr, pdbNameStr,
+                          GetVersion(modulePath), "");
       sharedLibraryInfo.AddSharedLibrary(shlib);
       continue;
     }

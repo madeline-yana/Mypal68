@@ -361,5 +361,5 @@ WindowListener.prototype = {
     domwindow.addEventListener("load", onLoad, true);
   },
   onCloseWindow(aXULWindow) {},
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIWindowMediatorListener]),
+  QueryInterface: ChromeUtils.generateQI(["nsIWindowMediatorListener"]),
 };

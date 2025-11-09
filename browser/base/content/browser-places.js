@@ -2062,7 +2062,7 @@ var BookmarkingUI = {
     }
   },
 
-  QueryInterface: ChromeUtils.generateQI([Ci.nsINavBookmarkObserver]),
+  QueryInterface: ChromeUtils.generateQI(["nsINavBookmarkObserver"]),
 };
 
 var AutoShowBookmarksToolbar = {

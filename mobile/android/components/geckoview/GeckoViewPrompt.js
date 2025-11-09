@@ -959,7 +959,7 @@ function FilePickerDelegate() {}
 FilePickerDelegate.prototype = {
   classID: Components.ID("{e4565e36-f101-4bf5-950b-4be0887785a9}"),
 
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIFilePicker]),
+  QueryInterface: ChromeUtils.generateQI(["nsIFilePicker"]),
 
   /* ----------  nsIFilePicker  ---------- */
   init: function(aParent, aTitle, aMode) {
@@ -1099,7 +1099,7 @@ function ColorPickerDelegate() {}
 ColorPickerDelegate.prototype = {
   classID: Components.ID("{aa0dd6fc-73dd-4621-8385-c0b377e02cee}"),
 
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIColorPicker]),
+  QueryInterface: ChromeUtils.generateQI(["nsIColorPicker"]),
 
   init: function(aParent, aTitle, aInitialColor) {
     this._prompt = new PromptDelegate(aParent);

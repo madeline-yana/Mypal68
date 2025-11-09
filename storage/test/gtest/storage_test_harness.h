@@ -50,19 +50,27 @@ already_AddRefed<mozIStorageService> getService() {
 already_AddRefed<mozIStorageConnection> getMemoryDatabase() {
   nsCOMPtr<mozIStorageService> ss = getService();
   nsCOMPtr<mozIStorageConnection> conn;
-  nsresult rv = ss->OpenSpecialDatabase("memory", getter_AddRefs(conn));
+  nsresult rv = ss->OpenSpecialDatabase(kMozStorageMemoryStorageKey,
+                                        VoidCString(), getter_AddRefs(conn));
   do_check_success(rv);
   return conn.forget();
 }
 
-already_AddRefed<mozIStorageConnection> getDatabase() {
+already_AddRefed<mozIStorageConnection> getDatabase(
+    nsIFile* aDBFile = nullptr) {
   nsCOMPtr<nsIFile> dbFile;
-  (void)NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
-                               getter_AddRefs(dbFile));
-  NS_ASSERTION(dbFile, "The directory doesn't exists?!");
+  nsresult rv;
+  if (!aDBFile) {
+    MOZ_RELEASE_ASSERT(NS_IsMainThread(), "Can't get tmp dir off mainthread.");
+    (void)NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
+                                 getter_AddRefs(dbFile));
+    NS_ASSERTION(dbFile, "The directory doesn't exists?!");
 
-  nsresult rv = dbFile->Append(NS_LITERAL_STRING("storage_test_db.sqlite"));
-  do_check_success(rv);
+    rv = dbFile->Append(u"storage_test_db.sqlite"_ns);
+    do_check_success(rv);
+  } else {
+    dbFile = aDBFile;
+  }
 
   nsCOMPtr<mozIStorageService> ss = getService();
   nsCOMPtr<mozIStorageConnection> conn;
@@ -303,8 +311,7 @@ already_AddRefed<nsIThread> get_conn_async_thread(mozIStorageConnection* db) {
 
   // - statement with nothing to bind
   nsCOMPtr<mozIStorageAsyncStatement> stmt;
-  db->CreateAsyncStatement(NS_LITERAL_CSTRING("SELECT 1"),
-                           getter_AddRefs(stmt));
+  db->CreateAsyncStatement("SELECT 1"_ns, getter_AddRefs(stmt));
   blocking_async_execute(stmt);
   stmt->Finalize();
 

@@ -5,10 +5,12 @@
 #include "AccIterator.h"
 
 #include "AccGroupInfo.h"
+#include "DocAccessible-inl.h"
 #ifdef MOZ_XUL
 #  include "XULTreeAccessible.h"
 #endif
 
+#include "mozilla/dom/DocumentOrShadowRoot.h"
 #include "mozilla/dom/HTMLLabelElement.h"
 
 using namespace mozilla;

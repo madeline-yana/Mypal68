@@ -978,7 +978,7 @@ UniquePtr<ProfilerMarkerPayload> IPCMarkerPayload::Deserialize(
   auto otherPid = aEntryReader.ReadObject<int32_t>();
   auto messageSeqno = aEntryReader.ReadObject<int32_t>();
   auto messageType = aEntryReader.ReadObject<IPC::Message::msgid_t>();
-  auto side = aEntryReader.ReadObject<ipc::Side>();
+  auto side = aEntryReader.ReadObject<ipc::MsgSide>();
   auto direction = aEntryReader.ReadObject<ipc::MessageDirection>();
   auto phase = aEntryReader.ReadObject<ipc::MessagePhase>();
   auto sync = aEntryReader.ReadObject<bool>();
@@ -987,7 +987,7 @@ UniquePtr<ProfilerMarkerPayload> IPCMarkerPayload::Deserialize(
                            messageType, side, direction, phase, sync));
 }
 
-static Span<const char> IPCSideToString(ipc::Side aSide) {
+static Span<const char> IPCSideToString(ipc::MsgSide aSide) {
   switch (aSide) {
     case ipc::ParentSide:
       return MakeStringSpan("parent");

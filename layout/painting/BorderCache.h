@@ -7,7 +7,6 @@
 
 #include "mozilla/gfx/2D.h"
 #include "mozilla/HashFunctions.h"
-#include "nsDataHashtable.h"
 #include "PLDHashTable.h"
 
 namespace mozilla {

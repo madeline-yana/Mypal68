@@ -3513,8 +3513,7 @@ void nsWindow::SetIcon(const nsAString& aIconSpec) {
   // Assume the given string is a local identifier for an icon file.
 
   nsCOMPtr<nsIFile> iconFile;
-  ResolveIconName(aIconSpec, NS_LITERAL_STRING(".ico"),
-                  getter_AddRefs(iconFile));
+  ResolveIconName(aIconSpec, u".ico"_ns, getter_AddRefs(iconFile));
   if (!iconFile) return;
 
   nsAutoString iconPath;
@@ -4166,8 +4165,7 @@ bool nsWindow::TouchEventShouldStartDrag(EventMessage aEventMessage,
         for (Element* element = content->GetAsElementOrParentElement(); element;
              element = element->GetParentElement()) {
           nsAutoString startDrag;
-          element->GetAttribute(NS_LITERAL_STRING("touchdownstartsdrag"),
-                                startDrag);
+          element->GetAttribute(u"touchdownstartsdrag"_ns, startDrag);
           if (!startDrag.IsEmpty()) {
             return true;
           }
@@ -4256,8 +4254,7 @@ bool nsWindow::DispatchMouseEvent(EventMessage aEventMessage, WPARAM wParam,
       // Messages should be only at topLevel window.
       && nsWindowType::eWindowType_toplevel == mWindowType
       // Currently this scheme is used only when pointer events is enabled.
-      && StaticPrefs::dom_w3c_pointer_events_enabled() &&
-      InkCollector::sInkCollector) {
+      && InkCollector::sInkCollector) {
     InkCollector::sInkCollector->SetTarget(mWnd);
     InkCollector::sInkCollector->SetPointerId(pointerId);
   }

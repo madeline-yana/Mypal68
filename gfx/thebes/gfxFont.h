@@ -5,54 +5,78 @@
 #ifndef GFX_FONT_H
 #define GFX_FONT_H
 
-#include "gfxTypes.h"
-#include "gfxFontEntry.h"
+#include <new>
+#include <utility>
+#include "PLDHashTable.h"
 #include "gfxFontVariations.h"
-#include "nsString.h"
-#include "gfxPoint.h"
-#include "gfxPattern.h"
-#include "nsTArray.h"
-#include "nsTHashtable.h"
-#include "nsHashKeys.h"
 #include "gfxRect.h"
-#include "nsExpirationTracker.h"
-#include "gfxPlatform.h"
-#include "nsAtom.h"
-#include "mozilla/HashFunctions.h"
-#include "nsIMemoryReporter.h"
-#include "nsIObserver.h"
-#include "mozilla/MemoryReporting.h"
+#include "gfxTypes.h"
+#include "mozilla/AlreadyAddRefed.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/FontPropertyTypes.h"
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/ServoStyleConsts.h"
 #include "mozilla/TypedEnumBits.h"
-#include "MainThreadUtils.h"
-#include <algorithm>
-#include "DrawMode.h"
-#include "nsDataHashtable.h"
-#include "harfbuzz/hb.h"
-#include "mozilla/gfx/2D.h"
+#include "mozilla/UniquePtr.h"
+#include "mozilla/gfx/MatrixFwd.h"
+#include "mozilla/gfx/Point.h"
+#include "mozilla/intl/UnicodeScriptCodes.h"
+#include "nsCOMPtr.h"
 #include "nsColor.h"
+#include "nsTHashMap.h"
+#include "nsTHashSet.h"
+#include "nsExpirationTracker.h"
 #include "nsFontMetrics.h"
+#include "nsHashKeys.h"
+#include "nsIMemoryReporter.h"
+#include "nsIObserver.h"
+#include "nsISupports.h"
+#include "nsString.h"
+#include "nsTArray.h"
+#include "nsTHashtable.h"
+#include "nscore.h"
+
+// Only required for function bodys
+#include <stdlib.h>
+#include <string.h>
+#include <algorithm>
+#include "mozilla/Assertions.h"
+#include "mozilla/HashFunctions.h"
 #include "mozilla/ServoUtils.h"
-#ifdef MOZ_BUILD_WEBRENDER
-#  include "TextDrawTarget.h"
-#endif
-
-typedef struct _cairo cairo_t;
-typedef struct _cairo_scaled_font cairo_scaled_font_t;
-
-#ifdef DEBUG
-#  include <stdio.h>
-#endif
+#include "mozilla/gfx/2D.h"
+#include "gfxFontEntry.h"
+#include "gfxFontFeatures.h"
+#include "gfxFontUtils.h"
+#include "gfxPlatform.h"
+#include "nsAtom.h"
+#include "nsDebug.h"
+#include "nsMathUtils.h"
 
 class gfxContext;
-class gfxTextRun;
-class gfxFont;
 class gfxGlyphExtents;
+class gfxMathTable;
+class gfxPattern;
 class gfxShapedText;
 class gfxShapedWord;
 class gfxSkipChars;
-class gfxMathTable;
+class gfxTextRun;
+class nsIEventTarget;
+class nsITimer;
+struct gfxTextRunDrawCallbacks;
+enum class DrawMode : int;
+
+namespace mozilla {
+class SVGContextPaint;
+#ifdef MOZ_BUILD_WEBRENDER
+namespace layout {
+class TextDrawTarget;
+}
+#endif
+}  // namespace mozilla
+
+typedef struct _cairo cairo_t;
+typedef struct _cairo_scaled_font cairo_scaled_font_t;
 
 #define FONT_MAX_SIZE 2000.0
 
@@ -67,12 +91,6 @@ class gfxMathTable;
 #else
 #  define OBLIQUE_SKEW_FACTOR 0.25f
 #endif
-
-struct gfxTextRunDrawCallbacks;
-
-namespace mozilla {
-class SVGContextPaint;
-}  // namespace mozilla
 
 struct gfxFontStyle {
   typedef mozilla::FontStretch FontStretch;
@@ -628,7 +646,7 @@ class gfxTextRunFactory {
 class gfxFontShaper {
  public:
   typedef mozilla::gfx::DrawTarget DrawTarget;
-  typedef mozilla::unicode::Script Script;
+  typedef mozilla::intl::Script Script;
 
   enum class RoundingFlags : uint8_t { kRoundX = 0x01, kRoundY = 0x02 };
 
@@ -684,7 +702,7 @@ MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(gfxFontShaper::RoundingFlags)
  */
 class gfxShapedText {
  public:
-  typedef mozilla::unicode::Script Script;
+  typedef mozilla::intl::Script Script;
 
   gfxShapedText(uint32_t aLength, mozilla::gfx::ShapedTextFlags aFlags,
                 uint16_t aAppUnitsPerDevUnit)
@@ -1214,7 +1232,7 @@ class gfxShapedText {
  */
 class gfxShapedWord final : public gfxShapedText {
  public:
-  typedef mozilla::unicode::Script Script;
+  typedef mozilla::intl::Script Script;
 
   // Create a ShapedWord that can hold glyphs for aLength characters,
   // with mCharacterGlyphs sized appropriately.
@@ -1371,14 +1389,14 @@ class gfxFont {
   friend class gfxGraphiteShaper;
 
  protected:
-  typedef mozilla::gfx::DrawTarget DrawTarget;
-  typedef mozilla::unicode::Script Script;
-  typedef mozilla::SVGContextPaint SVGContextPaint;
+  using DrawTarget = mozilla::gfx::DrawTarget;
+  using Script = mozilla::intl::Script;
+  using SVGContextPaint = mozilla::SVGContextPaint;
 
-  typedef gfxFontShaper::RoundingFlags RoundingFlags;
+  using RoundingFlags = gfxFontShaper::RoundingFlags;
 
  public:
-  typedef mozilla::FontSlantStyle FontSlantStyle;
+  using FontSlantStyle = mozilla::FontSlantStyle;
 
   nsrefcnt AddRef(void) {
     MOZ_ASSERT(int32_t(mRefCnt) >= 0, "illegal refcnt");
@@ -2014,8 +2032,8 @@ class gfxFont {
   bool HasFeatureSet(uint32_t aFeature, bool& aFeatureOn);
 
   // used when analyzing whether a font has space contextual lookups
-  static nsDataHashtable<nsUint32HashKey, Script>* sScriptTagToCode;
-  static nsTHashtable<nsUint32HashKey>* sDefaultFeatures;
+  static nsTHashMap<nsUint32HashKey, Script>* sScriptTagToCode;
+  static nsTHashSet<uint32_t>* sDefaultFeatures;
 
   RefPtr<gfxFontEntry> mFontEntry;
 
@@ -2104,8 +2122,7 @@ class gfxFont {
   static const uint32_t kShapedWordCacheMaxAge = 3;
 
   nsTArray<mozilla::UniquePtr<gfxGlyphExtents>> mGlyphExtentsArray;
-  mozilla::UniquePtr<nsTHashtable<nsPtrHashKey<GlyphChangeObserver>>>
-      mGlyphChangeObservers;
+  mozilla::UniquePtr<nsTHashSet<GlyphChangeObserver*>> mGlyphChangeObservers;
 
   // a copy of the font without antialiasing, if needed for separate
   // measurement by mathml code

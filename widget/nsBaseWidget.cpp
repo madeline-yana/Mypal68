@@ -42,6 +42,7 @@
 #include "mozilla/layers/APZEventState.h"
 #include "mozilla/layers/APZInputBridge.h"
 #include "mozilla/layers/APZThreadUtils.h"
+#include "mozilla/layers/AsyncDragMetrics.h" //MY
 #include "mozilla/layers/ChromeProcessController.h"
 #include "mozilla/layers/Compositor.h"
 #include "mozilla/layers/CompositorBridgeChild.h"
@@ -122,7 +123,7 @@ int32_t nsIWidget::sPointerIdCounter = 0;
 // Some statics from nsIWidget.h
 /*static*/
 uint64_t AutoObserverNotifier::sObserverId = 0;
-/*static*/ nsDataHashtable<nsUint64HashKey, nsCOMPtr<nsIObserver>>
+/*static*/ nsTHashMap<uint64_t, nsCOMPtr<nsIObserver>>
     AutoObserverNotifier::sSavedObservers;
 
 // The maximum amount of time to let the EnableDragDrop runnable wait in the
@@ -907,8 +908,7 @@ void nsBaseWidget::ConfigureAPZCTreeManager() {
   // When APZ is enabled, we can actually enable raw touch events because we
   // have code that can deal with them properly. If APZ is not enabled, this
   // function doesn't get called.
-  if (Preferences::GetInt("dom.w3c_touch_events.enabled", 0) ||
-      StaticPrefs::dom_w3c_pointer_events_enabled()) {
+  if (Preferences::GetInt("dom.w3c_touch_events.enabled", 0)) {
     RegisterTouchWindow();
   }
 }
@@ -1544,8 +1544,8 @@ bool nsBaseWidget::ShowsResizeIndicator(LayoutDeviceIntRect* aResizerRect) {
  */
 static bool ResolveIconNameHelper(nsIFile* aFile, const nsAString& aIconName,
                                   const nsAString& aIconSuffix) {
-  aFile->Append(NS_LITERAL_STRING("icons"));
-  aFile->Append(NS_LITERAL_STRING("default"));
+  aFile->Append(u"icons"_ns);
+  aFile->Append(u"default"_ns);
   aFile->Append(aIconName + aIconSuffix);
 
   bool readable;
@@ -2061,7 +2061,7 @@ void nsBaseWidget::RegisterPluginWindowForRemoteUpdates() {
     return;
   }
   MOZ_ASSERT(sPluginWidgetList);
-  sPluginWidgetList->Put(id, RefPtr{this});
+  sPluginWidgetList->InsertOrUpdate(id, RefPtr{this});
 #endif
 }
 
@@ -2121,9 +2121,9 @@ void nsIWidget::UpdateRegisteredPluginWindowVisibility(
   // Our visible list is associated with a compositor which is associated with
   // a specific top level window. We use the parent widget during iteration
   // to skip the plugin widgets owned by other top level windows.
-  for (auto iter = sPluginWidgetList->Iter(); !iter.Done(); iter.Next()) {
-    const void* windowId = iter.Key();
-    nsIWidget* widget = iter.UserData();
+  for (const auto& entry : *sPluginWidgetList) {
+    const void* windowId = entry.GetKey();
+    nsIWidget* widget = entry.GetWeak();
 
     MOZ_ASSERT(windowId);
     MOZ_ASSERT(widget);
@@ -2146,9 +2146,9 @@ void nsIWidget::CaptureRegisteredPlugins(uintptr_t aOwnerWidget) {
   // Our visible list is associated with a compositor which is associated with
   // a specific top level window. We use the parent widget during iteration
   // to skip the plugin widgets owned by other top level windows.
-  for (auto iter = sPluginWidgetList->Iter(); !iter.Done(); iter.Next()) {
-    DebugOnly<const void*> windowId = iter.Key();
-    nsIWidget* widget = iter.UserData();
+  for (const auto& entry : *sPluginWidgetList) {
+    DebugOnly<const void*> windowId = entry.GetKey();
+    nsIWidget* widget = entry.GetWeak();
 
     MOZ_ASSERT(windowId);
     MOZ_ASSERT(widget);
@@ -3052,7 +3052,7 @@ void IMENotification::TextChangeDataBase::Test() {
 nsAutoString nsBaseWidget::debug_GuiEventToString(WidgetGUIEvent* aGuiEvent) {
   NS_ASSERTION(nullptr != aGuiEvent, "cmon, null gui event.");
 
-  nsAutoString eventName(NS_LITERAL_STRING("UNKNOWN"));
+  nsAutoString eventName(u"UNKNOWN"_ns);
 
 #  define _ASSIGN_eventName(_value, _name) \
     case _value:                           \

@@ -8,12 +8,13 @@
 #include "Layers.h"                 // for Layer, ContainerLayer, etc
 #include "gfxPoint.h"               // for gfxPoint, gfxSize
 #include "mozilla/ServoBindings.h"  // for Servo_AnimationValue_GetOpacity, etc
+#include "mozilla/ScopeExit.h"      // for MakeScopeExit
 #include "mozilla/StaticPrefs_apz.h"
 #include "mozilla/StaticPrefs_gfx.h"
-#include "mozilla/WidgetUtils.h"    // for ComputeTransformForRotation
-#include "mozilla/gfx/BaseRect.h"   // for BaseRect
-#include "mozilla/gfx/Point.h"      // for RoundedToInt, PointTyped
-#include "mozilla/gfx/Rect.h"       // for RoundedToInt, RectTyped
+#include "mozilla/WidgetUtils.h"      // for ComputeTransformForRotation
+#include "mozilla/gfx/BaseRect.h"     // for BaseRect
+#include "mozilla/gfx/Point.h"        // for RoundedToInt, PointTyped
+#include "mozilla/gfx/Rect.h"         // for RoundedToInt, RectTyped
 #include "mozilla/gfx/ScaleFactor.h"  // for ScaleFactor
 #include "mozilla/layers/AnimationHelper.h"
 #include "mozilla/layers/APZSampler.h"  // for APZSampler
@@ -596,7 +597,7 @@ static Matrix4x4 FrameTransformToTransformInDevice(
 
 static void ApplyAnimatedValue(
     Layer* aLayer, CompositorAnimationStorage* aStorage,
-    nsCSSPropertyID aProperty,
+    nsCSSPropertyID aProperty, AnimatedValue* aPreviousValue,
     const nsTArray<RefPtr<RawServoAnimationValue>>& aValues) {
   MOZ_ASSERT(!aValues.IsEmpty());
 
@@ -609,7 +610,8 @@ static void ApplyAnimatedValue(
       nscolor color =
           Servo_AnimationValue_GetColor(aValues[0], NS_RGBA(0, 0, 0, 0));
       aLayer->AsColorLayer()->SetColor(gfx::Color::FromABGR(color));
-      aStorage->SetAnimatedValue(aLayer->GetCompositorAnimationsId(), color);
+      aStorage->SetAnimatedValue(aLayer->GetCompositorAnimationsId(),
+                                 aPreviousValue, color);
 
       layerCompositor->SetShadowOpacity(aLayer->GetOpacity());
       layerCompositor->SetShadowOpacitySetByAnimation(false);
@@ -622,7 +624,8 @@ static void ApplyAnimatedValue(
       float opacity = Servo_AnimationValue_GetOpacity(aValues[0]);
       layerCompositor->SetShadowOpacity(opacity);
       layerCompositor->SetShadowOpacitySetByAnimation(true);
-      aStorage->SetAnimatedValue(aLayer->GetCompositorAnimationsId(), opacity);
+      aStorage->SetAnimatedValue(aLayer->GetCompositorAnimationsId(),
+                                 aPreviousValue, opacity);
 
       layerCompositor->SetShadowBaseTransform(aLayer->GetBaseTransform());
       layerCompositor->SetShadowTransformSetByAnimation(false);
@@ -648,7 +651,7 @@ static void ApplyAnimatedValue(
       layerCompositor->SetShadowBaseTransform(transform);
       layerCompositor->SetShadowTransformSetByAnimation(true);
       aStorage->SetAnimatedValue(aLayer->GetCompositorAnimationsId(),
-                                 std::move(transform),
+                                 aPreviousValue, std::move(transform),
                                  std::move(frameTransform), transformData);
 
       layerCompositor->SetShadowOpacity(aLayer->GetOpacity());
@@ -660,11 +663,19 @@ static void ApplyAnimatedValue(
   }
 }
 
-static bool SampleAnimations(Layer* aLayer,
-                             CompositorAnimationStorage* aStorage,
-                             TimeStamp aPreviousFrameTime,
-                             TimeStamp aCurrentFrameTime) {
+bool AsyncCompositionManager::SampleAnimations(Layer* aLayer,
+                                               TimeStamp aCurrentFrameTime) {
   bool isAnimating = false;
+  CompositorAnimationStorage* storage =
+      mCompositorBridge->GetAnimationStorage();
+
+  auto autoClearAnimationStorage = MakeScopeExit([&] {
+    if (!isAnimating) {
+      // Clean up the CompositorAnimationStorage because
+      // there are no active animations running
+      storage->Clear();
+    }
+  });
 
   ForEachNode<ForwardIterator>(aLayer, [&](Layer* layer) {
     auto& propertyAnimationGroups = layer->GetPropertyAnimationGroups();
@@ -674,12 +685,12 @@ static bool SampleAnimations(Layer* aLayer,
 
     isAnimating = true;
     AnimatedValue* previousValue =
-        aStorage->GetAnimatedValue(layer->GetCompositorAnimationsId());
+        storage->GetAnimatedValue(layer->GetCompositorAnimationsId());
 
     nsTArray<RefPtr<RawServoAnimationValue>> animationValues;
     AnimationHelper::SampleResult sampleResult =
         AnimationHelper::SampleAnimationForEachNode(
-            aPreviousFrameTime, aCurrentFrameTime, previousValue,
+            mPreviousFrameTimeStamp, aCurrentFrameTime, previousValue,
             propertyAnimationGroups, animationValues);
 
     const PropertyAnimationGroup& lastPropertyAnimationGroup =
@@ -690,9 +701,8 @@ static bool SampleAnimations(Layer* aLayer,
         // We assume all transform like properties (on the same frame) live in
         // a single same layer, so using the transform data of the last element
         // should be fine.
-        ApplyAnimatedValue(layer, aStorage,
-                           lastPropertyAnimationGroup.mProperty,
-                           animationValues);
+        ApplyAnimatedValue(layer, storage, lastPropertyAnimationGroup.mProperty,
+                           previousValue, animationValues);
         break;
       case AnimationHelper::SampleResult::Skipped:
         switch (lastPropertyAnimationGroup.mProperty) {
@@ -706,7 +716,7 @@ static bool SampleAnimations(Layer* aLayer,
               // 1459775.
               // MOZ_ASSERT(FuzzyEqualsMultiplicative(
               //   Servo_AnimationValue_GetOpacity(animationValue),
-              //   *(aStorage->GetAnimationOpacity(layer->GetCompositorAnimationsId()))));
+              //   *(storage->GetAnimationOpacity(layer->GetCompositorAnimationsId()))));
 #endif
             }
             // Even if opacity or background-color  animation value has
@@ -1368,19 +1378,10 @@ bool AsyncCompositionManager::TransformShadowTree(
     return false;
   }
 
-  CompositorAnimationStorage* storage =
-      mCompositorBridge->GetAnimationStorage();
   // First, compute and set the shadow transforms from OMT animations.
   // NB: we must sample animations *before* sampling pan/zoom
   // transforms.
-  bool wantNextFrame =
-      SampleAnimations(root, storage, mPreviousFrameTimeStamp, aCurrentFrame);
-
-  if (!wantNextFrame) {
-    // Clean up the CompositorAnimationStorage because
-    // there are no active animations running
-    storage->Clear();
-  }
+  bool wantNextFrame = SampleAnimations(root, aCurrentFrame);
 
   // Advance animations to the next expected vsync timestamp, if we can
   // get it.

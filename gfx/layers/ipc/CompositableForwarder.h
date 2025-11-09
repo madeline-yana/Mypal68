@@ -79,19 +79,9 @@ class CompositableForwarder : public KnowsCompositor {
    * TextureClient passed in parameter.
    * When the TextureClient has TEXTURE_DEALLOCATE_CLIENT flag,
    * the transaction becomes synchronous.
-   *
-   * aRenderRoot can be ignored if not using WebRender - since webrender
-   * splits the chrome and content areas into different documents which are
-   * updated separately, we need to know which command buffer to route this
-   * into.
    */
-  virtual void RemoveTextureFromCompositable(
-      CompositableClient* aCompositable, TextureClient* aTexture
-#ifdef MOZ_BUILD_WEBRENDER
-      ,
-      const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-      ) = 0;
+  virtual void RemoveTextureFromCompositable(CompositableClient* aCompositable,
+                                             TextureClient* aTexture) = 0;
 
   struct TimedTextureClient {
     TimedTextureClient()
@@ -106,19 +96,9 @@ class CompositableForwarder : public KnowsCompositor {
   /**
    * Tell the CompositableHost on the compositor side what textures to use for
    * the next composition.
-   *
-   * aRenderRoot can be ignored if not using WebRender - since webrender
-   * splits the chrome and content areas into different documents which are
-   * updated separately, we need to know which command buffer to route this
-   * into.
    */
   virtual void UseTextures(CompositableClient* aCompositable,
-                           const nsTArray<TimedTextureClient>& aTextures
-#ifdef MOZ_BUILD_WEBRENDER
-                           ,
-                           const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-                           ) = 0;
+                           const nsTArray<TimedTextureClient>& aTextures) = 0;
   virtual void UseComponentAlphaTextures(CompositableClient* aCompositable,
                                          TextureClient* aClientOnBlack,
                                          TextureClient* aClientOnWhite) = 0;

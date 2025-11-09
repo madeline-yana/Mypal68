@@ -6,9 +6,13 @@
 
 var EXPORTED_SYMBOLS = ["ContentSessionStore"];
 
-ChromeUtils.import("resource://gre/modules/XPCOMUtils.jsm", this);
-ChromeUtils.import("resource://gre/modules/Timer.jsm", this);
-ChromeUtils.import("resource://gre/modules/Services.jsm", this);
+const { XPCOMUtils } = ChromeUtils.import(
+  "resource://gre/modules/XPCOMUtils.jsm"
+);
+const { clearTimeout, setTimeoutWithTarget } = ChromeUtils.import(
+  "resource://gre/modules/Timer.jsm"
+);
+const { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
 
 function debug(msg) {
   Services.console.logStringMessage("SessionStoreContent: " + msg);
@@ -127,8 +131,8 @@ class StateChangeNotifier extends Handler {
   }
 }
 StateChangeNotifier.prototype.QueryInterface = ChromeUtils.generateQI([
-  Ci.nsIWebProgressListener,
-  Ci.nsISupportsWeakReference,
+  "nsIWebProgressListener",
+  "nsISupportsWeakReference",
 ]);
 
 /**
@@ -306,8 +310,8 @@ class SessionHistoryListener extends Handler {
   }
 }
 SessionHistoryListener.prototype.QueryInterface = ChromeUtils.generateQI([
-  Ci.nsISHistoryListener,
-  Ci.nsISupportsWeakReference,
+  "nsISHistoryListener",
+  "nsISupportsWeakReference",
 ]);
 
 /**
@@ -509,15 +513,7 @@ class MessageQueue extends Handler {
 
     let data = {};
     for (let [key, func] of this._data) {
-      if (key != "isPrivate") {
-        TelemetryStopwatch.startKeyed(histID, key);
-      }
-
       let value = func();
-
-      if (key != "isPrivate") {
-        TelemetryStopwatch.finishKeyed(histID, key);
-      }
 
       if (value || (key != "storagechange" && key != "historychange")) {
         data[key] = value;
@@ -536,9 +532,6 @@ class MessageQueue extends Handler {
       });
     } catch (ex) {
       if (ex && ex.result == Cr.NS_ERROR_OUT_OF_MEMORY) {
-        Services.telemetry
-          .getHistogramById("FX_SESSION_RESTORE_SEND_UPDATE_CAUSED_OOM")
-          .add(1);
         this.mm.sendAsyncMessage("SessionStore:error");
       }
     }

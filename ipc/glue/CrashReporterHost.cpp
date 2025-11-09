@@ -7,7 +7,6 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/Sprintf.h"
 #include "mozilla/SyncRunnable.h"
-#include "mozilla/Telemetry.h"
 #include "nsICrashService.h"
 #include "nsXULAppAPI.h"
 
@@ -156,7 +155,6 @@ void CrashReporterHost::NotifyCrashService(GeckoProcessType aProcessType,
   }
 
   int32_t processType;
-  nsCString telemetryKey;
 
   switch (aProcessType) {
     case GeckoProcessType_IPDLUnitTest:
@@ -168,14 +166,11 @@ void CrashReporterHost::NotifyCrashService(GeckoProcessType aProcessType,
       break;
   }
 
-  if (aProcessType == GeckoProcessType_Plugin &&
-      aCrashType == nsICrashService::CRASH_TYPE_HANG) {
-    telemetryKey.AssignLiteral("pluginhang");
-  } else {
+  if (!(aProcessType == GeckoProcessType_Plugin &&
+      aCrashType == nsICrashService::CRASH_TYPE_HANG)) {
     switch (aProcessType) {
 #define GECKO_PROCESS_TYPE(enum_name, string_name, xre_name, bin_type) \
   case GeckoProcessType_##enum_name:                                   \
-    telemetryKey.AssignLiteral(string_name);                           \
     break;
 #include "mozilla/GeckoProcessTypes.h"
 #undef GECKO_PROCESS_TYPE
@@ -190,14 +185,11 @@ void CrashReporterHost::NotifyCrashService(GeckoProcessType aProcessType,
   RefPtr<Promise> promise;
   crashService->AddCrash(processType, aCrashType, aChildDumpID,
                          getter_AddRefs(promise));
-  Telemetry::Accumulate(Telemetry::SUBPROCESS_CRASHES_WITH_DUMP, telemetryKey,
-                        1);
 }
 
 void CrashReporterHost::AddAnnotation(CrashReporter::Annotation aKey,
                                       bool aValue) {
-  mExtraAnnotations[aKey] =
-      aValue ? NS_LITERAL_CSTRING("1") : NS_LITERAL_CSTRING("0");
+  mExtraAnnotations[aKey] = aValue ? "1"_ns : "0"_ns;
 }
 
 void CrashReporterHost::AddAnnotation(CrashReporter::Annotation aKey,

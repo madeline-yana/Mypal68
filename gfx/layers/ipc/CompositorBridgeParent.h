@@ -420,8 +420,7 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
                               TimeStamp& aCompositeStart,
                               TimeStamp& aRenderStart, TimeStamp& aCompositeEnd,
                               wr::RendererStats* aStats = nullptr);
-  void NotifyDidSceneBuild(const nsTArray<wr::RenderRoot>& aRenderRoots,
-                           RefPtr<const wr::WebRenderPipelineInfo> aInfo);
+  void NotifyDidSceneBuild(RefPtr<const wr::WebRenderPipelineInfo> aInfo);
   RefPtr<AsyncImagePipelineManager> GetAsyncImagePipelineManager() const;
 #endif
 
@@ -448,11 +447,7 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
   void AsyncRender();
 
   // Can be called from any thread
-  void ScheduleRenderOnCompositorThread(
-#ifdef MOZ_BUILD_WEBRENDER
-      const wr::RenderRootSet& aRenderRoots
-#endif
-      ) override;
+  void ScheduleRenderOnCompositorThread() override;
   void SchedulePauseOnCompositorThread();
   void InvalidateOnCompositorThread();
   /**
@@ -462,11 +457,7 @@ class CompositorBridgeParent final : public CompositorBridgeParentBase,
   bool ScheduleResumeOnCompositorThread();
   bool ScheduleResumeOnCompositorThread(int x, int y, int width, int height);
 
-  void ScheduleComposition(
-#ifdef MOZ_BUILD_WEBRENDER
-      const wr::RenderRootSet& aRenderRoots = wr::RenderRootSet()
-#endif
-  );
+  void ScheduleComposition();
 
   void NotifyShadowTreeTransaction(LayersId aId, bool aIsFirstPaint,
                                    const FocusTarget& aFocusTarget,

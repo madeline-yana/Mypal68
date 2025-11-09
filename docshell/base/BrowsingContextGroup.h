@@ -9,7 +9,7 @@
 #include "mozilla/dom/ContentParent.h"
 #include "nsHashKeys.h"
 #include "nsTArray.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 #include "nsWrapperCache.h"
 
 namespace mozilla {
@@ -29,7 +29,7 @@ class BrowsingContextGroup final : public nsWrapperCache {
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(BrowsingContextGroup)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(BrowsingContextGroup)
 
-  typedef nsTHashtable<nsRefPtrHashKey<ContentParent>> ContentParents;
+  typedef nsTHashSet<nsRefPtrHashKey<ContentParent>> ContentParents;
 
   // Interact with the list of BrowsingContexts.
   bool Contains(BrowsingContext* aContext);
@@ -89,9 +89,9 @@ class BrowsingContextGroup final : public nsWrapperCache {
   template <typename Func>
   void EachOtherParent(ContentParent* aExcludedParent, Func&& aCallback) {
     MOZ_DIAGNOSTIC_ASSERT(XRE_IsParentProcess());
-    for (auto iter = mSubscribers.Iter(); !iter.Done(); iter.Next()) {
-      if (iter.Get()->GetKey() != aExcludedParent) {
-        aCallback(iter.Get()->GetKey());
+    for (const auto& key : mSubscribers) {
+      if (key != aExcludedParent) {
+        aCallback(key);
       }
     }
   }
@@ -101,8 +101,8 @@ class BrowsingContextGroup final : public nsWrapperCache {
   template <typename Func>
   void EachParent(Func&& aCallback) {
     MOZ_DIAGNOSTIC_ASSERT(XRE_IsParentProcess());
-    for (auto iter = mSubscribers.Iter(); !iter.Done(); iter.Next()) {
-      aCallback(iter.Get()->GetKey());
+    for (const auto& key : mSubscribers) {
+      aCallback(key);
     }
   }
 
@@ -114,7 +114,7 @@ class BrowsingContextGroup final : public nsWrapperCache {
   // A BrowsingContextGroup contains a series of BrowsingContext objects. They
   // are addressed using a hashtable to avoid linear lookup when adding or
   // removing elements from the set.
-  nsTHashtable<nsRefPtrHashKey<BrowsingContext>> mContexts;
+  nsTHashSet<nsRefPtrHashKey<BrowsingContext>> mContexts;
 
   // The set of toplevel browsing contexts in the current BrowsingContextGroup.
   BrowsingContext::Children mToplevels;
@@ -122,7 +122,7 @@ class BrowsingContextGroup final : public nsWrapperCache {
   ContentParents mSubscribers;
 
   // Map of cached contexts that need to stay alive due to bfcache.
-  nsTHashtable<nsRefPtrHashKey<BrowsingContext>> mCachedContexts;
+  nsTHashSet<nsRefPtrHashKey<BrowsingContext>> mCachedContexts;
 };
 
 }  // namespace dom

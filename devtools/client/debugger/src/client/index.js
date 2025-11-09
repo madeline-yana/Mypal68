@@ -20,7 +20,7 @@ import { initialBreakpointsState } from "../reducers/breakpoints";
 
 import type { Panel } from "./firefox/types";
 
-async function syncBreakpoints() {
+async function syncBreakpoints(): Promise<*> {
   const breakpoints = await asyncStore.pendingBreakpoints;
   const breakpointValues = (Object.values(breakpoints): any);
   breakpointValues.forEach(({ disabled, options, generatedLocation }) => {
@@ -30,7 +30,7 @@ async function syncBreakpoints() {
   });
 }
 
-function syncXHRBreakpoints() {
+function syncXHRBreakpoints(): void {
   asyncStore.xhrBreakpoints.then(bps => {
     bps.forEach(({ path, method, disabled }) => {
       if (!disabled) {

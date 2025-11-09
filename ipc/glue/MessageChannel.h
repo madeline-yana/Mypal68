@@ -5,34 +5,34 @@
 #ifndef ipc_glue_MessageChannel_h
 #define ipc_glue_MessageChannel_h 1
 
-#include "base/basictypes.h"
-#include "base/message_loop.h"
-
+#include "ipc/EnumSerializer.h"
 #include "mozilla/Atomics.h"
-#include "mozilla/DebugOnly.h"
-#include "mozilla/Monitor.h"
-#include "mozilla/MozPromise.h"
+#include "mozilla/LinkedList.h"
+#include "mozilla/Monitor2.h"
 #include "mozilla/Vector.h"
 #if defined(OS_WIN)
 #  include "mozilla/ipc/Neutering.h"
 #endif  // defined(OS_WIN)
-#include "mozilla/ipc/Transport.h"
-#include "MessageLink.h"
 #include "nsThreadUtils.h"
 
-#include <deque>
 #include <functional>
 #include <map>
-#include <math.h>
 #include <stack>
 #include <vector>
 
-class nsIEventTarget;
+#include "MessageLink.h"  // for HasResultCodes
+#include "mozilla/ipc/Transport.h"
+
+class MessageLoop;
+
+namespace IPC {
+template <typename T>
+struct ParamTraits;
+}
 
 namespace mozilla {
 namespace ipc {
 
-class MessageChannel;
 class IToplevelProtocol;
 class ActorLifecycleProxy;
 
@@ -94,7 +94,7 @@ class MessageChannel : HasResultCodes, MessageLoop::DestructionObserver {
   class CxxStackFrame;
   class InterruptFrame;
 
-  typedef mozilla::Monitor Monitor;
+  typedef mozilla::Monitor2 Monitor2;
 
   // We could templatize the actor type but it would unnecessarily
   // expand the code size. Using the actor address as the
@@ -148,7 +148,7 @@ class MessageChannel : HasResultCodes, MessageLoop::DestructionObserver {
   // Returns true if the transport layer was successfully connected,
   // i.e., mChannelState == ChannelConnected.
   bool Open(UniquePtr<Transport> aTransport, MessageLoop* aIOLoop = 0,
-            Side aSide = UnknownSide);
+            MsgSide aSide = UnknownSide);
 
   // "Open" a connection to another thread in the same process.
   //
@@ -159,7 +159,7 @@ class MessageChannel : HasResultCodes, MessageLoop::DestructionObserver {
   // threads, see the extended comment on this function
   // in MessageChannel.cpp.
   bool Open(MessageChannel* aTargetChan, nsIEventTarget* aEventTarget,
-            Side aSide);
+            MsgSide aSide);
 
   // "Open" a connection to an actor on the current thread.
   //
@@ -168,7 +168,7 @@ class MessageChannel : HasResultCodes, MessageLoop::DestructionObserver {
   //
   // Same-thread channels may not perform synchronous or blocking message
   // sends, to avoid deadlocks.
-  bool OpenOnSameThread(MessageChannel* aTargetChan, Side aSide);
+  bool OpenOnSameThread(MessageChannel* aTargetChan, MsgSide aSide);
 
   // Close the underlying transport channel.
   void Close();
@@ -357,8 +357,8 @@ class MessageChannel : HasResultCodes, MessageLoop::DestructionObserver {
 #endif    // defined(OS_WIN)
 
  private:
-  void CommonThreadOpenInit(MessageChannel* aTargetChan, Side aSide);
-  void OnOpenAsSlave(MessageChannel* aTargetChan, Side aSide);
+  void CommonThreadOpenInit(MessageChannel* aTargetChan, MsgSide aSide);
+  void OnOpenAsSlave(MessageChannel* aTargetChan, MsgSide aSide);
 
   void PostErrorNotifyTask();
   void OnNotifyMaybeChannelError();
@@ -607,7 +607,7 @@ class MessageChannel : HasResultCodes, MessageLoop::DestructionObserver {
   IToplevelProtocol* mListener;
   ChannelState mChannelState;
   Monitor2* mMonitor;
-  Side mSide;
+  MsgSide mSide;
   bool mIsCrossProcess;
   UniquePtr<MessageLink> mLink;
   MessageLoop* mWorkerLoop;  // thread where work is done

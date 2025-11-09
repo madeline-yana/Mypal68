@@ -16,7 +16,6 @@ namespace mozilla {
 namespace layers {
 
 struct RenderRootDisplayListData {
-  wr::RenderRoot mRenderRoot;
   wr::IdNamespace mIdNamespace;
   LayoutDeviceRect mRect;
   nsTArray<WebRenderParentCommand> mCommands;
@@ -31,7 +30,6 @@ struct RenderRootDisplayListData {
 };
 
 struct RenderRootUpdates {
-  wr::RenderRoot mRenderRoot;
   nsTArray<WebRenderParentCommand> mCommands;
   nsTArray<OpUpdateResource> mResourceUpdates;
   nsTArray<RefCountedShmem> mSmallShmems;
@@ -39,16 +37,6 @@ struct RenderRootUpdates {
   ScrollUpdatesMap mScrollUpdates;
   uint32_t mPaintSequenceNumber;
 };
-
-struct ResourceUpdates {
-  nsTArray<OpUpdateResource> mResourceUpdates;
-  nsTArray<RefCountedShmem> mSmallShmems;
-  nsTArray<mozilla::ipc::Shmem> mLargeShmems;
-};
-
-typedef Variant<RenderRootDisplayListData, RenderRootUpdates, ResourceUpdates,
-                FocusTarget>
-    RenderRootDeferredData;
 
 }  // namespace layers
 

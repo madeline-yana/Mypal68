@@ -5,7 +5,7 @@
 #include "FileDescriptor.h"
 
 #include "mozilla/Assertions.h"
-#include "mozilla/TypeTraits.h"
+#include "mozilla/ipc/ProtocolMessageUtils.h"
 #include "nsDebug.h"
 
 #ifdef XP_WIN

@@ -13,6 +13,7 @@
 #include "mozilla/SVGIntegrationUtils.h"  // for WrFiltersHolder
 #include "nsDisplayList.h"
 #include "nsIFrame.h"
+#include "nsTHashSet.h"
 
 namespace mozilla {
 
@@ -29,59 +30,15 @@ class WebRenderFallbackData;
 class WebRenderParentCommand;
 class WebRenderUserData;
 
-class WebRenderScrollDataCollection {
- public:
-  WebRenderScrollDataCollection() = default;
-
-  std::vector<WebRenderLayerScrollData>& operator[](
-      wr::RenderRoot aRenderRoot) {
-    return mInternalScrollDatas[aRenderRoot];
-  }
-
-  bool IsEmpty() const {
-    for (auto renderRoot : wr::kRenderRoots) {
-      if (!mInternalScrollDatas[renderRoot].empty()) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  void AppendRoot(Maybe<ScrollMetadata>& aRootMetadata,
-                  wr::RenderRootArray<WebRenderScrollData>& aScrollDatas);
-
-  void AppendScrollData(const wr::DisplayListBuilder& aBuilder,
-                        WebRenderLayerManager* aManager, nsDisplayItem* aItem,
-                        size_t aLayerCountBeforeRecursing,
-                        const ActiveScrolledRoot* aStopAtAsr,
-                        const Maybe<gfx::Matrix4x4>& aAncestorTransform);
-
-  size_t GetLayerCount(wr::RenderRoot aRenderRoot) const;
-
-  void Clear() {
-    for (auto renderRoot : wr::kRenderRoots) {
-      mInternalScrollDatas[renderRoot].clear();
-      mSeenRenderRoot[renderRoot] = false;
-    }
-  }
-
- private:
-  wr::RenderRootArray<std::vector<WebRenderLayerScrollData>>
-      mInternalScrollDatas;
-  wr::RenderRootArray<bool> mSeenRenderRoot;
-};
-
 class WebRenderCommandBuilder final {
-  typedef nsTHashtable<nsRefPtrHashKey<WebRenderUserData>>
-      WebRenderUserDataRefTable;
-  typedef nsTHashtable<nsRefPtrHashKey<WebRenderCanvasData>> CanvasDataSet;
+  typedef nsTHashSet<RefPtr<WebRenderUserData>> WebRenderUserDataRefTable;
+  typedef nsTHashSet<RefPtr<WebRenderCanvasData>> CanvasDataSet;
 
  public:
   explicit WebRenderCommandBuilder(WebRenderLayerManager* aManager)
       : mManager(aManager),
-        mRootStackingContexts(nullptr),
-        mCurrentClipManager(nullptr),
         mLastAsr(nullptr),
+        mBuilderDumpIndex(0),
         mDumpIndent(0),
         mDoGrouping(false),
         mContainsSVGGroup(false) {}
@@ -154,16 +111,9 @@ class WebRenderCommandBuilder final {
   void ClearCachedResources();
 
   bool ShouldDumpDisplayList(nsDisplayListBuilder* aBuilder);
-  wr::usize GetBuilderDumpIndex(wr::RenderRoot aRenderRoot) const {
-    return mBuilderDumpIndex[aRenderRoot];
-  }
+  wr::usize GetBuilderDumpIndex() const { return mBuilderDumpIndex; }
 
   bool GetContainsSVGGroup() { return mContainsSVGGroup; }
-
-  const StackingContextHelper& GetRootStackingContextHelper(
-      wr::RenderRoot aRenderRoot) const {
-    return *(*mRootStackingContexts)[aRenderRoot];
-  }
 
   // Those are data that we kept between transactions. We used to cache some
   // data in the layer. But in layers free mode, we don't have layer which
@@ -171,8 +121,7 @@ class WebRenderCommandBuilder final {
   // We store the data in frame's property.
   template <class T>
   already_AddRefed<T> CreateOrRecycleWebRenderUserData(
-      nsDisplayItem* aItem, wr::RenderRoot aRenderRoot,
-      bool* aOutIsRecycled = nullptr) {
+      nsDisplayItem* aItem, bool* aOutIsRecycled = nullptr) {
     MOZ_ASSERT(aItem);
     nsIFrame* frame = aItem->Frame();
     if (aOutIsRecycled) {
@@ -187,15 +136,15 @@ class WebRenderCommandBuilder final {
       frame->AddProperty(WebRenderUserDataProperty::Key(), userDataTable);
     }
 
-    RefPtr<WebRenderUserData>& data = userDataTable->GetOrInsert(
-        WebRenderUserDataKey(aItem->GetPerFrameKey(), T::Type()));
-    if (!data) {
-      data = new T(GetRenderRootStateManager(aRenderRoot), aItem);
-      mWebRenderUserDatas.PutEntry(data);
-      if (aOutIsRecycled) {
-        *aOutIsRecycled = false;
-      }
-    }
+    RefPtr<WebRenderUserData>& data = userDataTable->LookupOrInsertWith(
+        WebRenderUserDataKey(aItem->GetPerFrameKey(), T::Type()), [&] {
+          auto data = MakeRefPtr<T>(GetRenderRootStateManager(), aItem);
+          mWebRenderUserDatas.Insert(data);
+          if (aOutIsRecycled) {
+            *aOutIsRecycled = false;
+          }
+          return data;
+        });
 
     MOZ_ASSERT(data);
     MOZ_ASSERT(data->GetType() == T::Type());
@@ -205,7 +154,7 @@ class WebRenderCommandBuilder final {
     data->SetUsed(true);
 
     if (T::Type() == WebRenderUserData::UserDataType::eCanvas) {
-      mLastCanvasDatas.PutEntry(data->AsCanvasData());
+      mLastCanvasDatas.Insert(data->AsCanvasData());
     }
     RefPtr<T> res = static_cast<T*>(data.get());
     return res.forget();
@@ -214,11 +163,9 @@ class WebRenderCommandBuilder final {
   WebRenderLayerManager* mManager;
 
  private:
-  RenderRootStateManager* GetRenderRootStateManager(wr::RenderRoot aRenderRoot);
+  RenderRootStateManager* GetRenderRootStateManager();
 
-  wr::RenderRootArray<Maybe<StackingContextHelper>>* mRootStackingContexts;
-  wr::RenderRootArray<ClipManager> mClipManagers;
-  ClipManager* mCurrentClipManager;
+  ClipManager mClipManager;
 
   // We use this as a temporary data structure while building the mScrollData
   // inside a layers-free transaction.
@@ -235,7 +182,7 @@ class WebRenderCommandBuilder final {
   // Store of WebRenderCanvasData objects for use in empty transactions
   CanvasDataSet mLastCanvasDatas;
 
-  wr::RenderRootArray<wr::usize> mBuilderDumpIndex;
+  wr::usize mBuilderDumpIndex;
   wr::usize mDumpIndent;
 
  public:

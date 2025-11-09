@@ -228,7 +228,7 @@ class RemoteAgentClass {
   // XPCOM
 
   get QueryInterface() {
-    return ChromeUtils.generateQI([Ci.nsICommandLineHandler]);
+    return ChromeUtils.generateQI(["nsICommandLineHandler"]);
   }
 }
 

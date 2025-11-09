@@ -174,5 +174,5 @@ WebProtocolHandlerRegistrar.prototype = {
   /**
    * See nsISupports
    */
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIWebProtocolHandlerRegistrar]),
+  QueryInterface: ChromeUtils.generateQI(["nsIWebProtocolHandlerRegistrar"]),
 };

@@ -15,16 +15,18 @@
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/DOMTypes.h"
 #ifdef THE_REPORTING
-#include "mozilla/dom/EndpointForReportParent.h"
-#include "mozilla/dom/ReportingHeader.h"
+#  include "mozilla/dom/EndpointForReportParent.h"
+#  include "mozilla/dom/ReportingHeader.h"
 #endif
 #include "mozilla/dom/FileCreatorParent.h"
 #include "mozilla/dom/FileSystemBase.h"
 #include "mozilla/dom/FileSystemRequestParent.h"
-#include "mozilla/dom/GamepadEventChannelParent.h"
-#include "mozilla/dom/GamepadTestChannelParent.h"
-#include "mozilla/dom/PGamepadEventChannelParent.h"
-#include "mozilla/dom/PGamepadTestChannelParent.h"
+#ifdef MOZ_GAMEPAD
+#  include "mozilla/dom/GamepadEventChannelParent.h"
+#  include "mozilla/dom/GamepadTestChannelParent.h"
+#  include "mozilla/dom/PGamepadEventChannelParent.h"
+#  include "mozilla/dom/PGamepadTestChannelParent.h"
+#endif
 #include "mozilla/dom/MediaTransportParent.h"
 #include "mozilla/dom/MessagePortParent.h"
 #include "mozilla/dom/ServiceWorkerActors.h"
@@ -49,6 +51,7 @@
 #include "mozilla/dom/MIDIPlatformService.h"
 #include "mozilla/ipc/BackgroundParent.h"
 #include "mozilla/ipc/BackgroundUtils.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/IPCStreamAlloc.h"
 #include "mozilla/ipc/PBackgroundSharedTypes.h"
 #include "mozilla/ipc/PBackgroundTestParent.h"
@@ -438,20 +441,24 @@ bool BackgroundParentImpl::DeallocPBackgroundLocalStorageCacheParent(
 }
 
 auto BackgroundParentImpl::AllocPBackgroundStorageParent(
-    const nsString& aProfilePath) -> PBackgroundStorageParent* {
+    const nsString& aProfilePath, const uint32_t& aPrivateBrowsingId)
+    -> PBackgroundStorageParent* {
   AssertIsInMainOrSocketProcess();
   AssertIsOnBackgroundThread();
 
-  return mozilla::dom::AllocPBackgroundStorageParent(aProfilePath);
+  return mozilla::dom::AllocPBackgroundStorageParent(aProfilePath,
+                                                     aPrivateBrowsingId);
 }
 
 mozilla::ipc::IPCResult BackgroundParentImpl::RecvPBackgroundStorageConstructor(
-    PBackgroundStorageParent* aActor, const nsString& aProfilePath) {
+    PBackgroundStorageParent* aActor, const nsString& aProfilePath,
+    const uint32_t& aPrivateBrowsingId) {
   AssertIsInMainOrSocketProcess();
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aActor);
 
-  return mozilla::dom::RecvPBackgroundStorageConstructor(aActor, aProfilePath);
+  return mozilla::dom::RecvPBackgroundStorageConstructor(aActor, aProfilePath,
+                                                         aPrivateBrowsingId);
 }
 
 bool BackgroundParentImpl::DeallocPBackgroundStorageParent(
@@ -541,7 +548,7 @@ mozilla::ipc::IPCResult BackgroundParentImpl::RecvPFileCreatorConstructor(
   if (!parent) {
     isFileRemoteType = true;
   } else {
-    isFileRemoteType = parent->GetRemoteType().EqualsLiteral(FILE_REMOTE_TYPE);
+    isFileRemoteType = parent->GetRemoteType() == FILE_REMOTE_TYPE;
     NS_ReleaseOnMainThreadSystemGroup("ContentParent release", parent.forget());
   }
 
@@ -1015,6 +1022,7 @@ mozilla::ipc::IPCResult BackgroundParentImpl::RecvPFileSystemRequestConstructor(
 }
 
 // Gamepad API Background IPC
+#ifdef MOZ_GAMEPAD
 dom::PGamepadEventChannelParent*
 BackgroundParentImpl::AllocPGamepadEventChannelParent() {
   RefPtr<dom::GamepadEventChannelParent> parent =
@@ -1046,6 +1054,7 @@ bool BackgroundParentImpl::DeallocPGamepadTestChannelParent(
       dont_AddRef(static_cast<dom::GamepadTestChannelParent*>(aActor));
   return true;
 }
+#endif
 
 dom::PWebAuthnTransactionParent*
 BackgroundParentImpl::AllocPWebAuthnTransactionParent() {
@@ -1241,6 +1250,18 @@ bool BackgroundParentImpl::DeallocPMediaTransportParent(
   delete aActor;
 #endif
   return true;
+}
+
+PParentToChildStreamParent*
+BackgroundParentImpl::SendPParentToChildStreamConstructor(
+    PParentToChildStreamParent* aActor) {
+  return PBackgroundParent::SendPParentToChildStreamConstructor(aActor);
+}
+
+PFileDescriptorSetParent*
+BackgroundParentImpl::SendPFileDescriptorSetConstructor(
+    const FileDescriptor& aFD) {
+  return PBackgroundParent::SendPFileDescriptorSetConstructor(aFD);
 }
 
 }  // namespace ipc

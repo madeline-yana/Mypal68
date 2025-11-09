@@ -7,7 +7,7 @@
 
 #include <functional>
 #include "nsCOMPtr.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsIChildProcessChannelListener.h"
 #include "nsIChildChannel.h"
 #include "mozilla/Variant.h"
@@ -32,8 +32,8 @@ class ChildProcessChannelListener final
  private:
   virtual ~ChildProcessChannelListener();
 
-  nsDataHashtable<nsUint64HashKey, Callback> mCallbacks;
-  nsDataHashtable<nsUint64HashKey, nsCOMPtr<nsIChildChannel>> mChannels;
+  nsTHashMap<nsUint64HashKey, Callback> mCallbacks;
+  nsTHashMap<nsUint64HashKey, nsCOMPtr<nsIChildChannel>> mChannels;
 };
 
 }  // namespace dom

@@ -25,6 +25,7 @@
 #include "mozilla/dom/File.h"
 #include "mozilla/dom/WorkerPrivate.h"
 #include "mozilla/dom/WorkerRef.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/ProtocolTypes.h"
 #include "mozilla/net/SocketProcessBridgeChild.h"
 #include "nsCOMPtr.h"

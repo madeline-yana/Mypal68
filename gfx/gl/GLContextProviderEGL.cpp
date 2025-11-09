@@ -77,7 +77,7 @@
 #endif
 
 #if defined(MOZ_WAYLAND)
-#  include "nsDataHashtable.h"
+#  include "nsTHashMap.h"
 
 #  include <gtk/gtk.h>
 #  include <gdk/gdkx.h>
@@ -105,7 +105,7 @@ class WaylandGLSurface {
   struct wl_egl_window* mEGLWindow;
 };
 
-static nsDataHashtable<nsPtrHashKey<void>, WaylandGLSurface*> sWaylandGLSurface;
+static nsTHashMap<nsPtrHashKey<void>, WaylandGLSurface*> sWaylandGLSurface;
 
 void DeleteWaylandGLSurface(EGLSurface surface) {
   // We're running on Wayland which means our EGLSurface may
@@ -747,9 +747,9 @@ EGLSurface GLContextEGL::CreateWaylandBufferSurface(
       egl->fCreateWindowSurface(egl->Display(), config, eglwindow, 0);
 
   if (surface) {
-    WaylandGLSurface* waylandData = new WaylandGLSurface(wlsurface, eglwindow);
-    auto entry = sWaylandGLSurface.LookupForAdd(surface);
-    entry.OrInsert([&waylandData]() { return waylandData; });
+    MOZ_ASSERT(!sWaylandGLSurface.Contains(surface));
+    sWaylandGLSurface.LookupOrInsert(
+        surface, new WaylandGLSurface(wlsurface, eglwindow));
   }
 
   return surface;

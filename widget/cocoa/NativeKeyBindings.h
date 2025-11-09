@@ -8,13 +8,13 @@
 #import <Cocoa/Cocoa.h>
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsIWidget.h"
 
 namespace mozilla {
 namespace widget {
 
-typedef nsDataHashtable<nsPtrHashKey<struct objc_selector>, Command>
+typedef nsTHashMap<nsPtrHashKey<struct objc_selector>, Command>
     SelectorCommandHashtable;
 
 class NativeKeyBindings final {

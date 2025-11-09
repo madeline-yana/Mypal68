@@ -4,9 +4,8 @@
 
 #include "TransportSecurityInfo.h"
 
-#include "DateTimeFormat.h"
 #include "PSMRunnable.h"
-#include "ipc/IPCMessageUtils.h"
+#include "ipc/IPCMessageUtilsSpecializations.h"
 #include "mozilla/Casting.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIArray.h"
@@ -786,7 +785,7 @@ void RememberCertErrorsTable::RememberCertHasError(
     bits.mIsUntrusted = infoObject->mIsUntrusted;
 
     MutexAutoLock lock(mMutex);
-    mErrorHosts.Put(hostPortKey, bits);
+    mErrorHosts.InsertOrUpdate(hostPortKey, bits);
   } else {
     MutexAutoLock lock(mMutex);
     mErrorHosts.Remove(hostPortKey);

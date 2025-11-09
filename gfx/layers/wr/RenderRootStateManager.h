@@ -10,27 +10,23 @@
 #include "mozilla/layers/IpcResourceUpdateQueue.h"
 #include "mozilla/layers/SharedSurfacesChild.h"
 #include "mozilla/layers/WebRenderCommandBuilder.h"
+#include "nsTHashSet.h"
 
 namespace mozilla {
 
 namespace layers {
 
 class RenderRootStateManager {
-  typedef nsTHashtable<nsRefPtrHashKey<WebRenderUserData>>
-      WebRenderUserDataRefTable;
+  typedef nsTHashSet<RefPtr<WebRenderUserData>> WebRenderUserDataRefTable;
 
  public:
   void AddRef();
   void Release();
 
-  RenderRootStateManager()
-      : mLayerManager(nullptr),
-        mRenderRoot(wr::RenderRoot::Default),
-        mDestroyed(false) {}
+  RenderRootStateManager() : mLayerManager(nullptr), mDestroyed(false) {}
 
   void Destroy();
   bool IsDestroyed() { return mDestroyed; }
-  wr::RenderRoot GetRenderRoot() { return mRenderRoot; }
   wr::IpcResourceUpdateQueue& AsyncResourceUpdates();
   WebRenderBridgeChild* WrBridge() const;
   WebRenderCommandBuilder& CommandBuilder();
@@ -91,7 +87,6 @@ class RenderRootStateManager {
   // the compositor to discard information for.
   nsTArray<uint64_t> mDiscardedCompositorAnimationsIds;
 
-  wr::RenderRoot mRenderRoot;
   bool mDestroyed;
 
   friend class WebRenderLayerManager;

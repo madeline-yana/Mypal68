@@ -1236,8 +1236,10 @@ nsresult nsDocumentViewer::PermitUnloadInternal(uint32_t* aPermitUnloadFlags,
     Document::PageUnloadingEventTimeStamp timestamp(mDocument);
 
     mInPermitUnload = true;
-    EventDispatcher::DispatchDOMEvent(window, nullptr, event, mPresContext,
-                                      nullptr);
+    RefPtr<nsPresContext> presContext = mPresContext;
+    // TODO: Bug 1506441
+    EventDispatcher::DispatchDOMEvent(MOZ_KnownLive(window),
+                                      nullptr, event, presContext, nullptr);
     mInPermitUnload = false;
   }
 
@@ -2431,7 +2433,7 @@ mozilla::dom::Selection* nsDocumentViewer::GetDocumentSelection() {
  * ============================================================================
  */
 
-NS_IMETHODIMP nsDocumentViewer::ClearSelection() {
+MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHODIMP nsDocumentViewer::ClearSelection() {
   // use nsCopySupport::GetSelectionForCopy() ?
   RefPtr<mozilla::dom::Selection> selection = GetDocumentSelection();
   if (!selection) {
@@ -2443,7 +2445,7 @@ NS_IMETHODIMP nsDocumentViewer::ClearSelection() {
   return rv.StealNSResult();
 }
 
-NS_IMETHODIMP nsDocumentViewer::SelectAll() {
+MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHODIMP nsDocumentViewer::SelectAll() {
   // XXX this is a temporary implementation copied from nsWebShell
   // for now. I think Document and friends should have some helper
   // functions to make this easier.

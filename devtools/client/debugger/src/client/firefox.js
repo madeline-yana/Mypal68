@@ -28,13 +28,10 @@ export async function onConnect(connection: any, actions: Object) {
   tabTarget.on("will-navigate", actions.willNavigate);
   tabTarget.on("navigate", actions.navigated);
 
-  const wasmBinarySource =
-    features.wasm && !!devToolsClient.mainRoot.traits.wasmBinarySource;
-
   await threadFront.reconfigure({
     observeAsmJS: true,
+    observeWasm: true,
     pauseWorkersUntilAttach: true,
-    wasmBinarySource,
     skipBreakpoints: prefs.skipPausing,
     logEventBreakpoints: prefs.logEventBreakpoints,
   });

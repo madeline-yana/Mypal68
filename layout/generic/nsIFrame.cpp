@@ -21,10 +21,12 @@
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/gfxVars.h"
 #include "mozilla/gfx/PathHelpers.h"
+#include "mozilla/intl/BidiEmbeddingLevel.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/PresShellInlines.h"
 #include "mozilla/ResultExtensions.h"
 #include "mozilla/Sprintf.h"
+#include "mozilla/StaticAnalysisFunctions.h"
 #include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/SVGMaskFrame.h"
 #include "mozilla/SVGObserverUtils.h"
@@ -70,6 +72,7 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsCanvasFrame.h"
 
+#include "nsFieldSetFrame.h"
 #include "nsFrameTraversal.h"
 #include "nsRange.h"
 #include "nsITextControlFrame.h"
@@ -919,10 +922,8 @@ void nsIFrame::DestroyFrom(nsIFrame* aDestructRoot,
   presShell->FreeFrame(id, this);
 }
 
-nsresult nsIFrame::GetOffsets(int32_t& aStart, int32_t& aEnd) const {
-  aStart = 0;
-  aEnd = 0;
-  return NS_OK;
+std::pair<int32_t, int32_t> nsIFrame::GetOffsets() const {
+  return std::make_pair(0, 0);
 }
 
 static void CompareLayers(
@@ -1668,7 +1669,8 @@ WritingMode nsIFrame::WritingModeForLine(WritingMode aSelfWM,
   WritingMode writingMode = aSelfWM;
 
   if (StyleTextReset()->mUnicodeBidi & NS_STYLE_UNICODE_BIDI_PLAINTEXT) {
-    nsBidiLevel frameLevel = nsBidiPresUtils::GetFrameBaseLevel(aSubFrame);
+    mozilla::intl::BidiEmbeddingLevel frameLevel =
+        nsBidiPresUtils::GetFrameBaseLevel(aSubFrame);
     writingMode.SetDirectionFromBidiLevel(frameLevel);
   }
 
@@ -4660,8 +4662,9 @@ nsIFrame::HandlePress(nsPresContext* aPresContext, WidgetGUIEvent* aEvent,
     return nsFrameSelection::FocusMode::kCollapseToNewPoint;
   }();
 
-  rv = fc->HandleClick(offsets.content, offsets.StartOffset(),
-                       offsets.EndOffset(), focusMode, offsets.associate);
+  rv = fc->HandleClick(MOZ_KnownLive(offsets.content) /* bug 1636889 */,
+                       offsets.StartOffset(), offsets.EndOffset(), focusMode,
+                       offsets.associate);
 
   if (NS_FAILED(rv)) return rv;
 
@@ -4680,20 +4683,6 @@ nsIFrame::HandlePress(nsPresContext* aPresContext, WidgetGUIEvent* aEvent,
   return rv;
 }
 
-/*
- * SelectByTypeAtPoint
- *
- * Search for selectable content at point and attempt to select
- * based on the start and end selection behaviours.
- *
- * @param aPresContext Presentation context
- * @param aPoint Point at which selection will occur. Coordinates
- * should be relaitve to this frame.
- * @param aBeginAmountType, aEndAmountType Selection behavior, see
- * nsIFrame for definitions.
- * @param aSelectFlags Selection flags defined in nsFame.h.
- * @return success or failure at finding suitable content to select.
- */
 nsresult nsIFrame::SelectByTypeAtPoint(nsPresContext* aPresContext,
                                        const nsPoint& aPoint,
                                        nsSelectionAmount aBeginAmountType,
@@ -4813,12 +4802,14 @@ nsresult nsIFrame::PeekBackwardAndForward(nsSelectionAmount aAmountBack,
           ? nsFrameSelection::FocusMode::kMultiRangeSelection
           : nsFrameSelection::FocusMode::kCollapseToNewPoint;
   rv = frameSelection->HandleClick(
-      startpos.mResultContent, startpos.mContentOffset, startpos.mContentOffset,
-      focusMode, CARET_ASSOCIATE_AFTER);
+      MOZ_KnownLive(startpos.mResultContent) /* bug 1636889 */,
+      startpos.mContentOffset, startpos.mContentOffset, focusMode,
+      CARET_ASSOCIATE_AFTER);
   if (NS_FAILED(rv)) return rv;
 
   rv = frameSelection->HandleClick(
-      endpos.mResultContent, endpos.mContentOffset, endpos.mContentOffset,
+      MOZ_KnownLive(endpos.mResultContent) /* bug 1636889 */,
+      endpos.mContentOffset, endpos.mContentOffset,
       nsFrameSelection::FocusMode::kExtendSelection, CARET_ASSOCIATE_BEFORE);
   if (NS_FAILED(rv)) return rv;
 
@@ -4908,14 +4899,12 @@ NS_IMETHODIMP nsIFrame::HandleDrag(nsPresContext* aPresContext,
  * This static method handles part of the nsIFrame::HandleRelease in a way
  * which doesn't rely on the nsFrame object to stay alive.
  */
-static nsresult HandleFrameSelection(nsFrameSelection* aFrameSelection,
-                                     nsIFrame::ContentOffsets& aOffsets,
-                                     bool aHandleTableSel,
-                                     int32_t aContentOffsetForTableSel,
-                                     TableSelectionMode aTargetForTableSel,
-                                     nsIContent* aParentContentForTableSel,
-                                     WidgetGUIEvent* aEvent,
-                                     const nsEventStatus* aEventStatus) {
+MOZ_CAN_RUN_SCRIPT_BOUNDARY static nsresult HandleFrameSelection(
+    nsFrameSelection* aFrameSelection, nsIFrame::ContentOffsets& aOffsets,
+    bool aHandleTableSel, int32_t aContentOffsetForTableSel,
+    TableSelectionMode aTargetForTableSel,
+    nsIContent* aParentContentForTableSel, WidgetGUIEvent* aEvent,
+    const nsEventStatus* aEventStatus) {
   if (!aFrameSelection) {
     return NS_OK;
   }
@@ -4944,8 +4933,9 @@ static nsresult HandleFrameSelection(nsFrameSelection* aFrameSelection,
               ? nsFrameSelection::FocusMode::kExtendSelection
               : nsFrameSelection::FocusMode::kCollapseToNewPoint;
       rv = aFrameSelection->HandleClick(
-          aOffsets.content, aOffsets.StartOffset(), aOffsets.EndOffset(),
-          focusMode, aOffsets.associate);
+          MOZ_KnownLive(aOffsets.content) /* bug 1636889 */,
+          aOffsets.StartOffset(), aOffsets.EndOffset(), focusMode,
+          aOffsets.associate);
       if (NS_FAILED(rv)) {
         return rv;
       }
@@ -5069,7 +5059,7 @@ struct MOZ_STACK_CLASS FrameContentRange {
 };
 
 // Retrieve the content offsets of a frame
-static FrameContentRange GetRangeForFrame(nsIFrame* aFrame) {
+static FrameContentRange GetRangeForFrame(const nsIFrame* aFrame) {
   nsIContent* content = aFrame->GetContent();
   if (!content) {
     NS_WARNING("Frame has no content");
@@ -5078,8 +5068,7 @@ static FrameContentRange GetRangeForFrame(nsIFrame* aFrame) {
 
   LayoutFrameType type = aFrame->Type();
   if (type == LayoutFrameType::Text) {
-    int32_t offset, offsetEnd;
-    aFrame->GetOffsets(offset, offsetEnd);
+    auto [offset, offsetEnd] = aFrame->GetOffsets();
     return FrameContentRange(content, offset, offsetEnd);
   }
 
@@ -7832,8 +7821,9 @@ void nsIFrame::ListGeneric(nsACString& aTo, const char* aPrefix,
   }
   if (HasProperty(BidiDataProperty())) {
     FrameBidiData bidi = GetBidiData();
-    aTo += nsPrintfCString(" bidi(%d,%d,%d)", bidi.baseLevel,
-                           bidi.embeddingLevel, bidi.precedingControl);
+    aTo += nsPrintfCString(" bidi(%d,%d,%d)", bidi.baseLevel.Value(),
+                           bidi.embeddingLevel.Value(),
+                           bidi.precedingControl.Value());
   }
   if (IsTransformed()) {
     aTo += nsPrintfCString(" transformed");
@@ -8001,7 +7991,7 @@ nsresult nsIFrame::GetPointFromOffset(int32_t inOffset, nsPoint* outPoint) {
       bool hasBidiData;
       FrameBidiData bidiData = GetProperty(BidiDataProperty(), &hasBidiData);
       bool isRTL = hasBidiData
-                       ? IS_LEVEL_RTL(bidiData.embeddingLevel)
+                       ? bidiData.embeddingLevel.IsRTL()
                        : StyleVisibility()->mDirection == StyleDirection::Rtl;
       if ((!isRTL && inOffset > newOffset) ||
           (isRTL && inOffset <= newOffset)) {
@@ -8321,8 +8311,7 @@ static nsContentAndOffset FindLineBreakInText(nsIFrame* aFrame,
     return result;
   }
 
-  int32_t startOffset, endOffset;
-  aFrame->GetOffsets(startOffset, endOffset);
+  int32_t endOffset = aFrame->GetOffsets().second;
   result.mContent = aFrame->GetContent();
   result.mOffset = endOffset - (aDirection == eDirPrevious ? 0 : 1);
   return result;
@@ -8443,8 +8432,8 @@ nsresult nsIFrame::PeekOffsetForParagraph(nsPeekOffsetStruct* aPos) {
 }
 
 // Determine movement direction relative to frame
-static bool IsMovingInFrameDirection(nsIFrame* frame, nsDirection aDirection,
-                                     bool aVisual) {
+static bool IsMovingInFrameDirection(const nsIFrame* frame,
+                                     nsDirection aDirection, bool aVisual) {
   bool isReverseDirection =
       aVisual && nsBidiPresUtils::IsReversedDirectionFrame(frame);
   return aDirection == (isReverseDirection ? eDirPrevious : eDirNext);
@@ -8539,8 +8528,7 @@ nsresult nsIFrame::PeekOffsetForCharacter(nsPeekOffsetStruct* aPos,
     // selection, this doesn't matter.
     if (peekSearchState == FOUND && current.mMovedOverNonSelectableText &&
         (!aPos->mExtend || current.mHasSelectableFrame)) {
-      int32_t start, end;
-      current.mFrame->GetOffsets(start, end);
+      auto [start, end] = current.mFrame->GetOffsets();
       current.mOffset = aPos->mDirection == eDirNext ? 0 : end - start;
     }
   }
@@ -8749,22 +8737,11 @@ nsresult nsIFrame::PeekOffsetForLineEdge(nsPeekOffsetStruct* aPos) {
 
   if (aPos->mVisual && PresContext()->BidiEnabled()) {
     nsIFrame* firstFrame;
-    bool lineIsRTL = it->GetDirection();
     bool isReordered;
     nsIFrame* lastFrame;
     MOZ_TRY(
         it->CheckLineOrder(thisLine, &isReordered, &firstFrame, &lastFrame));
     baseFrame = endOfLine ? lastFrame : firstFrame;
-    if (baseFrame) {
-      bool frameIsRTL =
-          (nsBidiPresUtils::FrameDirection(baseFrame) == NSBIDI_RTL);
-      // If the direction of the frame on the edge is opposite to
-      // that of the line, we'll need to drill down to its opposite
-      // end, so reverse endOfLine.
-      if (frameIsRTL != lineIsRTL) {
-        endOfLine = !endOfLine;
-      }
-    }
   } else {
     auto line = it->GetLine(thisLine).unwrap();
 
@@ -8999,7 +8976,8 @@ Result<bool, nsresult> nsIFrame::IsVisuallyAtLineEdge(
     return true;
   }
 
-  bool frameIsRTL = (nsBidiPresUtils::FrameDirection(*framePtr) == NSBIDI_RTL);
+  bool frameIsRTL = (nsBidiPresUtils::FrameDirection(*framePtr) ==
+                     mozilla::intl::BidiDirection::RTL);
   if ((frameIsRTL == lineIsRTL) == (aDirection == eDirPrevious)) {
     nsIFrame::GetFirstLeaf(framePtr);
   } else {
@@ -10050,53 +10028,95 @@ void nsIFrame::GetFirstLeaf(nsIFrame** aFrame) {
   }
 }
 
-/* virtual */
-bool nsIFrame::IsFocusable(int32_t* aTabIndex, bool aWithMouse) {
-  int32_t tabIndex = -1;
-  if (aTabIndex) {
-    *aTabIndex = -1;  // Default for early return is not focusable
-  }
-  bool isFocusable = false;
-
-  if (mContent && mContent->IsElement() && IsVisibleConsideringAncestors() &&
-      Style()->GetPseudoType() != PseudoStyleType::anonymousFlexItem &&
-      Style()->GetPseudoType() != PseudoStyleType::anonymousGridItem &&
-      StyleUI()->mInert != StyleInert::Inert) {
-    const nsStyleUI* ui = StyleUI();
-    if (ui->mUserFocus != StyleUserFocus::Ignore &&
-        ui->mUserFocus != StyleUserFocus::None) {
-      // Pass in default tabindex of -1 for nonfocusable and 0 for focusable
-      tabIndex = 0;
-    }
-    isFocusable = mContent->IsFocusable(&tabIndex, aWithMouse);
-    if (!isFocusable && !aWithMouse && IsScrollFrame() &&
-        mContent->IsHTMLElement() &&
-        !mContent->IsRootOfNativeAnonymousSubtree() && mContent->GetParent() &&
-        !mContent->AsElement()->HasAttr(kNameSpaceID_None,
-                                        nsGkAtoms::tabindex)) {
-      // Elements with scrollable view are focusable with script & tabbable
-      // Otherwise you couldn't scroll them with keyboard, which is
-      // an accessibility issue (e.g. Section 508 rules)
-      // However, we don't make them to be focusable with the mouse,
-      // because the extra focus outlines are considered unnecessarily ugly.
-      // When clicked on, the selection position within the element
-      // will be enough to make them keyboard scrollable.
-      nsIScrollableFrame* scrollFrame = do_QueryFrame(this);
-      if (scrollFrame &&
-          !scrollFrame->IsForTextControlWithNoScrollbars() &&
-          !scrollFrame->GetScrollStyles().IsHiddenInBothDirections() &&
-          !scrollFrame->GetScrollRange().IsEqualEdges(nsRect(0, 0, 0, 0))) {
-        // Scroll bars will be used for overflow
-        isFocusable = true;
-        tabIndex = 0;
+bool nsIFrame::IsFocusableDueToScrollFrame() {
+  if (!IsScrollFrame()) {
+    if (nsFieldSetFrame* fieldset = do_QueryFrame(this)) {
+      // TODO: Do we have similar special-cases like this where we can have
+      // anonymous scrollable boxes hanging off a primary frame?
+      if (nsIFrame* inner = fieldset->GetInner()) {
+        return inner->IsFocusableDueToScrollFrame();
       }
     }
+    return false;
+  }
+  if (!mContent->IsHTMLElement()) {
+    return false;
+  }
+  if (mContent->IsRootOfNativeAnonymousSubtree()) {
+    return false;
+  }
+  if (!mContent->GetParent()) {
+    return false;
+  }
+  if (mContent->AsElement()->HasAttr(nsGkAtoms::tabindex)) {
+    return false;
+  }
+  // Elements with scrollable view are focusable with script & tabbable
+  // Otherwise you couldn't scroll them with keyboard, which is an accessibility
+  // issue (e.g. Section 508 rules) However, we don't make them to be focusable
+  // with the mouse, because the extra focus outlines are considered
+  // unnecessarily ugly.  When clicked on, the selection position within the
+  // element will be enough to make them keyboard scrollable.
+  nsIScrollableFrame* scrollFrame = do_QueryFrame(this);
+  if (!scrollFrame) {
+    return false;
+  }
+  if (scrollFrame->IsForTextControlWithNoScrollbars()) {
+    return false;
+  }
+  if (scrollFrame->GetScrollStyles().IsHiddenInBothDirections()) {
+    return false;
+  }
+  if (scrollFrame->GetScrollRange().IsEqualEdges(nsRect(0, 0, 0, 0))) {
+    return false;
+  }
+  return true;
+}
+
+nsIFrame::Focusable nsIFrame::IsFocusable(bool aWithMouse) {
+  // cannot focus content in print preview mode. Only the root can be focused,
+  // but that's handled elsewhere.
+  if (PresContext()->Type() == nsPresContext::eContext_PrintPreview) {
+    return {};
   }
 
-  if (aTabIndex) {
-    *aTabIndex = tabIndex;
+  if (!mContent || !mContent->IsElement()) {
+    return {};
   }
-  return isFocusable;
+
+  if (!IsVisibleConsideringAncestors()) {
+    return {};
+  }
+
+  const nsStyleUI* ui = StyleUI();
+  if (ui->mInert == StyleInert::Inert) {
+    return {};
+  }
+
+  PseudoStyleType pseudo = Style()->GetPseudoType();
+  if (pseudo == PseudoStyleType::anonymousFlexItem ||
+      pseudo == PseudoStyleType::anonymousGridItem) {
+    return {};
+  }
+
+  int32_t tabIndex = -1;
+  if (ui->mUserFocus != StyleUserFocus::Ignore &&
+      ui->mUserFocus != StyleUserFocus::None) {
+    // Pass in default tabindex of -1 for nonfocusable and 0 for focusable
+    tabIndex = 0;
+  }
+
+  if (mContent->IsFocusable(&tabIndex, aWithMouse)) {
+    // If the content is focusable, then we're done.
+    return {true, tabIndex};
+  }
+
+  // If we're focusing with the mouse we never focus scroll areas.
+  if (!aWithMouse && IsFocusableDueToScrollFrame()) {
+    return {true, 0};
+  }
+
+  return {false, tabIndex};
 }
 
 /**

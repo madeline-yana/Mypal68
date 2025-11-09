@@ -160,5 +160,7 @@ skip-if(!winWidget) == legacy-family-names-2.html legacy-family-names-2-ref.html
 
 random-if(/^Windows\x20NT\x206\.1/.test(http.oscpu)) == descriptor-ranges.html descriptor-ranges-ref.html # Bug 1392106
 
+== illformed-lang-tags-1.html illformed-lang-tags-1.html?ref
+
 # Reset default prefs.
 default-preferences

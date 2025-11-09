@@ -49,7 +49,7 @@ struct RetainedDisplayListData {
    * frame does not exist in this RetainedDisplayListData, it is added with
    * default constructible flags FrameFlags::None.
    */
-  FrameFlags& Flags(nsIFrame* aFrame) { return mFrames.GetOrInsert(aFrame); }
+  FrameFlags& Flags(nsIFrame* aFrame) { return mFrames.LookupOrInsert(aFrame); }
 
   /**
    * Returns flags set for the given |aFrame|, or FrameFlags::None if the frame
@@ -60,7 +60,7 @@ struct RetainedDisplayListData {
   /**
    * Returns an iterator to the underlying frame storage.
    */
-  auto Iterator() { return mFrames.Iter(); }
+  auto ConstIterator() { return mFrames.ConstIter(); }
 
   /**
    * Returns the count of modified frames in this RetainedDisplayListData.
@@ -73,7 +73,7 @@ struct RetainedDisplayListData {
   bool Remove(nsIFrame* aFrame) { return mFrames.Remove(aFrame); }
 
  private:
-  nsDataHashtable<nsPtrHashKey<nsIFrame>, FrameFlags> mFrames;
+  nsTHashMap<nsPtrHashKey<nsIFrame>, FrameFlags> mFrames;
   uint32_t mModifiedFramesCount;
 };
 

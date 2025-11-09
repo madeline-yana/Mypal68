@@ -14,6 +14,7 @@
 #include "mozilla/RefPtr.h"
 #include "mozilla/UniquePtr.h"
 #include "nsClassHashtable.h"
+#include "nsTHashMap.h"
 
 #include <fontconfig/fontconfig.h>
 #include "ft2build.h"
@@ -93,6 +94,8 @@ class FTUserFontData final {
 // defines versions of these, so use the verbose name for now.
 
 class gfxFontconfigFontEntry : public gfxFontEntry {
+  friend class gfxFcPlatformFontList;
+
  public:
   // used for system fonts with explicit patterns
   explicit gfxFontconfigFontEntry(const nsACString& aFaceName,
@@ -212,8 +215,8 @@ class gfxFontconfigFontEntry : public gfxFontEntry {
 
 class gfxFontconfigFontFamily : public gfxFontFamily {
  public:
-  explicit gfxFontconfigFontFamily(const nsACString& aName)
-      : gfxFontFamily(aName),
+  gfxFontconfigFontFamily(const nsACString& aName, FontVisibility aVisibility)
+      : gfxFontFamily(aName, aVisibility),
         mContainsAppFonts(false),
         mHasNonScalableFaces(false),
         mForceScalable(false) {}
@@ -371,7 +374,19 @@ class gfxFcPlatformFontList : public gfxPlatformFontList {
 
   FontFamily GetDefaultFontForPlatform(const gfxFontStyle* aStyle) override;
 
-  gfxFontFamily* CreateFontFamily(const nsACString& aName) const override;
+  enum class DistroID : int8_t {
+    Unknown = 0,
+    Ubuntu = 1,
+    Fedora = 2,
+    // To be extended with any distros that ship a useful base set of fonts
+    // that we want to explicitly support.
+  };
+  DistroID GetDistroID() const;  // -> DistroID::Unknown if we can't tell
+
+  FontVisibility GetVisibilityForFamily(const nsACString& aName) const;
+
+  gfxFontFamily* CreateFontFamily(const nsACString& aName,
+                                  FontVisibility aVisibility) const override;
 
   // helper method for finding an appropriate lang string
   bool TryLangForGroup(const nsACString& aOSLang, nsAtom* aLangGroup,
@@ -385,7 +400,7 @@ class gfxFcPlatformFontList : public gfxPlatformFontList {
 
   // to avoid enumerating all fonts, maintain a mapping of local font
   // names to family
-  nsBaseHashtable<nsCStringHashKey, RefPtr<FcPattern>, FcPattern*> mLocalNames;
+  nsTHashMap<nsCString, RefPtr<FcPattern>> mLocalNames;
 
   // caching generic/lang ==> font family list
   nsClassHashtable<nsCStringHashKey, PrefFontList> mGenericMappings;
@@ -396,8 +411,7 @@ class gfxFcPlatformFontList : public gfxPlatformFontList {
   // font list is rebuilt (e.g. due to a fontconfig configuration change),
   // these pointers will be invalidated. InitFontList() flushes the cache
   // in this case.
-  nsDataHashtable<nsCStringHashKey, nsTArray<FamilyAndGeneric>>
-      mFcSubstituteCache;
+  nsTHashMap<nsCStringHashKey, nsTArray<FamilyAndGeneric>> mFcSubstituteCache;
 
   nsCOMPtr<nsITimer> mCheckFontUpdatesTimer;
   RefPtr<FcConfig> mLastConfig;

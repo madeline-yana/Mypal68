@@ -45,7 +45,7 @@
 #include "mozilla/layers/LayersTypes.h"          // for etc
 #include "mozilla/widget/CompositorWidget.h"     // for WidgetRenderingContext
 #include "ipc/CompositorBench.h"                 // for CompositorBench
-#include "ipc/ShadowLayerUtils.h"
+#include "ipc/SurfaceDescriptor.h"
 #include "mozilla/mozalloc.h"  // for operator new, etc
 #include "nsAppRunner.h"
 #include "mozilla/RefPtr.h"   // for nsRefPtr

@@ -10,7 +10,7 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Result.h"
 #include "mozilla/dom/ipc/StringTable.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 
 namespace mozilla {
 
@@ -305,9 +305,6 @@ class SharedPrefMap {
     uint8_t mIsSticky : 1;
     // True if the preference is locked, as defined by the preference service.
     uint8_t mIsLocked : 1;
-    // True if the preference's default value has changed since it was first
-    // set.
-    uint8_t mDefaultChanged : 1;
     // True if the preference should be skipped while iterating over the
     // SharedPrefMap. This is used to internally store Once StaticPrefs.
     // This property is not visible to users the way sticky and locked are.
@@ -339,7 +336,6 @@ class SharedPrefMap {
       return PrefType(mEntry->mType);
     }
 
-    bool DefaultChanged() const { return mEntry->mDefaultChanged; }
     bool HasDefaultValue() const { return mEntry->mHasDefaultValue; }
     bool HasUserValue() const { return mEntry->mHasUserValue; }
     bool IsLocked() const { return mEntry->mIsLocked; }
@@ -573,17 +569,16 @@ class MOZ_RAII SharedPrefMapBuilder {
     uint8_t mHasUserValue : 1;
     uint8_t mIsSticky : 1;
     uint8_t mIsLocked : 1;
-    uint8_t mDefaultChanged : 1;
     uint8_t mIsSkippedByIteration : 1;
   };
 
-  void Add(const char* aKey, const Flags& aFlags, bool aDefaultValue,
+  void Add(const nsCString& aKey, const Flags& aFlags, bool aDefaultValue,
            bool aUserValue);
 
-  void Add(const char* aKey, const Flags& aFlags, int32_t aDefaultValue,
+  void Add(const nsCString& aKey, const Flags& aFlags, int32_t aDefaultValue,
            int32_t aUserValue);
 
-  void Add(const char* aKey, const Flags& aFlags,
+  void Add(const nsCString& aKey, const Flags& aFlags,
            const nsCString& aDefaultValue, const nsCString& aUserValue);
 
   // Finalizes the binary representation of the map, writes it to a shared
@@ -643,11 +638,11 @@ class MOZ_RAII SharedPrefMapBuilder {
     ValueIdx Add(const ValueType& aDefaultValue) {
       auto index = uint16_t(mDefaultEntries.Count());
 
-      auto entry = mDefaultEntries.LookupForAdd(aDefaultValue).OrInsert([&]() {
-        return Entry{index, false, aDefaultValue};
-      });
+      return mDefaultEntries.WithEntryHandle(aDefaultValue, [&](auto&& entry) {
+        entry.OrInsertWith([&] { return Entry{index, false, aDefaultValue}; });
 
-      return {entry.mIndex, false};
+        return ValueIdx{entry->mIndex, false};
+      });
     }
 
     // Adds an entry for a preference with a user value to the array. Regardless
@@ -681,9 +676,9 @@ class MOZ_RAII SharedPrefMapBuilder {
       }
 
       size_t defaultsOffset = UserCount();
-      for (auto iter = mDefaultEntries.ConstIter(); !iter.Done(); iter.Next()) {
-        const auto& entry = iter.Data();
-        buffer[defaultsOffset + entry.mIndex] = entry.mDefaultValue;
+      for (const auto& entry : mDefaultEntries) {
+        const auto& data = entry.GetData();
+        buffer[defaultsOffset + data.mIndex] = data.mDefaultValue;
       }
     }
 
@@ -727,7 +722,7 @@ class MOZ_RAII SharedPrefMapBuilder {
 
     AutoTArray<Entry, 256> mUserEntries;
 
-    nsDataHashtable<HashKey, Entry> mDefaultEntries;
+    nsTHashMap<HashKey, Entry> mDefaultEntries;
   };
 
   // A special-purpose string table builder for keys which are already
@@ -740,9 +735,9 @@ class MOZ_RAII SharedPrefMapBuilder {
 
     explicit UniqueStringTableBuilder(size_t aCapacity) : mEntries(aCapacity) {}
 
-    StringTableEntry Add(const CharType* aKey) {
+    StringTableEntry Add(const nsTString<CharType>& aKey) {
       auto entry =
-          mEntries.AppendElement(Entry{mSize, uint32_t(strlen(aKey)), aKey});
+          mEntries.AppendElement(Entry{mSize, aKey.Length(), aKey.get()});
 
       mSize += entry->mLength + 1;
 
@@ -813,7 +808,6 @@ class MOZ_RAII SharedPrefMapBuilder {
     uint8_t mHasUserValue : 1;
     uint8_t mIsSticky : 1;
     uint8_t mIsLocked : 1;
-    uint8_t mDefaultChanged : 1;
     uint8_t mIsSkippedByIteration : 1;
   };
 

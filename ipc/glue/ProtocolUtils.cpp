@@ -12,13 +12,17 @@
 
 #include "mozilla/IntegerPrintfMacros.h"
 
+#include "mozilla/ipc/ProtocolMessageUtils.h"
 #include "mozilla/ipc/ProtocolUtils.h"
 
-#include "mozilla/StaticMutex.h"
-#include "mozilla/SystemGroup.h"
-#include "mozilla/Unused.h"
 #include "mozilla/ipc/MessageChannel.h"
 #include "mozilla/ipc/Transport.h"
+#include "mozilla/StaticMutex.h"
+#include "mozilla/SystemGroup.h"
+#if defined(DEBUG) || defined(FUZZING)
+#  include "mozilla/Tokenizer.h"
+#endif
+#include "mozilla/Unused.h"
 #include "nsPrintfCString.h"
 
 #if defined(MOZ_SANDBOX) && defined(XP_WIN)
@@ -87,7 +91,7 @@ bool DuplicateHandle(HANDLE aSourceHandle, DWORD aTargetProcessId,
   if (!targetProcess) {
     CrashReporter::AnnotateCrashReport(
         CrashReporter::Annotation::IPCTransportFailureReason,
-        NS_LITERAL_CSTRING("Failed to open target process."));
+        "Failed to open target process."_ns);
     return false;
   }
 
@@ -116,6 +120,32 @@ void AnnotateCrashReportWithErrno(CrashReporter::Annotation tag, int error) {
   CrashReporter::AnnotateCrashReport(tag, error);
 }
 #endif  // defined(XP_MACOSX)
+
+#if defined(DEBUG) || defined(FUZZING)
+// This overload is for testability; application code should use the single-
+// argument version (defined in the ProtocolUtils.h) which takes the filter from
+// the environment.
+bool LoggingEnabledFor(const char* aTopLevelProtocol, const char* aFilter) {
+  if (!aFilter) {
+    return false;
+  }
+  if (strcmp(aFilter, "1") == 0) {
+    return true;
+  }
+
+  const char kDelimiters[] = ", ";
+  Tokenizer tokens(aFilter, kDelimiters);
+  Tokenizer::Token t;
+  while (tokens.Next(t)) {
+    if (t.Type() == Tokenizer::TOKEN_WORD &&
+        t.AsString() == aTopLevelProtocol) {
+      return true;
+    }
+  }
+
+  return false;
+}
+#endif  // defined(DEBUG) || defined(FUZZING)
 
 void LogMessageForProtocol(const char* aTopLevelProtocol,
                            base::ProcessId aOtherPid,
@@ -203,14 +233,9 @@ void SentinelReadError(const char* aClassName) {
   MOZ_CRASH_UNSAFE_PRINTF("incorrect sentinel when reading %s", aClassName);
 }
 
-void TableToArray(const nsTHashtable<nsPtrHashKey<void>>& aTable,
-                  nsTArray<void*>& aArray) {
-  uint32_t i = 0;
-  void** elements = aArray.AppendElements(aTable.Count());
-  for (auto iter = aTable.ConstIter(); !iter.Done(); iter.Next()) {
-    elements[i] = iter.Get()->GetKey();
-    ++i;
-  }
+void TableToArray(const nsTHashSet<void*>& aTable, nsTArray<void*>& aArray) {
+  MOZ_ASSERT(aArray.IsEmpty());
+  aArray = ToArray(aTable);
 }
 
 ActorLifecycleProxy::ActorLifecycleProxy(IProtocol* aActor) : mActor(aActor) {
@@ -569,7 +594,7 @@ void IProtocol::DestroySubtree(ActorDestroyReason aWhy) {
 }
 
 IToplevelProtocol::IToplevelProtocol(const char* aName, ProtocolId aProtoId,
-                                     Side aSide)
+                                     MsgSide aSide)
     : IProtocol(aProtoId, aSide),
       mOtherPid(mozilla::ipc::kInvalidProcessId),
       mLastLocalId(0),
@@ -590,14 +615,14 @@ void IToplevelProtocol::SetOtherProcessId(base::ProcessId aOtherPid) {
 
 bool IToplevelProtocol::Open(UniquePtr<Transport> aTransport,
                              base::ProcessId aOtherPid, MessageLoop* aThread,
-                             mozilla::ipc::Side aSide) {
+                             mozilla::ipc::MsgSide aSide) {
   SetOtherProcessId(aOtherPid);
   return GetIPCChannel()->Open(std::move(aTransport), aThread, aSide);
 }
 
 bool IToplevelProtocol::Open(MessageChannel* aChannel,
                              MessageLoop* aMessageLoop,
-                             mozilla::ipc::Side aSide) {
+                             mozilla::ipc::MsgSide aSide) {
   SetOtherProcessId(base::GetCurrentProcId());
   return GetIPCChannel()->Open(aChannel, aMessageLoop->SerialEventTarget(),
                                aSide);
@@ -605,12 +630,12 @@ bool IToplevelProtocol::Open(MessageChannel* aChannel,
 
 bool IToplevelProtocol::Open(MessageChannel* aChannel,
                              nsISerialEventTarget* aEventTarget,
-                             mozilla::ipc::Side aSide) {
+                             mozilla::ipc::MsgSide aSide) {
   SetOtherProcessId(base::GetCurrentProcId());
   return GetIPCChannel()->Open(aChannel, aEventTarget, aSide);
 }
 
-bool IToplevelProtocol::OpenOnSameThread(MessageChannel* aChannel, Side aSide) {
+bool IToplevelProtocol::OpenOnSameThread(MessageChannel* aChannel, MsgSide aSide) {
   SetOtherProcessId(base::GetCurrentProcId());
   return GetIPCChannel()->OpenOnSameThread(aChannel, aSide);
 }
@@ -655,7 +680,7 @@ int32_t IToplevelProtocol::Register(IProtocol* aRouted) {
             mEventTargetMap.Get(manager->Id())) {
       MOZ_ASSERT(!mEventTargetMap.Contains(id),
                  "Don't insert with an existing ID");
-      mEventTargetMap.Put(id, target);
+      mEventTargetMap.InsertOrUpdate(id, std::move(target));
     }
   }
 
@@ -666,7 +691,7 @@ int32_t IToplevelProtocol::RegisterID(IProtocol* aRouted, int32_t aId) {
   aRouted->SetId(aId);
   aRouted->ActorConnected();
   MOZ_ASSERT(!mActorMap.Contains(aId), "Don't insert with an existing ID");
-  mActorMap.Put(aId, aRouted);
+  mActorMap.InsertOrUpdate(aId, aRouted);
   return aId;
 }
 
@@ -712,7 +737,7 @@ Shmem::SharedMemory* IToplevelProtocol::CreateSharedMemory(
   *aId = shmem.Id(Shmem::PrivateIPDLCaller());
   Shmem::SharedMemory* rawSegment = segment.get();
   MOZ_ASSERT(!mShmemMap.Contains(*aId), "Don't insert with an existing ID");
-  mShmemMap.Put(*aId, segment.forget().take());
+  mShmemMap.InsertOrUpdate(*aId, segment.forget().take());
   return rawSegment;
 }
 
@@ -767,7 +792,7 @@ bool IToplevelProtocol::ShmemCreated(const Message& aMsg) {
     return false;
   }
   MOZ_ASSERT(!mShmemMap.Contains(id), "Don't insert with an existing ID");
-  mShmemMap.Put(id, rawmem.forget().take());
+  mShmemMap.InsertOrUpdate(id, rawmem.forget().take());
   return true;
 }
 
@@ -813,7 +838,7 @@ already_AddRefed<nsISerialEventTarget> IToplevelProtocol::GetMessageEventTarget(
     MOZ_ASSERT(existingTgt == target || existingTgt == nullptr);
 #endif /* DEBUG */
 
-    mEventTargetMap.Put(handle.mId, target);
+    mEventTargetMap.InsertOrUpdate(handle.mId, nsCOMPtr{target});
   }
 
   return target.forget();
@@ -854,7 +879,7 @@ void IToplevelProtocol::SetEventTargetForActorInternal(
 
   MutexAutoLock lock(mEventTargetMutex);
   // FIXME bug 1445121 - sometimes the id is already mapped.
-  mEventTargetMap.Put(id, aEventTarget);
+  mEventTargetMap.InsertOrUpdate(id, nsCOMPtr{aEventTarget});
 }
 
 void IToplevelProtocol::ReplaceEventTargetForActor(
@@ -868,7 +893,7 @@ void IToplevelProtocol::ReplaceEventTargetForActor(
 
   MutexAutoLock lock(mEventTargetMutex);
   MOZ_ASSERT(mEventTargetMap.Contains(id), "Only replace an existing ID");
-  mEventTargetMap.Put(id, aEventTarget);
+  mEventTargetMap.InsertOrUpdate(id, nsCOMPtr{aEventTarget});
 }
 
 void IToplevelProtocol::SetEventTargetForRoute(
@@ -878,7 +903,7 @@ void IToplevelProtocol::SetEventTargetForRoute(
 
   MutexAutoLock lock(mEventTargetMutex);
   MOZ_ASSERT(!mEventTargetMap.Lookup(aRoute));
-  mEventTargetMap.Put(aRoute, aEventTarget);
+  mEventTargetMap.InsertOrUpdate(aRoute, aEventTarget);
 }
 
 }  // namespace ipc

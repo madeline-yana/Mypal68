@@ -22,7 +22,7 @@
 #include "mozilla/dom/PBackgroundSDBConnectionChild.h"
 #include "mozilla/dom/PFileSystemRequestChild.h"
 #ifdef THE_REPORTING
-#include "mozilla/dom/EndpointForReportChild.h"
+#  include "mozilla/dom/EndpointForReportChild.h"
 #endif
 #include "mozilla/dom/FileSystemTaskBase.h"
 #include "mozilla/dom/PMediaTransportChild.h"
@@ -30,14 +30,17 @@
 #include "mozilla/dom/cache/ActorUtils.h"
 #include "mozilla/dom/indexedDB/PBackgroundIDBFactoryChild.h"
 #include "mozilla/dom/indexedDB/PBackgroundIndexedDBUtilsChild.h"
+#include "mozilla/dom/indexedDB/ThreadLocal.h"
 #include "mozilla/dom/quota/PQuotaChild.h"
 #include "mozilla/dom/RemoteWorkerChild.h"
 #include "mozilla/dom/RemoteWorkerServiceChild.h"
 #include "mozilla/dom/ServiceWorkerChild.h"
 #include "mozilla/dom/SharedWorkerChild.h"
 #include "mozilla/dom/StorageIPC.h"
-#include "mozilla/dom/GamepadEventChannelChild.h"
-#include "mozilla/dom/GamepadTestChannelChild.h"
+#ifdef MOZ_GAMEPAD
+#  include "mozilla/dom/GamepadEventChannelChild.h"
+#  include "mozilla/dom/GamepadTestChannelChild.h"
+#endif
 #include "mozilla/dom/LocalStorage.h"
 #include "mozilla/dom/MessagePortChild.h"
 #include "mozilla/dom/ServiceWorkerActors.h"
@@ -284,7 +287,7 @@ bool BackgroundChildImpl::DeallocPBackgroundLSSimpleRequestChild(
 
 BackgroundChildImpl::PBackgroundStorageChild*
 BackgroundChildImpl::AllocPBackgroundStorageChild(
-    const nsString& aProfilePath) {
+    const nsString& aProfilePath, const uint32_t& aPrivateBrowsingId) {
   MOZ_CRASH("PBackgroundStorageChild actors should be manually constructed!");
 }
 
@@ -591,6 +594,7 @@ bool BackgroundChildImpl::DeallocPMIDIManagerChild(PMIDIManagerChild* aActor) {
 }
 
 // Gamepad API Background IPC
+#ifdef MOZ_GAMEPAD
 dom::PGamepadEventChannelChild*
 BackgroundChildImpl::AllocPGamepadEventChannelChild() {
   MOZ_CRASH("PGamepadEventChannelChild actor should be manually constructed!");
@@ -616,6 +620,7 @@ bool BackgroundChildImpl::DeallocPGamepadTestChannelChild(
   delete static_cast<dom::GamepadTestChannelChild*>(aActor);
   return true;
 }
+#endif
 
 mozilla::dom::PClientManagerChild*
 BackgroundChildImpl::AllocPClientManagerChild() {
@@ -697,6 +702,17 @@ bool BackgroundChildImpl::DeallocPMediaTransportChild(
     dom::PMediaTransportChild* aActor) {
   delete aActor;
   return true;
+}
+
+PChildToParentStreamChild*
+BackgroundChildImpl::SendPChildToParentStreamConstructor(
+    PChildToParentStreamChild* aActor) {
+  return PBackgroundChild::SendPChildToParentStreamConstructor(aActor);
+}
+
+PFileDescriptorSetChild* BackgroundChildImpl::SendPFileDescriptorSetConstructor(
+    const FileDescriptor& aFD) {
+  return PBackgroundChild::SendPFileDescriptorSetConstructor(aFD);
 }
 
 }  // namespace ipc

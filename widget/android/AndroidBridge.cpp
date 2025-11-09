@@ -49,7 +49,7 @@ using namespace mozilla::java;
 
 AndroidBridge* AndroidBridge::sBridge = nullptr;
 static jobject sGlobalContext = nullptr;
-nsDataHashtable<nsStringHashKey, nsString> AndroidBridge::sStoragePaths;
+nsTHashMap<nsStringHashKey, nsString> AndroidBridge::sStoragePaths;
 
 jmethodID AndroidBridge::GetMethodID(JNIEnv* env, jclass jClass,
                                      const char* methodName,
@@ -181,10 +181,7 @@ AndroidBridge::AndroidBridge() {
 static void getHandlersFromStringArray(
     JNIEnv* aJNIEnv, jni::ObjectArray::Param aArr, size_t aLen,
     nsIMutableArray* aHandlersArray, nsIHandlerApp** aDefaultApp,
-    const nsAString& aAction = EmptyString(),
-    const nsACString& aMimeType = EmptyCString()) {
-  nsString empty = EmptyString();
-
+    const nsAString& aAction = u""_ns, const nsACString& aMimeType = ""_ns) {
   auto getNormalizedString = [](jni::Object::Param obj) -> nsString {
     nsString out;
     if (!obj) {

@@ -10,6 +10,7 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/layers/CompositorBridgeChild.h"
 
+#include "gfxBlur.h"
 #include "gfxImageSurface.h"
 #include "gfxWindowsSurface.h"
 

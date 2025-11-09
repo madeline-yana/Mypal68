@@ -151,9 +151,6 @@ class nsHtml5StreamParser final : public nsICharsetDetectionObserver {
   nsHtml5StreamParser(nsHtml5TreeOpExecutor* aExecutor, nsHtml5Parser* aOwner,
                       eParserMode aMode);
 
-  // Methods that nsHtml5StreamListener calls
-  nsresult CheckListenerChain();
-
   nsresult OnStartRequest(nsIRequest* aRequest);
 
   nsresult OnDataAvailable(nsIRequest* aRequest, nsIInputStream* aInStream,
@@ -190,11 +187,6 @@ class nsHtml5StreamParser final : public nsICharsetDetectionObserver {
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
     mEncoding = aEncoding;
     mCharsetSource = aSource;
-  }
-
-  inline void SetObserver(nsIRequestObserver* aObserver) {
-    NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    mObserver = aObserver;
   }
 
   nsresult GetChannel(nsIChannel** aChannel);
@@ -405,7 +397,6 @@ class nsHtml5StreamParser final : public nsICharsetDetectionObserver {
   inline void OnContentComplete();
 
   nsCOMPtr<nsIRequest> mRequest;
-  nsCOMPtr<nsIRequestObserver> mObserver;
 
   /**
    * The document title to use if this turns out to be a View Source parser.

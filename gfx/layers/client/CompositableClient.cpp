@@ -124,18 +124,8 @@ void CompositableClient::HandleMemoryPressure() {
   }
 }
 
-void CompositableClient::RemoveTexture(TextureClient* aTexture
-#ifdef MOZ_BUILD_WEBRENDER
-                                       ,
-                                       const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-) {
-  mForwarder->RemoveTextureFromCompositable(this, aTexture
-#ifdef MOZ_BUILD_WEBRENDER
-                                            ,
-                                            aRenderRoot
-#endif
-  );
+void CompositableClient::RemoveTexture(TextureClient* aTexture) {
+  mForwarder->RemoveTextureFromCompositable(this, aTexture);
 }
 
 TextureClientRecycleAllocator* CompositableClient::GetTextureClientRecycler() {
@@ -207,12 +197,7 @@ void CompositableClient::DumpTextureClient(std::stringstream& aStream,
 
 AutoRemoveTexture::~AutoRemoveTexture() {
   if (mCompositable && mTexture && mCompositable->IsConnected()) {
-    mCompositable->RemoveTexture(mTexture
-#ifdef MOZ_BUILD_WEBRENDER
-                                 ,
-                                 Some(mRenderRoot)
-#endif
-    );
+    mCompositable->RemoveTexture(mTexture);
   }
 }
 

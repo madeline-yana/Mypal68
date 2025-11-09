@@ -11,7 +11,7 @@
 
 #include "gfxFontUtils.h"
 #include "nsClassHashtable.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 
 // This is split out from SharedFontList.h because that header is included
 // quite widely (via gfxPlatformFontList.h, gfxTextRun.h, etc), and other code
@@ -34,14 +34,14 @@ namespace fontlist {
 struct AliasData {
   nsTArray<Pointer> mFaces;
   uint32_t mIndex = 0;
-  bool mHidden = false;
+  FontVisibility mVisibility = FontVisibility::Unknown;
   bool mBundled = false;
   bool mBadUnderline = false;
   bool mForceClassic = false;
 
   void InitFromFamily(const Family* aFamily) {
     mIndex = aFamily->Index();
-    mHidden = aFamily->IsHidden();
+    mVisibility = aFamily->Visibility();
     mBundled = aFamily->IsBundled();
     mBadUnderline = aFamily->IsBadUnderlineFamily();
     mForceClassic = aFamily->IsForceClassic();
@@ -131,16 +131,14 @@ class FontList {
    *
    * Only used in the parent process.
    */
-  void SetLocalNames(nsDataHashtable<nsCStringHashKey, LocalFaceRec::InitData>&
-                         aLocalNameTable);
+  void SetLocalNames(
+      nsTHashMap<nsCStringHashKey, LocalFaceRec::InitData>& aLocalNameTable);
 
   /**
    * Look up a Family record by name, typically to satisfy the font-family
    * property or a font family listed in preferences.
-   * If aAllowHidden is true, "system" font families normally not exposed
-   * to users may be found.
    */
-  Family* FindFamily(const nsCString& aName, bool aAllowHidden = false);
+  Family* FindFamily(const nsCString& aName);
 
   /**
    * Look up an individual Face by PostScript or Full name, for @font-face

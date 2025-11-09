@@ -65,6 +65,9 @@ class ProfilerParent final : public PProfilerParent {
   // Create a "Final" update that the Child can return to its Parent.
   static ProfileBufferChunkManagerUpdate MakeFinalUpdate();
 
+  // True if the ProfilerParent holds a lock on this thread.
+  static bool IsLockedOnCurrentThread();
+
  private:
   friend class ProfileBufferGlobalController;
   friend class ProfilerParentTracker;

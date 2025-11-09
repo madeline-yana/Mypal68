@@ -54,9 +54,8 @@
 
 void CanRunScriptChecker::registerMatchers(MatchFinder *AstMatcher) {
   auto Refcounted = qualType(hasDeclaration(cxxRecordDecl(isRefCounted())));
-  auto StackSmartPtr =
-      ignoreTrivials(declRefExpr(to(varDecl(hasAutomaticStorageDuration(),
-                                            hasType(isSmartPtrToRefCounted())))));
+  auto StackSmartPtr = ignoreTrivials(declRefExpr(to(varDecl(
+      hasAutomaticStorageDuration(), hasType(isSmartPtrToRefCounted())))));
   auto ConstMemberOfThisSmartPtr =
       memberExpr(hasType(isSmartPtrToRefCounted()), hasType(isConstQualified()),
                  hasObjectExpression(cxxThisExpr()));
@@ -76,12 +75,18 @@ void CanRunScriptChecker::registerMatchers(MatchFinder *AstMatcher) {
 
   // Params of the calling function are presumed live, because it itself should
   // be MOZ_CAN_RUN_SCRIPT.  Note that this is subject to
-  // https://bugzilla.mozilla.org/show_bug.cgi?id=1537656 a the moment.
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1537656 at the moment.
   auto KnownLiveParam = anyOf(
       // "this" is OK
       cxxThisExpr(),
       // A parameter of the calling function is OK.
       declRefExpr(to(parmVarDecl())));
+
+  auto KnownLiveMemberOfParam =
+      memberExpr(hasKnownLiveAnnotation(),
+                 hasObjectExpression(anyOf(
+                     ignoreTrivials(KnownLiveParam),
+                     declRefExpr(to(varDecl(hasAutomaticStorageDuration()))))));
 
   // A matcher that matches various things that are known to be live directly,
   // without making any assumptions about operators.
@@ -92,6 +97,8 @@ void CanRunScriptChecker::registerMatchers(MatchFinder *AstMatcher) {
       MozKnownLiveCall,
       // Params of the caller function.
       KnownLiveParam,
+      // Members of the params that are marked as MOZ_KNOWN_LIVE
+      KnownLiveMemberOfParam,
       // Constexpr things.
       declRefExpr(to(varDecl(isConstexpr()))));
 
@@ -106,11 +113,17 @@ void CanRunScriptChecker::registerMatchers(MatchFinder *AstMatcher) {
       // example).  For purposes of this analysis we are assuming the method
       // calls on smart ptrs all just return the pointer inside,
       cxxMemberCallExpr(
-          on(allOf(hasType(isSmartPtrToRefCounted()), KnownLiveBase))),
+          on(anyOf(allOf(hasType(isSmartPtrToRefCounted()), KnownLiveBase),
+                   // Allow it if calling a member method which is marked as
+                   // MOZ_KNOWN_LIVE
+                   KnownLiveMemberOfParam))),
       // operator* or operator-> on a thing that is already known to be live.
-      cxxOperatorCallExpr(anyOf(hasOverloadedOperatorName("*"),
-                                hasOverloadedOperatorName("->")),
-                          hasAnyArgument(KnownLiveBase), argumentCountIs(1)),
+      cxxOperatorCallExpr(
+          anyOf(hasOverloadedOperatorName("*"),
+                hasOverloadedOperatorName("->")),
+          hasAnyArgument(
+              anyOf(KnownLiveBase, ignoreTrivials(KnownLiveMemberOfParam))),
+          argumentCountIs(1)),
       // A dereference on a thing that is known to be live.  This is _not_
       // caught by the "operator* or operator->" clause above, because
       // cxxOperatorCallExpr() only catches cases when a class defines

@@ -16,8 +16,8 @@
 #include "gfxMacPlatformFontList.h"
 #include "gfxFontConstants.h"
 #include "gfxTextRun.h"
+#include "gfxUtils.h"
 #include "nsCocoaFeatures.h"
-
 #include "cairo-quartz.h"
 
 using namespace mozilla;

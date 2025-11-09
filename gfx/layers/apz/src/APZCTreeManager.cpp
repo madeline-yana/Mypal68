@@ -500,7 +500,7 @@ APZCTreeManager::UpdateHitTestingTreeImpl(const ScrollNode& aRoot,
           parent = node;
           next = nullptr;
 
-          // Update the layersId or renderroot if we have a new one
+          // Update the layersId if we have a new one
           if (Maybe<LayersId> newLayersId = aLayerMetrics.GetReferentId()) {
             layersId = *newLayersId;
             seenLayersIds.insert(layersId);
@@ -674,18 +674,13 @@ void APZCTreeManager::UpdateHitTestingTree(
 }
 
 void APZCTreeManager::SampleForWebRender(wr::TransactionWrapper& aTxn,
-                                         const TimeStamp& aSampleTime,
-                                         wr::RenderRoot aRenderRoot) {
+                                         const TimeStamp& aSampleTime) {
   AssertOnSamplerThread();
   MutexAutoLock lock(mMapLock);
 
   bool activeAnimations = false;
   for (const auto& mapping : mApzcMap) {
     AsyncPanZoomController* apzc = mapping.second;
-    if (apzc->GetRenderRoot() != aRenderRoot) {
-      // If this APZC belongs to a different render root, skip over it
-      continue;
-    }
     activeAnimations |= apzc->AdvanceAnimations(aSampleTime);
   }
   if (activeAnimations) {
@@ -695,8 +690,7 @@ void APZCTreeManager::SampleForWebRender(wr::TransactionWrapper& aTxn,
           controller = aState.GetCompositorController();
         });
     if (controller) {
-      controller->ScheduleRenderOnCompositorThread(
-          wr::RenderRootSet(aRenderRoot));
+      controller->ScheduleRenderOnCompositorThread();
     }
   }
 
@@ -705,10 +699,6 @@ void APZCTreeManager::SampleForWebRender(wr::TransactionWrapper& aTxn,
   // Sample async transforms on scrollable layers.
   for (const auto& mapping : mApzcMap) {
     AsyncPanZoomController* apzc = mapping.second;
-    if (apzc->GetRenderRoot() != aRenderRoot) {
-      // If this APZC belongs to a different render root, skip over it
-      continue;
-    }
 
     const AsyncTransformComponents asyncTransformComponents =
         apzc->GetZoomAnimationId()
@@ -782,10 +772,6 @@ void APZCTreeManager::SampleForWebRender(wr::TransactionWrapper& aTxn,
     }
     AsyncPanZoomController* scrollTargetApzc = it->second;
     MOZ_ASSERT(scrollTargetApzc);
-    if (scrollTargetApzc->GetRenderRoot() != aRenderRoot) {
-      // If this APZC belongs to a different render root, skip over it
-      continue;
-    }
     LayerToParentLayerMatrix4x4 transform =
         scrollTargetApzc->CallWithLastContentPaintMetrics(
             [&](const FrameMetrics& aMetrics) {
@@ -2640,7 +2626,7 @@ APZCTreeManager::HitTestResult APZCTreeManager::GetAPZCAtPointWR(
     const ScreenPoint& aHitTestPoint,
     const RecursiveMutexAutoLock& aProofOfTreeLock) {
   HitTestResult hit;
-  RefPtr<wr::WebRenderAPI> wr = GetWebRenderAPIAtPoint(aHitTestPoint);
+  RefPtr<wr::WebRenderAPI> wr = GetWebRenderAPI();
   if (!wr) {
     // If WebRender isn't running, fall back to the root APZC.
     // This is mostly for the benefit of GTests which do not
@@ -3326,25 +3312,12 @@ LayerToParentLayerMatrix4x4 APZCTreeManager::ComputeTransformForNode(
 }
 
 #ifdef MOZ_BUILD_WEBRENDER
-already_AddRefed<wr::WebRenderAPI> APZCTreeManager::GetWebRenderAPI(
-    wr::RenderRoot aRenderRoot) const {
+already_AddRefed<wr::WebRenderAPI> APZCTreeManager::GetWebRenderAPI() const {
   RefPtr<wr::WebRenderAPI> api;
   CompositorBridgeParent::CallWithIndirectShadowTree(
       mRootLayersId, [&](LayerTreeState& aState) -> void {
         if (aState.mWrBridge) {
-          api = aState.mWrBridge->GetWebRenderAPI(aRenderRoot);
-        }
-      });
-  return api.forget();
-}
-
-already_AddRefed<wr::WebRenderAPI> APZCTreeManager::GetWebRenderAPIAtPoint(
-    const ScreenPoint& aPoint) const {
-  RefPtr<wr::WebRenderAPI> api;
-  CompositorBridgeParent::CallWithIndirectShadowTree(
-      mRootLayersId, [&](LayerTreeState& aState) -> void {
-        if (aState.mWrBridge) {
-          api = aState.mWrBridge->GetWebRenderAPIAtPoint(aPoint);
+          api = aState.mWrBridge->GetWebRenderAPI();
         }
       });
   return api.forget();

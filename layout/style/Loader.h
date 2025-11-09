@@ -20,7 +20,7 @@
 #include "mozilla/UniquePtr.h"
 #include "nsCompatibility.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsIPrincipal.h"
 #include "nsRefPtrHashtable.h"
 #include "nsStringFwd.h"
@@ -314,6 +314,10 @@ class Loader final {
 
   // Measure our size.
   size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
+
+  // The loader principal is the document's node principal, if this loader is
+  // owned by a document, or the system principal otherwise.
+  nsIPrincipal* LoaderPrincipal() const;
 
  private:
   friend class SheetLoadData;

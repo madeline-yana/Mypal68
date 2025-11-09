@@ -11,6 +11,7 @@
 #include "nsArrayEnumerator.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
+#include "nsTArray.h"
 
 class nsPIDOMWindowOuter;
 class nsIWidget;

@@ -89,8 +89,8 @@ AboutNewTabService.prototype = {
 
   classID: Components.ID("{dfcd2adc-7867-4d3a-ba70-17501f208142}"),
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIAboutNewTabService,
-    Ci.nsIObserver,
+    "nsIAboutNewTabService",
+    "nsIObserver",
   ]),
 
   observe(subject, topic, data) {

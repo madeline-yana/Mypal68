@@ -12,7 +12,8 @@
 
 namespace mozilla {
 
-DataMutex<ProfilerChild::ProfilerChildAndUpdate>
+/* static */ DataMutexBase<ProfilerChild::ProfilerChildAndUpdate,
+                           baseprofiler::detail::BaseProfilerMutex>
     ProfilerChild::sPendingChunkManagerUpdate;
 //        {"ProfilerChild::sPendingChunkManagerUpdate"};
 
@@ -97,6 +98,10 @@ void ProfilerChild::ProcessChunkManagerUpdate(
             std::move(lockedUpdate->mUpdate));
         lockedUpdate->mUpdate.Clear();
       }));
+}
+
+/* static */ bool ProfilerChild::IsLockedOnCurrentThread() {
+  return sPendingChunkManagerUpdate.Mutex().IsLockedOnCurrentThread();
 }
 
 void ProfilerChild::SetupChunkManager() {

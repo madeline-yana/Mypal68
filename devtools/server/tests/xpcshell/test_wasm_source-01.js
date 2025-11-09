@@ -5,7 +5,7 @@
 "use strict";
 
 /**
- * Verify if client can receive binary wasm if 'wasmBinarySource' is set.
+ * Verify if client can receive binary wasm
  */
 
 var gDebuggee;
@@ -19,7 +19,7 @@ add_task(
 
       await gThreadFront.reconfigure({
         observeAsmJS: true,
-        wasmBinarySource: true,
+        observeWasm: true,
       });
 
       test_source();

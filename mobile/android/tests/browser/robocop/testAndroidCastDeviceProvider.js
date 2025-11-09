@@ -52,7 +52,7 @@ function TestDescription(aType, aTcpAddress, aTcpPort) {
 
 TestDescription.prototype = {
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIPresentationChannelDescription,
+    "nsIPresentationChannelDescription",
   ]),
 };
 
@@ -105,7 +105,7 @@ TestControlChannelListener.prototype = {
     this._isOnIceCandidateCalledResolve();
   },
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIPresentationControlChannelListener,
+    "nsIPresentationControlChannelListener",
   ]),
 };
 
@@ -136,8 +136,8 @@ function deviceManagement() {
       this._isRemoveDeviceCalledResolve();
     },
     QueryInterface: ChromeUtils.generateQI([
-      Ci.nsIPresentationDeviceListener,
-      Ci.nsISupportsWeakReference,
+      "nsIPresentationDeviceListener",
+      "nsISupportsWeakReference",
     ]),
     count: function() {
       let cnt = 0;
@@ -265,8 +265,8 @@ function presentationLaunchAndTerminate() {
       delete this.devices[aDevice.id];
     },
     QueryInterface: ChromeUtils.generateQI([
-      Ci.nsIPresentationDeviceListener,
-      Ci.nsISupportsWeakReference,
+      "nsIPresentationDeviceListener",
+      "nsISupportsWeakReference",
     ]),
     onSessionRequest: function(
       aDeviceId,

@@ -81,8 +81,8 @@ const kPrefBranch = Services.prefs.getBranch("browser.download.");
 
 var PrefObserver = {
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIObserver,
-    Ci.nsISupportsWeakReference,
+    "nsIObserver",
+    "nsISupportsWeakReference",
   ]),
   getPref(name) {
     try {

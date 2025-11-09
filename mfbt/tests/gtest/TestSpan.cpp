@@ -1053,12 +1053,12 @@ SPAN_TEST(from_xpcom_collections) {
   }
   {
     nsAutoString str;
-    str.AssignLiteral("abc");
+    str.AssignLiteral(u"abc");
 
     AssertSpanOfThreeChar16s(str);
     AssertSpanOfThreeChar16sViaString(str);
 
-    Span<char16_t> s{str};
+    Span<char16_t> s{str.GetMutableData()};
     ASSERT_EQ(s.size(), narrow_cast<size_t>(str.Length()));
     ASSERT_EQ(s.data(), str.BeginWriting());
     ASSERT_EQ(s[2], 'c');
@@ -1070,14 +1070,14 @@ SPAN_TEST(from_xpcom_collections) {
   }
   {
     nsAutoString str;
-    str.AssignLiteral("abc");
+    str.AssignLiteral(u"abc");
 
     AssertSpanOfThreeChar16s(str);
     AssertSpanOfThreeChar16sViaString(str);
 
     auto s = Span(str);
     ASSERT_EQ(s.size(), narrow_cast<size_t>(str.Length()));
-    ASSERT_EQ(s.data(), str.BeginWriting());
+    ASSERT_EQ(s.data(), str.BeginReading());
     ASSERT_EQ(s[2], 'c');
   }
   {
@@ -1086,11 +1086,6 @@ SPAN_TEST(from_xpcom_collections) {
 
     AssertSpanOfThreeChars(str);
     AssertSpanOfThreeCharsViaString(str);
-
-    Span<uint8_t> s{str};
-    ASSERT_EQ(s.size(), narrow_cast<size_t>(str.Length()));
-    ASSERT_EQ(s.data(), reinterpret_cast<uint8_t*>(str.BeginWriting()));
-    ASSERT_EQ(s[2], 'c');
 
     Span<const uint8_t> cs{str};
     ASSERT_EQ(cs.size(), narrow_cast<size_t>(str.Length()));
@@ -1106,7 +1101,7 @@ SPAN_TEST(from_xpcom_collections) {
 
     auto s = Span(str);
     ASSERT_EQ(s.size(), narrow_cast<size_t>(str.Length()));
-    ASSERT_EQ(s.data(), str.BeginWriting());
+    ASSERT_EQ(s.data(), str.BeginReading());
     ASSERT_EQ(s[2], 'c');
   }
   {

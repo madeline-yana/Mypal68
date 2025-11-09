@@ -5,6 +5,7 @@
 #include "VRManagerParent.h"
 #include "ipc/VRLayerParent.h"
 #include "mozilla/gfx/PVRManagerParent.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/ProtocolTypes.h"
 #include "mozilla/ipc/ProtocolUtils.h"  // for IToplevelProtocol
 #include "mozilla/TimeStamp.h"          // for TimeStamp

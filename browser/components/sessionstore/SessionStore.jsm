@@ -175,16 +175,17 @@ const RESTORE_TAB_CONTENT_REASON = {
 // 'browser.startup.page' preference value to resume the previous session.
 const BROWSER_STARTUP_RESUME_SESSION = 3;
 
-ChromeUtils.import("resource://gre/modules/PrivateBrowsingUtils.jsm", this);
-ChromeUtils.import("resource://gre/modules/Services.jsm", this);
-ChromeUtils.import("resource://gre/modules/TelemetryTimestamps.jsm", this);
-ChromeUtils.import("resource://gre/modules/Timer.jsm", this);
-ChromeUtils.import("resource://gre/modules/XPCOMUtils.jsm", this);
-ChromeUtils.import("resource://gre/modules/osfile.jsm", this);
+const { PrivateBrowsingUtils } = ChromeUtils.import(
+  "resource://gre/modules/PrivateBrowsingUtils.jsm"
+);
+const { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
+const { XPCOMUtils } = ChromeUtils.import(
+  "resource://gre/modules/XPCOMUtils.jsm"
+);
+const { OS } = ChromeUtils.import("resource://gre/modules/osfile.jsm");
 
 XPCOMUtils.defineLazyServiceGetters(this, {
   gScreenManager: ["@mozilla.org/gfx/screenmanager;1", "nsIScreenManager"],
-  Telemetry: ["@mozilla.org/base/telemetry;1", "nsITelemetry"],
 });
 
 XPCOMUtils.defineLazyModuleGetters(this, {
@@ -486,8 +487,8 @@ Object.freeze(SessionStore);
 
 var SessionStoreInternal = {
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIObserver,
-    Ci.nsISupportsWeakReference,
+    "nsIObserver",
+    "nsISupportsWeakReference",
   ]),
 
   _globalState: new GlobalState(),
@@ -683,7 +684,6 @@ var SessionStoreInternal = {
       throw new Error("SessionStore.init() must only be called once!");
     }
 
-    TelemetryTimestamps.add("sessionRestoreInitialized");
     OBSERVING.forEach(function(aTopic) {
       Services.obs.addObserver(this, aTopic, true);
     }, this);
@@ -691,16 +691,12 @@ var SessionStoreInternal = {
     this._initPrefs();
     this._initialized = true;
 
-    Telemetry.getHistogramById("FX_SESSION_RESTORE_PRIVACY_LEVEL").add(
-      Services.prefs.getIntPref("browser.sessionstore.privacy_level")
-    );
   },
 
   /**
    * Initialize the session using the state provided by SessionStartup
    */
   initSession() {
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_STARTUP_INIT_SESSION_MS");
     let state;
     let ss = SessionStartup;
 
@@ -785,7 +781,6 @@ var SessionStoreInternal = {
       this._prefBranch.setBoolPref("sessionstore.resume_session_once", false);
     }
 
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_STARTUP_INIT_SESSION_MS");
     return state;
   },
 
@@ -1327,7 +1322,6 @@ var SessionStoreInternal = {
           );
           this._deferredAllWindowsRestored.resolve();
         } else {
-          TelemetryTimestamps.add("sessionRestoreRestoring");
           this._restoreCount = aInitialState.windows
             ? aInitialState.windows.length
             : 0;
@@ -1520,13 +1514,7 @@ var SessionStoreInternal = {
           if (initialState) {
             Services.obs.notifyObservers(null, NOTIFY_RESTORING_ON_STARTUP);
           }
-          TelemetryStopwatch.start(
-            "FX_SESSION_RESTORE_STARTUP_ONLOAD_INITIAL_WINDOW_MS"
-          );
           this.initializeWindow(aWindow, initialState);
-          TelemetryStopwatch.finish(
-            "FX_SESSION_RESTORE_STARTUP_ONLOAD_INITIAL_WINDOW_MS"
-          );
 
           // Let everyone know we're done.
           this._deferredInitialized.resolve();
@@ -2606,6 +2594,8 @@ var SessionStoreInternal = {
     ) {
       return;
     }
+
+    aChannel.QueryInterface(Ci.nsIHttpChannel);
 
     if (!aChannel.isDocument || !aChannel.loadInfo) {
       return; // Not a document load.
@@ -3842,7 +3832,6 @@ var SessionStoreInternal = {
 
     var activeWindow = this._getTopWindow();
 
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_COLLECT_ALL_WINDOWS_DATA_MS");
     if (RunState.isRunning) {
       // update the data for all windows with activities since the last save operation.
       let index = 0;
@@ -3861,7 +3850,6 @@ var SessionStoreInternal = {
       }
       DirtyWindows.clear();
     }
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_COLLECT_ALL_WINDOWS_DATA_MS");
 
     // An array that at the end will hold all current window data.
     var total = [];
@@ -4063,8 +4051,6 @@ var SessionStoreInternal = {
       this.onLoad(aWindow);
     }
 
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_RESTORE_WINDOW_MS");
-
     // We're not returning from this before we end up calling restoreTabs
     // for this window, so make sure we send the SSWindowStateBusy event.
     this._setWindowStateBusy(aWindow);
@@ -4253,8 +4239,6 @@ var SessionStoreInternal = {
 
     // set smoothScroll back to the original value
     arrowScrollbox.smoothScroll = smoothScroll;
-
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_RESTORE_WINDOW_MS");
 
     this._setWindowStateReady(aWindow);
 

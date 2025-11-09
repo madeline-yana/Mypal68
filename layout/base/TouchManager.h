@@ -70,7 +70,7 @@ class TouchManager {
     nsCOMPtr<nsIContent> mNonAnonymousTarget;
     bool mConvertToPointer;
   };
-  static nsDataHashtable<nsUint32HashKey, TouchInfo>* sCaptureTouchList;
+  static nsTHashMap<nsUint32HashKey, TouchInfo>* sCaptureTouchList;
 };
 
 }  // namespace mozilla

@@ -25,20 +25,14 @@ void CompositorAnimationStorage::Clear() {
   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   mAnimatedValues.Clear();
-  mAnimations.Clear();
-#ifdef MOZ_BUILD_WEBRENDER
-  mAnimationRenderRoots.Clear();
-#endif
+  mAnimations.clear();
 }
 
 void CompositorAnimationStorage::ClearById(const uint64_t& aId) {
   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
 
   mAnimatedValues.Remove(aId);
-  mAnimations.Remove(aId);
-#ifdef MOZ_BUILD_WEBRENDER
-  mAnimationRenderRoots.Remove(aId);
-#endif
+  mAnimations.erase(aId);
 }
 
 AnimatedValue* CompositorAnimationStorage::GetAnimatedValue(
@@ -80,61 +74,59 @@ OMTAValue CompositorAnimationStorage::GetOMTAValue(const uint64_t& aId) const {
 }
 
 void CompositorAnimationStorage::SetAnimatedValue(
-    uint64_t aId, gfx::Matrix4x4&& aTransformInDevSpace,
-    gfx::Matrix4x4&& aFrameTransform, const TransformData& aData) {
+    uint64_t aId, AnimatedValue* aPreviousValue,
+    gfx::Matrix4x4&& aTransformInDevSpace, gfx::Matrix4x4&& aFrameTransform,
+    const TransformData& aData) {
   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
-  auto count = mAnimatedValues.Count();
-  AnimatedValue* value = mAnimatedValues.LookupOrAdd(
-      aId, std::move(aTransformInDevSpace), std::move(aFrameTransform), aData);
-  if (count == mAnimatedValues.Count()) {
-    MOZ_ASSERT(value->Is<AnimationTransform>());
-    *value = AnimatedValue(std::move(aTransformInDevSpace),
-                           std::move(aFrameTransform), aData);
+  if (!aPreviousValue) {
+    MOZ_ASSERT(!mAnimatedValues.Contains(aId));
+    mAnimatedValues.InsertOrUpdate(
+        aId, MakeUnique<AnimatedValue>(std::move(aTransformInDevSpace),
+                                       std::move(aFrameTransform), aData));
+    return;
   }
-}
+  MOZ_ASSERT(aPreviousValue->Is<AnimationTransform>());
+  MOZ_ASSERT(aPreviousValue == GetAnimatedValue(aId));
 
-void CompositorAnimationStorage::SetAnimatedValue(
-    uint64_t aId, gfx::Matrix4x4&& aTransformInDevSpace) {
-  MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
-  const TransformData dontCare = {};
-  SetAnimatedValue(aId, std::move(aTransformInDevSpace), gfx::Matrix4x4(),
-                   dontCare);
+  aPreviousValue->SetTransform(std::move(aTransformInDevSpace),
+                               std::move(aFrameTransform), aData);
 }
 
 void CompositorAnimationStorage::SetAnimatedValue(uint64_t aId,
+                                                  AnimatedValue* aPreviousValue,
                                                   nscolor aColor) {
   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
-  auto count = mAnimatedValues.Count();
-  AnimatedValue* value = mAnimatedValues.LookupOrAdd(aId, aColor);
-  if (count == mAnimatedValues.Count()) {
-    MOZ_ASSERT(value->Is<nscolor>());
-    *value = AnimatedValue(aColor);
+  if (!aPreviousValue) {
+    MOZ_ASSERT(!mAnimatedValues.Contains(aId));
+    mAnimatedValues.InsertOrUpdate(aId, MakeUnique<AnimatedValue>(aColor));
+    return;
   }
+
+  MOZ_ASSERT(aPreviousValue->Is<nscolor>());
+  MOZ_ASSERT(aPreviousValue == GetAnimatedValue(aId));
+  aPreviousValue->SetColor(aColor);
 }
 
 void CompositorAnimationStorage::SetAnimatedValue(uint64_t aId,
-                                                  const float& aOpacity) {
+                                                  AnimatedValue* aPreviousValue,
+                                                  float aOpacity) {
   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
-  auto count = mAnimatedValues.Count();
-  AnimatedValue* value = mAnimatedValues.LookupOrAdd(aId, aOpacity);
-  if (count == mAnimatedValues.Count()) {
-    MOZ_ASSERT(value->Is<float>());
-    *value = AnimatedValue(aOpacity);
+  if (!aPreviousValue) {
+    MOZ_ASSERT(!mAnimatedValues.Contains(aId));
+    mAnimatedValues.InsertOrUpdate(aId, MakeUnique<AnimatedValue>(aOpacity));
+    return;
   }
+
+  MOZ_ASSERT(aPreviousValue->Is<float>());
+  MOZ_ASSERT(aPreviousValue == GetAnimatedValue(aId));
+  aPreviousValue->SetOpacity(aOpacity);
 }
 
 void CompositorAnimationStorage::SetAnimations(uint64_t aId,
-                                               const AnimationArray& aValue
-#ifdef MOZ_BUILD_WEBRENDER
-                                               ,
-                                               wr::RenderRoot aRenderRoot
-#endif
-) {
+                                               const AnimationArray& aValue) {
   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
-  mAnimations.Put(aId, AnimationHelper::ExtractAnimations(aValue));
-#ifdef MOZ_BUILD_WEBRENDER
-  mAnimationRenderRoots.Put(aId, aRenderRoot);
-#endif
+  mAnimations[aId] = std::make_unique<AnimationStorageData>(
+      AnimationHelper::ExtractAnimations(aValue));
 }
 
 enum class CanSkipCompose {
@@ -373,7 +365,7 @@ AnimationHelper::SampleResult AnimationHelper::SampleAnimationForEachNode(
   SampleResult rv =
       aAnimationValues.IsEmpty() ? SampleResult::None : SampleResult::Sampled;
   if (rv == SampleResult::Sampled) {
-    aAnimationValues.AppendElements(nonAnimatingValues);
+    aAnimationValues.AppendElements(std::move(nonAnimatingValues));
   }
   return rv;
 }
@@ -589,39 +581,39 @@ bool AnimationHelper::SampleAnimations(CompositorAnimationStorage* aStorage,
   bool isAnimating = false;
 
   // Do nothing if there are no compositor animations
-  if (!aStorage->AnimationsCount()) {
+  if (!aStorage->HasAnimations()) {
     return isAnimating;
   }
 
   // Sample the animations in CompositorAnimationStorage
-  for (auto iter = aStorage->ConstAnimationsTableIter(); !iter.Done();
-       iter.Next()) {
-    auto& animationStorageData = iter.Data();
-    if (animationStorageData.mAnimation.IsEmpty()) {
+  for (const auto& iter : aStorage->Animations()) {
+    const auto& animationStorageData = iter.second;
+    if (animationStorageData->mAnimation.IsEmpty()) {
       continue;
     }
 
     isAnimating = true;
     nsTArray<RefPtr<RawServoAnimationValue>> animationValues;
-    AnimatedValue* previousValue = aStorage->GetAnimatedValue(iter.Key());
+    AnimatedValue* previousValue = aStorage->GetAnimatedValue(iter.first);
     AnimationHelper::SampleResult sampleResult =
         AnimationHelper::SampleAnimationForEachNode(
             aPreviousFrameTime, aCurrentFrameTime, previousValue,
-            animationStorageData.mAnimation, animationValues);
+            animationStorageData->mAnimation, animationValues);
 
     if (sampleResult != AnimationHelper::SampleResult::Sampled) {
       continue;
     }
 
     const PropertyAnimationGroup& lastPropertyAnimationGroup =
-        animationStorageData.mAnimation.LastElement();
+        animationStorageData->mAnimation.LastElement();
 
     // Store the AnimatedValue
     switch (lastPropertyAnimationGroup.mProperty) {
       case eCSSProperty_opacity: {
         MOZ_ASSERT(animationValues.Length() == 1);
         aStorage->SetAnimatedValue(
-            iter.Key(), Servo_AnimationValue_GetOpacity(animationValues[0]));
+            iter.first, previousValue,
+            Servo_AnimationValue_GetOpacity(animationValues[0]));
         break;
       }
       case eCSSProperty_rotate:
@@ -632,27 +624,22 @@ bool AnimationHelper::SampleAnimations(CompositorAnimationStorage* aStorage,
       case eCSSProperty_offset_distance:
       case eCSSProperty_offset_rotate:
       case eCSSProperty_offset_anchor: {
-        MOZ_ASSERT(animationStorageData.mTransformData);
+        MOZ_ASSERT(animationStorageData->mTransformData);
+
+        const TransformData& transformData =
+            *animationStorageData->mTransformData;
+        MOZ_ASSERT(transformData.origin() == nsPoint());
 
         gfx::Matrix4x4 transform = ServoAnimationValueToMatrix4x4(
-            animationValues, *animationStorageData.mTransformData,
-            animationStorageData.mCachedMotionPath);
+            animationValues, transformData,
+            animationStorageData->mCachedMotionPath);
         gfx::Matrix4x4 frameTransform = transform;
-        // If the parent has perspective transform, then the offset into
-        // reference frame coordinates is already on this transform. If not,
-        // then we need to ask for it to be added here.
-        const TransformData& transformData =
-            *animationStorageData.mTransformData;
-        if (!transformData.hasPerspectiveParent()) {
-          nsLayoutUtils::PostTranslate(transform, transformData.origin(),
-                                       transformData.appUnitsPerDevPixel(),
-                                       transformData.snapToGrid());
-        }
 
         transform.PostScale(transformData.inheritedXScale(),
                             transformData.inheritedYScale(), 1);
 
-        aStorage->SetAnimatedValue(iter.Key(), std::move(transform),
+        aStorage->SetAnimatedValue(iter.first, previousValue,
+                                   std::move(transform),
                                    std::move(frameTransform), transformData);
         break;
       }

@@ -448,7 +448,7 @@ uint64_t Accessible::NativeLinkState() const { return 0; }
 
 bool Accessible::NativelyUnavailable() const {
   if (mContent->IsHTMLElement())
-    return mContent->AsElement()->State().HasState(NS_EVENT_STATE_DISABLED);
+    return mContent->AsElement()->IsDisabled();
 
   return mContent->IsElement() && mContent->AsElement()->AttrValueIs(
                                       kNameSpaceID_None, nsGkAtoms::disabled,
@@ -708,8 +708,7 @@ void Accessible::TakeFocus() const {
     }
   }
 
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
+  if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
     dom::AutoHandlingUserInputStatePusher inputStatePusher(true);
     // XXXbz: Can we actually have a non-element content here?
     RefPtr<dom::Element> element = dom::Element::FromNodeOrNull(focusContent);

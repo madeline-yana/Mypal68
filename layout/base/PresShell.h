@@ -40,7 +40,7 @@
 #include "nsRefreshObservers.h"
 #include "nsStringFwd.h"
 #include "nsStubDocumentObserver.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 #include "nsThreadUtils.h"
 #include "nsWeakReference.h"
 
@@ -151,7 +151,7 @@ class PresShell final : public nsStubDocumentObserver,
 
   // A set type for tracking visible frames, for use by the visibility code in
   // PresShell. The set contains nsIFrame* pointers.
-  typedef nsTHashtable<nsPtrHashKey<nsIFrame>> VisibleFrames;
+  typedef nsTHashSet<nsIFrame*> VisibleFrames;
 
  public:
   explicit PresShell(Document* aDocument);
@@ -1298,8 +1298,10 @@ class PresShell final : public nsStubDocumentObserver,
   NS_IMETHOD PhysicalMove(int16_t aDirection, int16_t aAmount,
                           bool aExtend) override;
   NS_IMETHOD CharacterMove(bool aForward, bool aExtend) override;
-  NS_IMETHOD WordMove(bool aForward, bool aExtend) override;
-  NS_IMETHOD LineMove(bool aForward, bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHOD WordMove(bool aForward,
+                                                  bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHOD LineMove(bool aForward,
+                                                  bool aExtend) override;
   NS_IMETHOD IntraLineMove(bool aForward, bool aExtend) override;
   MOZ_CAN_RUN_SCRIPT
   NS_IMETHOD PageMove(bool aForward, bool aExtend) override;
@@ -1307,7 +1309,8 @@ class PresShell final : public nsStubDocumentObserver,
   NS_IMETHOD ScrollLine(bool aForward) override;
   NS_IMETHOD ScrollCharacter(bool aRight) override;
   NS_IMETHOD CompleteScroll(bool aForward) override;
-  NS_IMETHOD CompleteMove(bool aForward, bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD CompleteMove(bool aForward,
+                                             bool aExtend) override;
   NS_IMETHOD CheckVisibility(nsINode* node, int16_t startOffset,
                              int16_t EndOffset, bool* _retval) override;
   nsresult CheckVisibilityContent(nsIContent* aNode, int16_t aStartOffset,
@@ -1674,14 +1677,14 @@ class PresShell final : public nsStubDocumentObserver,
   void RecordAlloc(void* aPtr) {
 #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
     MOZ_DIAGNOSTIC_ASSERT(!mAllocatedPointers.Contains(aPtr));
-    mAllocatedPointers.PutEntry(aPtr);
+    mAllocatedPointers.Insert(aPtr);
 #endif
   }
 
   void RecordFree(void* aPtr) {
 #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
     MOZ_DIAGNOSTIC_ASSERT(mAllocatedPointers.Contains(aPtr));
-    mAllocatedPointers.RemoveEntry(aPtr);
+    mAllocatedPointers.Remove(aPtr);
 #endif
   }
 
@@ -1838,7 +1841,7 @@ class PresShell final : public nsStubDocumentObserver,
   // Utility method to restore the root scrollframe state
   void RestoreRootScrollPosition();
 
-  void MaybeReleaseCapturingContent();
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY void MaybeReleaseCapturingContent();
 
   class DelayedEvent {
    public:
@@ -2546,11 +2549,10 @@ class PresShell final : public nsStubDocumentObserver,
      * @param aEventStatus              [in/out] The status of aEvent.
      * @param aOverrideClickTarget      Override click event target.
      */
-    MOZ_CAN_RUN_SCRIPT
-    nsresult DispatchEvent(EventStateManager* aEventStateManager,
-                           WidgetEvent* aEvent, bool aTouchIsNew,
-                           nsEventStatus* aEventStatus,
-                           nsIContent* aOverrideClickTarget);
+    MOZ_CAN_RUN_SCRIPT nsresult
+    DispatchEvent(EventStateManager* aEventStateManager, WidgetEvent* aEvent,
+                  bool aTouchIsNew, nsEventStatus* aEventStatus,
+                  nsIContent* aOverrideClickTarget);
 
     /**
      * DispatchEventToDOM() actually dispatches aEvent into the DOM tree.
@@ -2560,9 +2562,9 @@ class PresShell final : public nsStubDocumentObserver,
      * @param aEventCB          The callback kicked when the event moves
      *                          from the default group to the system group.
      */
-    nsresult DispatchEventToDOM(WidgetEvent* aEvent,
-                                nsEventStatus* aEventStatus,
-                                nsPresShellEventCB* aEventCB);
+    MOZ_CAN_RUN_SCRIPT nsresult
+    DispatchEventToDOM(WidgetEvent* aEvent, nsEventStatus* aEventStatus,
+                       nsPresShellEventCB* aEventCB);
 
     /**
      * DispatchTouchEventToDOM() dispatches touch events into the DOM tree.
@@ -2576,10 +2578,9 @@ class PresShell final : public nsStubDocumentObserver,
      *                          and it's newly touched.  Then, the "touchmove"
      *                          event becomes cancelable.
      */
-    void DispatchTouchEventToDOM(WidgetEvent* aEvent,
-                                 nsEventStatus* aEventStatus,
-                                 nsPresShellEventCB* aEventCB,
-                                 bool aTouchIsNew);
+    MOZ_CAN_RUN_SCRIPT void DispatchTouchEventToDOM(
+        WidgetEvent* aEvent, nsEventStatus* aEventStatus,
+        nsPresShellEventCB* aEventCB, bool aTouchIsNew);
 
     /**
      * FinalizeHandlingEvent() should be called after calling DispatchEvent()
@@ -2743,7 +2744,7 @@ class PresShell final : public nsStubDocumentObserver,
 #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
   // We track allocated pointers in a debug-only hashtable to assert against
   // missing/double frees.
-  nsTHashtable<nsPtrHashKey<void>> mAllocatedPointers;
+  nsTHashSet<void*> mAllocatedPointers;
 #endif
 
   // A list of stack weak frames. This is a pointer to the last item in the
@@ -2751,7 +2752,7 @@ class PresShell final : public nsStubDocumentObserver,
   AutoWeakFrame* mAutoWeakFrames;
 
   // A hash table of heap allocated weak frames.
-  nsTHashtable<nsPtrHashKey<WeakFrame>> mWeakFrames;
+  nsTHashSet<WeakFrame*> mWeakFrames;
 
   class DirtyRootsList {
    public:
@@ -2847,9 +2848,9 @@ class PresShell final : public nsStubDocumentObserver,
   nsCOMArray<nsIContent> mCurrentEventContentStack;
   // Set of frames that we should mark with NS_FRAME_HAS_DIRTY_CHILDREN after
   // we finish reflowing mCurrentReflowRoot.
-  nsTHashtable<nsPtrHashKey<nsIFrame>> mFramesToDirty;
-  nsTHashtable<nsPtrHashKey<nsIScrollableFrame>> mPendingScrollAnchorSelection;
-  nsTHashtable<nsPtrHashKey<nsIScrollableFrame>> mPendingScrollAnchorAdjustment;
+  nsTHashSet<nsIFrame*> mFramesToDirty;
+  nsTHashSet<nsIScrollableFrame*> mPendingScrollAnchorSelection;
+  nsTHashSet<nsIScrollableFrame*> mPendingScrollAnchorAdjustment;
 
   nsCallbackEventRequest* mFirstCallbackEventRequest = nullptr;
   nsCallbackEventRequest* mLastCallbackEventRequest = nullptr;

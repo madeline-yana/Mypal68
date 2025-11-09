@@ -272,12 +272,7 @@ class ImageBridgeChild final : public PImageBridgeChild,
    * See CompositableForwarder::UseTextures
    */
   void UseTextures(CompositableClient* aCompositable,
-                   const nsTArray<TimedTextureClient>& aTextures
-#ifdef MOZ_BUILD_WEBRENDER
-                   ,
-                   const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-                   ) override;
+                   const nsTArray<TimedTextureClient>& aTextures) override;
   void UseComponentAlphaTextures(CompositableClient* aCompositable,
                                  TextureClient* aClientOnBlack,
                                  TextureClient* aClientOnWhite) override;
@@ -305,12 +300,7 @@ class ImageBridgeChild final : public PImageBridgeChild,
   bool DestroyInTransaction(const CompositableHandle& aHandle);
 
   void RemoveTextureFromCompositable(CompositableClient* aCompositable,
-                                     TextureClient* aTexture
-#ifdef MOZ_BUILD_WEBRENDER
-                                     ,
-                                     const Maybe<wr::RenderRoot>& aRenderRoot
-#endif
-                                     ) override;
+                                     TextureClient* aTexture) override;
 
   void UseTiledLayerBuffer(
       CompositableClient* aCompositable,

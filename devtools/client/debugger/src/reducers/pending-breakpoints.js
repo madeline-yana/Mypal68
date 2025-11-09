@@ -54,8 +54,8 @@ function setBreakpoint(state, { breakpoint }) {
 
 function removeBreakpoint(state, { location }) {
   const locationId = makePendingLocationId(location);
-
   state = { ...state };
+
   delete state[locationId];
   return state;
 }

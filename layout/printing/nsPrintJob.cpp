@@ -2008,7 +2008,7 @@ static nsINode* GetCorrespondingNodeInDocument(const nsINode* aNode,
   return correspondingNode;
 }
 
-static NS_NAMED_LITERAL_STRING(kEllipsis, u"\x2026");
+static constexpr auto kEllipsis = u"\x2026"_ns;
 
 MOZ_CAN_RUN_SCRIPT_BOUNDARY static nsresult DeleteUnselectedNodes(
     Document* aOrigDoc, Document* aDoc) {

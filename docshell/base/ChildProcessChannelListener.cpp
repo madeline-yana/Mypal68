@@ -13,19 +13,19 @@ static StaticRefPtr<ChildProcessChannelListener> sCPCLSingleton;
 
 void ChildProcessChannelListener::RegisterCallback(uint64_t aIdentifier,
                                                    Callback&& aCallback) {
-  if (auto channel = mChannels.GetAndRemove(aIdentifier)) {
+  if (auto channel = mChannels.Extract(aIdentifier)) {
     aCallback(*channel);
   } else {
-    mCallbacks.Put(aIdentifier, std::move(aCallback));
+    mCallbacks.InsertOrUpdate(aIdentifier, std::move(aCallback));
   }
 }
 
 NS_IMETHODIMP ChildProcessChannelListener::OnChannelReady(
     nsIChildChannel* aChannel, uint64_t aIdentifier) {
-  if (auto callback = mCallbacks.GetAndRemove(aIdentifier)) {
+  if (auto callback = mCallbacks.Extract(aIdentifier)) {
     (*callback)(aChannel);
   } else {
-    mChannels.Put(aIdentifier, aChannel);
+    mChannels.InsertOrUpdate(aIdentifier, aChannel);
   }
   return NS_OK;
 }

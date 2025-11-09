@@ -7,6 +7,7 @@
 #ifndef nsPresContext_h___
 #define nsPresContext_h___
 
+#include "mozilla/intl/Bidi.h"
 #include "mozilla/AppUnits.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/EnumeratedArray.h"
@@ -42,7 +43,6 @@
 #include "Units.h"
 #include "prenv.h"
 
-class nsBidi;
 class nsIPrintSettings;
 class nsDocShell;
 class nsIDocShell;
@@ -868,8 +868,10 @@ class nsPresContext : public nsISupports, public mozilla::SupportsWeakPtr {
       TransactionId aTransactionId = TransactionId{0},
       const mozilla::TimeStamp& aTimeStamp = mozilla::TimeStamp());
   void NotifyRevokingDidPaint(TransactionId aTransactionId);
-  void FireDOMPaintEvent(nsTArray<nsRect>* aList, TransactionId aTransactionId,
-                         mozilla::TimeStamp aTimeStamp = mozilla::TimeStamp());
+  // TODO: Convert this to MOZ_CAN_RUN_SCRIPT (bug 1415230)
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY void FireDOMPaintEvent(
+      nsTArray<nsRect>* aList, TransactionId aTransactionId,
+      mozilla::TimeStamp aTimeStamp = mozilla::TimeStamp());
 
   // Callback for catching invalidations in ContainerLayers
   // Passed to LayerProperties::ComputeDifference
@@ -996,7 +998,7 @@ class nsPresContext : public nsISupports, public mozilla::SupportsWeakPtr {
     mHasWarnedAboutTooLargeDashedOrDottedRadius = true;
   }
 
-  nsBidi& GetBidiEngine();
+  mozilla::intl::Bidi& GetBidiEngine();
 
   gfxFontFeatureValueSet* GetFontFeatureValuesLookup() const {
     return mFontFeatureValuesLookup;
@@ -1118,7 +1120,7 @@ class nsPresContext : public nsISupports, public mozilla::SupportsWeakPtr {
   nsCOMPtr<nsITheme> mTheme;
   nsCOMPtr<nsIPrintSettings> mPrintSettings;
 
-  mozilla::UniquePtr<nsBidi> mBidiEngine;
+  mozilla::UniquePtr<mozilla::intl::Bidi> mBidiEngine;
 
   AutoTArray<TransactionInvalidations, 4> mTransactions;
 

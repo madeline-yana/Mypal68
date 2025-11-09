@@ -32,7 +32,7 @@ function BrowserElementWebNavigation(browser) {
 }
 
 BrowserElementWebNavigation.prototype = {
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIWebNavigation]),
+  QueryInterface: ChromeUtils.generateQI(["nsIWebNavigation"]),
 
   get _mm() {
     return this._browser.frameLoader.messageManager;

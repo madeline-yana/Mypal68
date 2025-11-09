@@ -26,7 +26,7 @@ struct BestDashLength {
 };
 
 static const size_t DashedCornerCacheSize = 256;
-nsDataHashtable<FourFloatsHashKey, BestDashLength> DashedCornerCache;
+nsTHashMap<FourFloatsHashKey, BestDashLength> DashedCornerCache;
 
 DashedCornerFinder::DashedCornerFinder(const Bezier& aOuterBezier,
                                        const Bezier& aInnerBezier,
@@ -386,7 +386,8 @@ void DashedCornerFinder::FindBestDashLength(Float aMinBorderWidth,
   if (DashedCornerCache.Count() > DashedCornerCacheSize) {
     DashedCornerCache.Clear();
   }
-  DashedCornerCache.Put(key, BestDashLength(mBestDashLength, mCount));
+  DashedCornerCache.InsertOrUpdate(key,
+                                   BestDashLength(mBestDashLength, mCount));
 }
 
 bool DashedCornerFinder::GetCountAndLastDashLength(Float aDashLength,

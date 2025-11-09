@@ -36,7 +36,7 @@ const PROMPT_CLASSID = Components.ID("{85325f87-03f8-d142-b3a0-d2a0b8f2d4e0}");
 const PROMPT_CONTRACTID = "@mozilla.org/addons/web-install-prompt;1";
 function NullPrompt() {}
 NullPrompt.prototype = {
-  QueryInterface: ChromeUtils.generateQI([Ci.amIWebInstallPrompt]),
+  QueryInterface: ChromeUtils.generateQI(["amIWebInstallPrompt"]),
   confirm(browser, url, installs) {
     installs[0].install();
   },

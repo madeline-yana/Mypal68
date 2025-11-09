@@ -694,14 +694,17 @@
  *   be called by the method that it overrides.
  * MOZ_MUST_RETURN_FROM_CALLER_IF_THIS_IS_ARG: Applies to method declarations.
  *   Callers of the annotated method must return from that function within the
- *   calling block using an explicit `return` statement if the "this" value for the
- *   call is a parameter of the caller.  Only calls to Constructors, references to
- *   local and member variables, and calls to functions or methods marked as
- *   MOZ_MAY_CALL_AFTER_MUST_RETURN may be made after the
+ *   calling block using an explicit `return` statement if the "this" value for
+ * the call is a parameter of the caller.  Only calls to Constructors,
+ * references to local and member variables, and calls to functions or methods
+ * marked as MOZ_MAY_CALL_AFTER_MUST_RETURN may be made after the
  *   MOZ_MUST_RETURN_FROM_CALLER_IF_THIS_IS_ARG call.
  * MOZ_MAY_CALL_AFTER_MUST_RETURN: Applies to function or method declarations.
  *   Calls to these methods may be made in functions after calls a
  *   MOZ_MUST_RETURN_FROM_CALLER_IF_THIS_IS_ARG method.
+ * MOZ_LIFETIME_BOUND: Applies to method declarations.
+ *   The result of calling these functions on temporaries may not be returned as
+ * a reference or bound to a reference variable.
  */
 
 // gcc emits a nuisance warning -Wignored-attributes because attributes do not
@@ -785,6 +788,9 @@
       __attribute__((annotate("moz_must_return_from_caller_if_this_is_arg")))
 #    define MOZ_MAY_CALL_AFTER_MUST_RETURN \
       __attribute__((annotate("moz_may_call_after_must_return")))
+#    define MOZ_LIFETIME_BOUND __attribute__((annotate("moz_lifetime_bound")))
+#    define MOZ_KNOWN_LIVE __attribute__((annotate("moz_known_live")))
+
 /*
  * It turns out that clang doesn't like void func() __attribute__ {} without a
  * warning, so use pragmas to disable the warning.
@@ -836,19 +842,34 @@
 #    define MOZ_REQUIRED_BASE_METHOD                        /* nothing */
 #    define MOZ_MUST_RETURN_FROM_CALLER_IF_THIS_IS_ARG      /* nothing */
 #    define MOZ_MAY_CALL_AFTER_MUST_RETURN                  /* nothing */
+#    define MOZ_LIFETIME_BOUND                              /* nothing */
+#    define MOZ_KNOWN_LIVE                                  /* nothing */
 #  endif /* defined(MOZ_CLANG_PLUGIN) || defined(XGILL_PLUGIN) */
 
 #  define MOZ_RAII MOZ_NON_TEMPORARY_CLASS MOZ_STACK_CLASS
 
-// gcc has different rules governing attribute placement. Since none of these
-// attributes are actually used by the gcc-based static analysis, just
-// eliminate them rather than updating all of the code.
+// XGILL_PLUGIN is used for the GC rooting hazard analysis, which compiles with
+// gcc. gcc has different rules governing __attribute__((...)) placement, so
+// some attributes will error out when used in the source code where clang
+// expects them to be. Remove the problematic annotations when needed.
+//
+// The placement of c++11 [[...]] attributes is more flexible and defined by a
+// spec, so it would be nice to switch to those for the problematic
+// cases. Unfortunately, the official spec provides *no* way to annotate a
+// lambda function, which is one source of the difficulty here. It appears that
+// this will be fixed in c++23: https://github.com/cplusplus/papers/issues/882
 
 #  ifdef XGILL_PLUGIN
+
 #    undef MOZ_MUST_OVERRIDE
-#    define MOZ_MUST_OVERRIDE /* nothing */
 #    undef MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION
+#    undef MOZ_CAN_RUN_SCRIPT
+#    undef MOZ_CAN_RUN_SCRIPT_BOUNDARY
+#    define MOZ_MUST_OVERRIDE                 /* nothing */
 #    define MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION /* nothing */
+#    define MOZ_CAN_RUN_SCRIPT                /* nothing */
+#    define MOZ_CAN_RUN_SCRIPT_BOUNDARY       /* nothing */
+
 #  endif
 
 #endif /* __cplusplus */

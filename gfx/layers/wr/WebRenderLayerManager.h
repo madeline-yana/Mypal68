@@ -27,6 +27,7 @@
 #include "mozilla/webrender/WebRenderAPI.h"
 #include "mozilla/webrender/WebRenderTypes.h"
 #include "nsDisplayList.h"
+#include "nsTHashSet.h"
 
 class nsIWidget;
 
@@ -48,8 +49,7 @@ class WebRenderParentCommand;
 
 class WebRenderLayerManager final : public LayerManager {
   typedef nsTArray<RefPtr<Layer>> LayerRefArray;
-  typedef nsTHashtable<nsRefPtrHashKey<WebRenderUserData>>
-      WebRenderUserDataRefTable;
+  typedef nsTHashSet<RefPtr<WebRenderUserData>> WebRenderUserDataRefTable;
 
  public:
   explicit WebRenderLayerManager(nsIWidget* aWidget);
@@ -182,10 +182,7 @@ class WebRenderLayerManager final : public LayerManager {
   void StopFrameTimeRecording(uint32_t aStartIndex,
                               nsTArray<float>& aFrameIntervals) override;
 
-  RenderRootStateManager* GetRenderRootStateManager(
-      wr::RenderRoot aRenderRoot) {
-    return &mStateManagers[aRenderRoot];
-  }
+  RenderRootStateManager* GetRenderRootStateManager() { return &mStateManager; }
 
   virtual void PayloadPresented() override;
 
@@ -235,8 +232,8 @@ class WebRenderLayerManager final : public LayerManager {
   nsCString mURL;
   WebRenderCommandBuilder mWebRenderCommandBuilder;
 
-  wr::RenderRootArray<size_t> mLastDisplayListSizes;
-  wr::RenderRootArray<RenderRootStateManager> mStateManagers;
+  size_t mLastDisplayListSize;
+  RenderRootStateManager mStateManager;
 };
 
 }  // namespace layers

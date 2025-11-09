@@ -69,7 +69,8 @@
 #include "nsContentUtils.h"
 #include "nsLineBreaker.h"
 #include "nsIFrameInlines.h"
-#include "mozilla/intl/WordBreaker.h"
+#include "mozilla/intl/Bidi.h"
+#include "mozilla/intl/Segmenter.h"
 #include "mozilla/ServoStyleSet.h"
 
 #include <algorithm>
@@ -1721,9 +1722,12 @@ void BuildTextRunsScanner::AccumulateRunInfo(nsTextFrame* aFrame) {
 }
 
 static bool HasTerminalNewline(const nsTextFrame* aFrame) {
-  if (aFrame->GetContentLength() == 0) return false;
+  if (aFrame->GetContentLength() == 0) {
+    return false;
+  }
   const nsTextFragment* frag = aFrame->TextFragment();
-  return frag->CharAt(aFrame->GetContentEnd() - 1) == '\n';
+  return frag->CharAt(AssertedCast<uint32_t>(aFrame->GetContentEnd()) - 1) ==
+         '\n';
 }
 
 static gfxFont::Metrics GetFirstFontMetrics(gfxFontGroup* aFontGroup,
@@ -1942,7 +1946,7 @@ bool BuildTextRunsScanner::ContinueTextRunAcrossFrames(nsTextFrame* aFrame1,
     Side side2 = wm.PhysicalSide(eLogicalSideIStart);
     // If the frames have an embedding level that is opposite to the writing
     // mode, we need to swap which sides we're checking.
-    if (IS_LEVEL_RTL(aFrame1->GetEmbeddingLevel()) == wm.IsBidiLTR()) {
+    if (aFrame1->GetEmbeddingLevel().IsRTL() == wm.IsBidiLTR()) {
       std::swap(side1, side2);
     }
 
@@ -2403,7 +2407,7 @@ already_AddRefed<gfxTextRun> BuildTextRunsScanner::BuildTextRunForFrames(
   if (flags2 & nsTextFrameUtils::Flags::HasShy) {
     flags |= gfx::ShapedTextFlags::TEXT_ENABLE_HYPHEN_BREAKS;
   }
-  if (mBidiEnabled && (IS_LEVEL_RTL(firstFrame->GetEmbeddingLevel()))) {
+  if (mBidiEnabled && (firstFrame->GetEmbeddingLevel().IsRTL())) {
     flags |= gfx::ShapedTextFlags::TEXT_IS_RTL;
   }
   if (mNextRunContextInfo & nsTextFrameUtils::INCOMING_WHITESPACE) {
@@ -2692,7 +2696,8 @@ static bool HasCompressedLeadingWhitespace(
 
 void BuildTextRunsScanner::SetupBreakSinksForTextRun(gfxTextRun* aTextRun,
                                                      const void* aTextPtr) {
-  using mozilla::intl::LineBreaker;
+  using mozilla::intl::LineBreakRule;
+  using mozilla::intl::WordBreakRule;
 
   // textruns have uniform language
   const nsStyleFont* styleFont = mMappedFlows[0].mStartFrame->StyleFont();
@@ -2714,32 +2719,32 @@ void BuildTextRunsScanner::SetupBreakSinksForTextRun(gfxTextRun* aTextRun,
     auto wordBreak = styleText->EffectiveWordBreak();
     switch (wordBreak) {
       case StyleWordBreak::BreakAll:
-        mLineBreaker.SetWordBreak(LineBreaker::WordBreak::BreakAll);
+        mLineBreaker.SetWordBreak(WordBreakRule::BreakAll);
         break;
       case StyleWordBreak::KeepAll:
-        mLineBreaker.SetWordBreak(LineBreaker::WordBreak::KeepAll);
+        mLineBreaker.SetWordBreak(WordBreakRule::KeepAll);
         break;
       case StyleWordBreak::Normal:
       default:
         MOZ_ASSERT(wordBreak == StyleWordBreak::Normal);
-        mLineBreaker.SetWordBreak(LineBreaker::WordBreak::Normal);
+        mLineBreaker.SetWordBreak(WordBreakRule::Normal);
         break;
     }
     switch (styleText->mLineBreak) {
       case StyleLineBreak::Auto:
-        mLineBreaker.SetStrictness(LineBreaker::Strictness::Auto);
+        mLineBreaker.SetStrictness(LineBreakRule::Auto);
         break;
       case StyleLineBreak::Normal:
-        mLineBreaker.SetStrictness(LineBreaker::Strictness::Normal);
+        mLineBreaker.SetStrictness(LineBreakRule::Normal);
         break;
       case StyleLineBreak::Loose:
-        mLineBreaker.SetStrictness(LineBreaker::Strictness::Loose);
+        mLineBreaker.SetStrictness(LineBreakRule::Loose);
         break;
       case StyleLineBreak::Strict:
-        mLineBreaker.SetStrictness(LineBreaker::Strictness::Strict);
+        mLineBreaker.SetStrictness(LineBreakRule::Strict);
         break;
       case StyleLineBreak::Anywhere:
-        mLineBreaker.SetStrictness(LineBreaker::Strictness::Anywhere);
+        mLineBreaker.SetStrictness(LineBreakRule::Anywhere);
         break;
     }
 
@@ -3117,7 +3122,7 @@ static bool IsJustifiableCharacter(const nsStyleText* aTextStyle,
     return false;
   }
 
-  char16_t ch = aFrag->CharAt(aPos);
+  const char16_t ch = aFrag->CharAt(AssertedCast<uint32_t>(aPos));
   if (ch == '\n' || ch == '\t' || ch == '\r') {
     return true;
   }
@@ -3167,7 +3172,7 @@ static bool IsJustifiableCharacter(const nsStyleText* aTextStyle,
       return true;
     }
     if (NS_IS_HIGH_SURROGATE(ch)) {
-      if (char32_t u = aFrag->ScalarValueAt(aPos)) {
+      if (char32_t u = aFrag->ScalarValueAt(AssertedCast<uint32_t>(aPos))) {
         // CJK Unified Ideographs Extension B,
         // CJK Unified Ideographs Extension C,
         // CJK Unified Ideographs Extension D,
@@ -3662,7 +3667,7 @@ void nsTextFrame::PropertyProvider::GetHyphenationBreaks(
   bool allowHyphenBreakBeforeNextChar =
       prevTrailingCharOffset >= mStart.GetOriginalOffset() &&
       prevTrailingCharOffset < mStart.GetOriginalOffset() + mLength &&
-      mFrag->CharAt(prevTrailingCharOffset) == CH_SHY;
+      mFrag->CharAt(AssertedCast<uint32_t>(prevTrailingCharOffset)) == CH_SHY;
 
   while (run.NextRun()) {
     NS_ASSERTION(run.GetRunLength() > 0, "Shouldn't return zero-length runs");
@@ -3671,8 +3676,8 @@ void nsTextFrame::PropertyProvider::GetHyphenationBreaks(
       // the next non-skipped character. Don't look at soft hyphens followed
       // by other skipped characters, we won't use them.
       allowHyphenBreakBeforeNextChar =
-          mFrag->CharAt(run.GetOriginalOffset() + run.GetRunLength() - 1) ==
-          CH_SHY;
+          mFrag->CharAt(AssertedCast<uint32_t>(
+              run.GetOriginalOffset() + run.GetRunLength() - 1)) == CH_SHY;
     } else {
       int32_t runOffsetInSubstring = run.GetSkippedOffset() - aRange.start;
       memset(aBreakBefore + runOffsetInSubstring,
@@ -3692,8 +3697,8 @@ void nsTextFrame::PropertyProvider::GetHyphenationBreaks(
   if (mTextStyle->mHyphens == StyleHyphens::Auto) {
     gfxSkipCharsIterator skipIter(mStart);
     for (uint32_t i = 0; i < aRange.Length(); ++i) {
-      if (IS_HYPHEN(mFrag->CharAt(
-              skipIter.ConvertSkippedToOriginal(aRange.start + i)))) {
+      if (IS_HYPHEN(mFrag->CharAt(AssertedCast<uint32_t>(
+              skipIter.ConvertSkippedToOriginal(aRange.start + i))))) {
         if (i < aRange.Length() - 1) {
           aBreakBefore[i + 1] = HyphenType::Explicit;
         }
@@ -7833,9 +7838,9 @@ static bool IsAcceptableCaretPosition(const gfxSkipCharsIterator& aIter,
     // (In the case where we are respecting clusters, we won't actually get
     // this far because the low surrogate is also marked as non-clusterStart
     // so we'll return FALSE above.)
-    uint32_t offs = aIter.GetOriginalOffset();
+    const uint32_t offs = AssertedCast<uint32_t>(aIter.GetOriginalOffset());
     const nsTextFragment* frag = aFrame->TextFragment();
-    uint32_t ch = frag->CharAt(offs);
+    const char16_t ch = frag->CharAt(offs);
 
     if (gfxFontUtils::IsVarSelector(ch) ||
         frag->IsLowSurrogateFollowingHighSurrogateAt(offs) ||
@@ -7850,7 +7855,7 @@ static bool IsAcceptableCaretPosition(const gfxSkipCharsIterator& aIter,
     // If the proposed position is before a high surrogate, we need to decode
     // the surrogate pair (if valid) and check the resulting character.
     if (NS_IS_HIGH_SURROGATE(ch)) {
-      if (char32_t ucs4 = frag->ScalarValueAt(offs)) {
+      if (const char32_t ucs4 = frag->ScalarValueAt(offs)) {
         // If the character is a (Plane-14) variation selector,
         // or an emoji character that is ligated with the previous
         // character (i.e. part of a Regional-Indicator flag pair,
@@ -7940,8 +7945,8 @@ bool ClusterIterator::IsPunctuation() const {
   // Return true for all Punctuation categories (Unicode general category P?),
   // and also for Symbol categories (S?) except for Modifier Symbol, which is
   // kept together with any adjacent letter/number. (Bug 1066756)
-  uint32_t ch = mFrag->CharAt(mCharIndex);
-  uint8_t cat = unicode::GetGeneralCategory(ch);
+  const char16_t ch = mFrag->CharAt(AssertedCast<uint32_t>(mCharIndex));
+  const uint8_t cat = unicode::GetGeneralCategory(ch);
   switch (cat) {
     case HB_UNICODE_GENERAL_CATEGORY_CONNECT_PUNCTUATION: /* Pc */
       if (ch == '_' && !StaticPrefs::layout_word_select_stop_at_underscore()) {
@@ -7966,7 +7971,8 @@ bool ClusterIterator::IsPunctuation() const {
 }
 
 int32_t ClusterIterator::GetAfterInternal() const {
-  if (mFrag->IsHighSurrogateFollowedByLowSurrogateAt(mCharIndex)) {
+  if (mFrag->IsHighSurrogateFollowedByLowSurrogateAt(
+          AssertedCast<uint32_t>(mCharIndex))) {
     return mCharIndex + 2;
   }
   return mCharIndex + 1;
@@ -8059,13 +8065,16 @@ ClusterIterator::ClusterIterator(nsTextFrame* aTextFrame, int32_t aPosition,
                          : nsTextFrame::TrimmedOffsetFlags::NoTrimAfter |
                                nsTextFrame::TrimmedOffsetFlags::NoTrimBefore);
 
-  int32_t textOffset = aTextFrame->GetContentOffset();
-  int32_t textLen = aTextFrame->GetContentLength();
-  // XXX(Bug 1631371) Check if this should use a fallible operation as it
-  // pretended earlier.
+  const uint32_t textOffset =
+      AssertedCast<uint32_t>(aTextFrame->GetContentOffset());
+  const uint32_t textLen =
+      AssertedCast<uint32_t>(aTextFrame->GetContentLength());
+
+  // Allocate an extra element to record the word break at the end of the line
+  // or text run in mWordBreak[textLen].
   mWordBreaks.AppendElements(textLen + 1);
-  memset(mWordBreaks.Elements(), false, (textLen + 1) * sizeof(bool));
-  int32_t textStart;
+  PodZero(mWordBreaks.Elements(), textLen + 1);
+  uint32_t textStart;
   if (aDirection > 0) {
     if (aContext.IsEmpty()) {
       // No previous context, so it must be the start of a line or text run
@@ -8083,13 +8092,18 @@ ClusterIterator::ClusterIterator(nsTextFrame* aTextFrame, int32_t aPosition,
     mFrag->AppendTo(str, textOffset, textLen);
     aContext.Insert(str, 0);
   }
-  mozilla::intl::WordBreaker* wordBreaker = nsContentUtils::WordBreaker();
-  for (int32_t i = 0; i <= textLen; ++i) {
-    int32_t indexInText = i + textStart;
-    mWordBreaks[i] |= wordBreaker->BreakInBetween(
-        aContext.get(), indexInText, aContext.get() + indexInText,
-        aContext.Length() - indexInText);
+
+  const uint32_t textEnd = textStart + textLen;
+  intl::WordBreakIteratorUtf16 wordBreakIter(aContext);
+  Maybe<uint32_t> nextBreak =
+      wordBreakIter.Seek(textStart > 0 ? textStart - 1 : textStart);
+  while (nextBreak && *nextBreak <= textEnd) {
+    mWordBreaks[*nextBreak - textStart] = true;
+    nextBreak = wordBreakIter.Next();
   }
+
+  MOZ_ASSERT(textEnd != aContext.Length() || mWordBreaks[textLen],
+             "There should be a word break at the end of a line or text run!");
 }
 
 nsIFrame::FrameSearchResult nsTextFrame::PeekOffsetWord(
@@ -8175,10 +8189,8 @@ nsresult nsTextFrame::CheckVisibility(nsPresContext* aContext,
   return NS_OK;
 }
 
-nsresult nsTextFrame::GetOffsets(int32_t& start, int32_t& end) const {
-  start = GetContentOffset();
-  end = GetContentEnd();
-  return NS_OK;
+std::pair<int32_t, int32_t> nsTextFrame::GetOffsets() const {
+  return std::make_pair(GetContentOffset(), GetContentEnd());
 }
 
 static int32_t FindEndOfPunctuationRun(const nsTextFragment* aFrag,
@@ -8190,7 +8202,7 @@ static int32_t FindEndOfPunctuationRun(const nsTextFragment* aFrag,
 
   for (i = aStart; i < aEnd - aOffset; ++i) {
     if (nsContentUtils::IsFirstLetterPunctuation(
-            aFrag->ScalarValueAt(aOffset + i))) {
+            aFrag->ScalarValueAt(AssertedCast<uint32_t>(aOffset + i)))) {
       aIter->SetOriginalOffset(aOffset + i);
       FindClusterEnd(aTextRun, aEnd, aIter);
       i = aIter->GetOriginalOffset() - aOffset;
@@ -8215,6 +8227,7 @@ static int32_t FindEndOfPunctuationRun(const nsTextFragment* aFrag,
  * include leading and trailing punctuation, for example)
  */
 static bool FindFirstLetterRange(const nsTextFragment* aFrag,
+                                 const nsAtom* aLang,
                                  const gfxTextRun* aTextRun, int32_t aOffset,
                                  const gfxSkipCharsIterator& aIter,
                                  int32_t* aLength) {
@@ -8223,15 +8236,38 @@ static bool FindFirstLetterRange(const nsTextFragment* aFrag,
   int32_t endOffset = aOffset + length;
   gfxSkipCharsIterator iter(aIter);
 
+  // Currently the only language-specific special case we handle here is the
+  // Dutch "IJ" digraph.
+  auto LangTagIsDutch = [](const nsAtom* aLang) -> bool {
+    if (!aLang) {
+      return false;
+    }
+    if (aLang == nsGkAtoms::nl) {
+      return true;
+    }
+    // We don't need to fully parse as a Locale; just check the initial subtag.
+    nsDependentAtomString langStr(aLang);
+    int32_t index = langStr.FindChar('-');
+    if (index > 0) {
+      langStr.Truncate(index);
+      return langStr.EqualsLiteral("nl");
+    }
+    return false;
+  };
+
   // skip leading whitespace, then consume clusters that start with punctuation
   i = FindEndOfPunctuationRun(
       aFrag, aTextRun, &iter, aOffset,
       GetTrimmableWhitespaceCount(aFrag, aOffset, length, 1), endOffset);
-  if (i == length) return false;
+  if (i == length) {
+    return false;
+  }
 
-  // If the next character is not a letter or number, there is no first-letter.
+  // If the next character is not a letter, number or symbol, there is no
+  // first-letter.
   // Return true so that we don't go on looking, but set aLength to 0.
-  if (!nsContentUtils::IsAlphanumericAt(aFrag, aOffset + i)) {
+  uint32_t usv = aFrag->ScalarValueAt(aOffset + i);
+  if (!nsContentUtils::IsAlphanumericOrSymbol(usv)) {
     *aLength = 0;
     return true;
   }
@@ -8243,10 +8279,16 @@ static bool FindFirstLetterRange(const nsTextFragment* aFrag,
   // want to allow this to split a ligature.
   bool allowSplitLigature;
 
-  typedef unicode::Script Script;
-  switch (unicode::GetScriptCode(aFrag->CharAt(aOffset + i))) {
+  typedef intl::Script Script;
+  Script script = intl::UnicodeProperties::GetScriptCode(usv);
+  switch (script) {
     default:
       allowSplitLigature = true;
+      break;
+
+    // Don't break regional-indicator ligatures.
+    case Script::COMMON:
+      allowSplitLigature = !gfxFontUtils::IsRegionalIndicator(usv);
       break;
 
     // For now, lacking any definitive specification of when to apply this
@@ -8301,12 +8343,29 @@ static bool FindFirstLetterRange(const nsTextFragment* aFrag,
   FindClusterEnd(aTextRun, endOffset, &iter, allowSplitLigature);
 
   i = iter.GetOriginalOffset() - aOffset;
-  if (i + 1 == length) return true;
+  if (i + 1 == length) {
+    return true;
+  }
+
+  // Check for Dutch "ij" digraph special case.
+  if (script == Script::LATIN && LangTagIsDutch(aLang)) {
+    if (ToLowerCase(aFrag->CharAt(aOffset + i)) == 'i' &&
+        ToLowerCase(aFrag->CharAt(aOffset + i + 1)) == 'j') {
+      iter.SetOriginalOffset(aOffset + i + 1);
+      FindClusterEnd(aTextRun, endOffset, &iter, allowSplitLigature);
+      i = iter.GetOriginalOffset() - aOffset;
+      if (i + 1 == length) {
+        return true;
+      }
+    }
+  }
 
   // consume clusters that start with punctuation
   i = FindEndOfPunctuationRun(aFrag, aTextRun, &iter, aOffset, i + 1,
                               endOffset);
-  if (i < length) *aLength = i;
+  if (i < length) {
+    *aLength = i;
+  }
   return true;
 }
 
@@ -8780,12 +8839,19 @@ static bool HasSoftHyphenBefore(const nsTextFragment* aFrag,
       aTextRun->CanHyphenateBefore(aIter.GetSkippedOffset())) {
     return true;
   }
-  if (!(aTextRun->GetFlags2() & nsTextFrameUtils::Flags::HasShy)) return false;
+  if (!(aTextRun->GetFlags2() & nsTextFrameUtils::Flags::HasShy)) {
+    return false;
+  }
   gfxSkipCharsIterator iter = aIter;
   while (iter.GetOriginalOffset() > aStartOffset) {
     iter.AdvanceOriginal(-1);
-    if (!iter.IsOriginalCharSkipped()) break;
-    if (aFrag->CharAt(iter.GetOriginalOffset()) == CH_SHY) return true;
+    if (!iter.IsOriginalCharSkipped()) {
+      break;
+    }
+    if (aFrag->CharAt(AssertedCast<uint32_t>(iter.GetOriginalOffset())) ==
+        CH_SHY) {
+      return true;
+    }
   }
   return false;
 }
@@ -9177,8 +9243,14 @@ void nsTextFrame::ReflowText(nsLineLayout& aLineLayout, nscoord aAvailableWidth,
       if (mTextRun) {
         int32_t firstLetterLength = length;
         if (aLineLayout.GetFirstLetterStyleOK()) {
-          completedFirstLetter = FindFirstLetterRange(frag, mTextRun, offset,
-                                                      iter, &firstLetterLength);
+          // We only pass a language code to FindFirstLetterRange if it was
+          // explicit in the content.
+          const nsStyleFont* styleFont = StyleFont();
+          const nsAtom* lang = styleFont->mExplicitLanguage
+                                   ? styleFont->mLanguage.get()
+                                   : nullptr;
+          completedFirstLetter = FindFirstLetterRange(
+              frag, lang, mTextRun, offset, iter, &firstLetterLength);
           if (newLineOffset >= 0) {
             // Don't allow a preformatted newline to be part of a first-letter.
             firstLetterLength = std::min(firstLetterLength, length - 1);
@@ -9783,8 +9855,9 @@ static void TransformChars(nsTextFrame* aFrame, const nsStyleText* aStyle,
   }
 
   // Copy the text, with \n and \t replaced by <space> if appropriate.
-  for (int32_t i = 0; i < aFragLen; ++i) {
-    char16_t ch = aFrag->CharAt(aFragOffset + i);
+  MOZ_ASSERT(aFragOffset >= 0);
+  for (uint32_t i = 0; i < static_cast<uint32_t>(aFragLen); ++i) {
+    char16_t ch = aFrag->CharAt(static_cast<uint32_t>(aFragOffset) + i);
     if ((ch == '\n' && !aStyle->NewlineIsSignificant(aFrame)) ||
         (ch == '\t' && !aStyle->TabIsSignificant())) {
       ch = ' ';
@@ -9988,8 +10061,10 @@ nsIFrame::RenderedText nsTextFrame::GetRenderedText(
       runLength = std::min(runLength,
                            trimmedOffsets.GetEnd() - iter.GetOriginalOffset());
       if (isSkipped) {
-        for (int32_t i = 0; i < runLength; ++i) {
-          char16_t ch = textFrag->CharAt(iter.GetOriginalOffset() + i);
+        MOZ_ASSERT(runLength >= 0);
+        for (uint32_t i = 0; i < static_cast<uint32_t>(runLength); ++i) {
+          const char16_t ch = textFrag->CharAt(
+              AssertedCast<uint32_t>(iter.GetOriginalOffset() + i));
           if (ch == CH_SHY) {
             // We should preserve soft hyphens. They can't be transformed.
             result.mString.Append(ch);
@@ -10059,13 +10134,13 @@ void nsTextFrame::ToCString(nsCString& aBuf,
   // Compute the total length of the text content.
   *aTotalContentLength = frag->GetLength();
 
-  int32_t contentLength = GetContentLength();
+  const uint32_t contentLength = AssertedCast<uint32_t>(GetContentLength());
   // Set current fragment and current fragment offset
   if (0 == contentLength) {
     return;
   }
-  int32_t fragOffset = GetContentOffset();
-  int32_t n = fragOffset + contentLength;
+  uint32_t fragOffset = AssertedCast<uint32_t>(GetContentOffset());
+  const uint32_t n = fragOffset + contentLength;
   while (fragOffset < n) {
     char16_t ch = frag->CharAt(fragOffset++);
     if (ch == '\r') {
@@ -10234,7 +10309,8 @@ uint32_t nsTextFrame::CountGraphemeClusters() const {
   const nsTextFragment* frag = TextFragment();
   MOZ_ASSERT(frag, "Text frame must have text fragment");
   nsAutoString content;
-  frag->AppendTo(content, GetContentOffset(), GetContentLength());
+  frag->AppendTo(content, AssertedCast<uint32_t>(GetContentOffset()),
+                 AssertedCast<uint32_t>(GetContentLength()));
   return unicode::CountGraphemeClusters(content.Data(), content.Length());
 }
 

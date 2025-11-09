@@ -12,6 +12,7 @@
 #include "mozilla/ScrollTypes.h"
 #include "mozilla/DefineEnum.h"
 #include "mozilla/EventForwards.h"
+#include "mozilla/TextEvents.h" //MY
 #include "mozilla/TimeStamp.h"
 #include "mozilla/WheelHandlingHelper.h"  // for WheelDeltaAdjustmentStrategy
 #include "mozilla/gfx/MatrixFwd.h"

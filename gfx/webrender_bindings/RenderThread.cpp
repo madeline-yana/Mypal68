@@ -530,8 +530,7 @@ void RenderThread::SetDestroyed(wr::WindowId aWindowId) {
 
 void RenderThread::IncPendingFrameCount(wr::WindowId aWindowId,
                                         const VsyncId& aStartId,
-                                        const TimeStamp& aStartTime,
-                                        uint8_t aDocFrameCount) {
+                                        const TimeStamp& aStartTime) {
   auto windows = mWindowInfos.Lock();
   auto it = windows->find(AsUint64(aWindowId));
   if (it == windows->end()) {
@@ -541,7 +540,6 @@ void RenderThread::IncPendingFrameCount(wr::WindowId aWindowId,
   it->second->mPendingCount++;
   it->second->mStartTimes.push(aStartTime);
   it->second->mStartIds.push(aStartId);
-  it->second->mDocFrameCounts.push(aDocFrameCount);
 }
 
 std::pair<bool, bool> RenderThread::IncRenderingFrameCount(
@@ -553,20 +551,11 @@ std::pair<bool, bool> RenderThread::IncRenderingFrameCount(
     return std::make_pair(false, false);
   }
 
-  it->second->mDocFramesSeen++;
-  if (it->second->mDocFramesSeen < it->second->mDocFrameCounts.front()) {
-    it->second->mRender |= aRender;
-    return std::make_pair(false, it->second->mRender);
-  } else {
-    MOZ_ASSERT(it->second->mDocFramesSeen ==
-               it->second->mDocFrameCounts.front());
-    bool render = it->second->mRender || aRender;
-    it->second->mRender = false;
-    it->second->mRenderingCount++;
-    it->second->mDocFrameCounts.pop();
-    it->second->mDocFramesSeen = 0;
-    return std::make_pair(true, render);
-  }
+  bool render = it->second->mRender || aRender;
+  it->second->mRender = false;
+  it->second->mRenderingCount++;
+  it->second->mDocFrameCounts.pop();
+  return std::make_pair(true, render);
 }
 
 void RenderThread::FrameRenderingComplete(wr::WindowId aWindowId) {
@@ -991,42 +980,28 @@ void wr_notifier_external_event(mozilla::wr::WrWindowId aWindowId,
                                              std::move(evt));
 }
 
-void wr_schedule_render(mozilla::wr::WrWindowId aWindowId,
-                        const mozilla::wr::WrDocumentId* aDocumentIds,
-                        size_t aDocumentIdsCount) {
+void wr_schedule_render(mozilla::wr::WrWindowId aWindowId) {
   RefPtr<mozilla::layers::CompositorBridgeParent> cbp = mozilla::layers::
       CompositorBridgeParent::GetCompositorBridgeParentFromWindowId(aWindowId);
   if (cbp) {
-    wr::RenderRootSet renderRoots;
-    for (size_t i = 0; i < aDocumentIdsCount; ++i) {
-      renderRoots += wr::RenderRootFromId(aDocumentIds[i]);
-    }
-    cbp->ScheduleRenderOnCompositorThread(renderRoots);
+    cbp->ScheduleRenderOnCompositorThread();
   }
 }
 
 static void NotifyDidSceneBuild(RefPtr<layers::CompositorBridgeParent> aBridge,
-                                const nsTArray<wr::RenderRoot>& aRenderRoots,
                                 RefPtr<const wr::WebRenderPipelineInfo> aInfo) {
-  aBridge->NotifyDidSceneBuild(aRenderRoots, aInfo);
+  aBridge->NotifyDidSceneBuild(aInfo);
 }
 
 void wr_finished_scene_build(mozilla::wr::WrWindowId aWindowId,
-                             const mozilla::wr::WrDocumentId* aDocumentIds,
-                             size_t aDocumentIdsCount,
                              mozilla::wr::WrPipelineInfo* aInfo) {
   RefPtr<mozilla::layers::CompositorBridgeParent> cbp = mozilla::layers::
       CompositorBridgeParent::GetCompositorBridgeParentFromWindowId(aWindowId);
   RefPtr<wr::WebRenderPipelineInfo> info = new wr::WebRenderPipelineInfo();
   info->Raw() = std::move(*aInfo);
   if (cbp) {
-    nsTArray<wr::RenderRoot> renderRoots;
-    renderRoots.SetLength(aDocumentIdsCount);
-    for (size_t i = 0; i < aDocumentIdsCount; ++i) {
-      renderRoots[i] = wr::RenderRootFromId(aDocumentIds[i]);
-    }
     layers::CompositorThreadHolder::Loop()->PostTask(NewRunnableFunction(
-        "NotifyDidSceneBuild", &NotifyDidSceneBuild, cbp, renderRoots, info));
+        "NotifyDidSceneBuild", &NotifyDidSceneBuild, cbp, info));
   }
 }
 

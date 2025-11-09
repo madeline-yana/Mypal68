@@ -5,6 +5,8 @@
 #include "mozilla/RefPtr.h"
 #include "mozilla/RefCounted.h"
 
+#include <type_traits>
+
 using mozilla::RefCounted;
 
 class Foo : public RefCounted<Foo> {
@@ -57,8 +59,10 @@ int main() {
   MOZ_RELEASE_ASSERT(1 == Foo::sNumDestroyed);
 
   {
-    RefPtr<Foo> f1 = NewFoo();
-    RefPtr<Foo> f2(NewFoo());
+    RefPtr f1 = NewFoo();
+    static_assert(std::is_same_v<decltype(f1), RefPtr<Foo>>);
+    RefPtr f2(NewFoo());
+    static_assert(std::is_same_v<decltype(f2), RefPtr<Foo>>);
     MOZ_RELEASE_ASSERT(1 == Foo::sNumDestroyed);
   }
   MOZ_RELEASE_ASSERT(3 == Foo::sNumDestroyed);
@@ -107,7 +111,8 @@ int main() {
   MOZ_RELEASE_ASSERT(11 == Foo::sNumDestroyed);
 
   {
-    RefPtr<Foo> f = GetNullFoo();
+    RefPtr f = GetNullFoo();
+    static_assert(std::is_same_v<decltype(f), RefPtr<Foo>>);
     MOZ_RELEASE_ASSERT(11 == Foo::sNumDestroyed);
   }
   MOZ_RELEASE_ASSERT(11 == Foo::sNumDestroyed);

@@ -694,9 +694,6 @@ AsyncPanZoomController::AsyncPanZoomController(
     const RefPtr<InputQueue>& aInputQueue,
     GeckoContentController* aGeckoContentController, GestureBehavior aGestures)
     : mLayersId(aLayersId),
-#ifdef MOZ_BUILD_WEBRENDER
-      mRenderRoot(wr::RenderRoot::Default),
-#endif
       mGeckoContentController(aGeckoContentController),
       mRefPtrMonitor("RefPtrMonitor"),
       // mTreeManager must be initialized before GetFrameTime() is called
@@ -3690,11 +3687,7 @@ const ScreenMargin AsyncPanZoomController::CalculatePendingDisplayPort(
 
 void AsyncPanZoomController::ScheduleComposite() {
   if (mCompositorController) {
-    mCompositorController->ScheduleRenderOnCompositorThread(
-#ifdef MOZ_BUILD_WEBRENDER
-        wr::RenderRootSet(mRenderRoot)
-#endif
-    );
+    mCompositorController->ScheduleRenderOnCompositorThread();
   }
 }
 

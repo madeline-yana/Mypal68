@@ -293,17 +293,15 @@ nsresult ExpandedPrincipal::PopulateJSONObject(Json::Value& aObject) {
   for (auto& principal : mPrincipals) {
     nsAutoCString JSON;
     BasePrincipal::Cast(principal)->ToJSON(JSON);
-    // Values currently only copes with strings so encode into base64 to allow a
-    // CSV safely.
-    nsAutoCString result;
-    nsresult rv;
-    rv = Base64Encode(JSON, result);
-    NS_ENSURE_SUCCESS(rv, rv);
     // This is blank for the first run through so the last in the list doesn't
     // add a separator
     principalList.Append(sep);
-    principalList.Append(result);
     sep = ',';
+    // Values currently only copes with strings so encode into base64 to allow a
+    // CSV safely.
+    nsresult rv;
+    rv = Base64EncodeAppend(JSON, principalList);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   aObject[std::to_string(eSpecs)] = principalList.get();
 
@@ -361,4 +359,18 @@ already_AddRefed<BasePrincipal> ExpandedPrincipal::FromProperties(
       ExpandedPrincipal::Create(allowList, attrs);
 
   return expandedPrincipal.forget();
+}
+
+NS_IMETHODIMP
+ExpandedPrincipal::IsThirdPartyURI(nsIURI* aURI, bool* aRes) {
+  nsresult rv;
+  for (const auto& principal : mPrincipals) {
+    rv = Cast(principal)->IsThirdPartyURI(aURI, aRes);
+    if (NS_WARN_IF(NS_FAILED(rv)) || !*aRes) {
+      return rv;
+    }
+  }
+
+  *aRes = true;
+  return NS_OK;
 }

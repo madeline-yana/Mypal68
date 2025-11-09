@@ -4665,7 +4665,6 @@ NS_NewWindowsRegKey
 ?supports_armv6@mozilla@@YA_NXZ
 ?supports_armv7@mozilla@@YA_NXZ
 ?supports_neon@mozilla@@YA_NXZ
-?GetProfileHDDInfo@nsSystemInfo@@AAE?AW4nsresult@@XZ
 ??0?$nsCOMPtr@VnsIObserverService@@@@QAE@ABVnsGetServiceByContractIDWithError@@@Z
 ?CompressWhitespace@?$nsTString@D@@QAEX_N0@Z
 ?SetPropertyAsAString@nsHashPropertyBagBase@@UAG?AW4nsresult@@ABV?$nsTSubstring@_S@@0@Z

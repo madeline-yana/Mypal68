@@ -11,6 +11,7 @@
 #include "mozilla/layers/APZCCallbackHelper.h"
 #include "mozilla/layers/APZPublicUtils.h"
 #include "mozilla/layers/CompositorBridgeChild.h"
+#include "mozilla/layers/LayersMessageUtils.h" //MY
 #include "mozilla/layers/PAPZ.h"
 #include "mozilla/layers/RepaintRequest.h"
 #include "mozilla/StaticPrefs_layers.h"

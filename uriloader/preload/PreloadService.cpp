@@ -5,40 +5,44 @@
 #include "PreloadService.h"
 
 #include "FetchPreloader.h"
+#include "PreloaderBase.h"
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/dom/HTMLLinkElement.h"
 #include "mozilla/dom/ScriptLoader.h"
+#include "mozilla/Encoding.h"
 #include "mozilla/FontPreloader.h"
 #include "mozilla/StaticPrefs_network.h"
-#include "nsIReferrerInfo.h"
 #include "nsNetUtil.h"
 
 namespace mozilla {
 
-bool PreloadService::RegisterPreload(PreloadHashKey* aKey,
-                                     PreloaderBase* aPreload) {
-  if (PreloadExists(aKey)) {
-    return false;
-  }
+PreloadService::PreloadService(dom::Document* aDoc) : mDocument(aDoc) {}
+PreloadService::~PreloadService() = default;
 
-  mPreloads.Put(aKey, RefPtr{aPreload});
-  return true;
+bool PreloadService::RegisterPreload(const PreloadHashKey& aKey,
+                                     PreloaderBase* aPreload) {
+  return mPreloads.WithEntryHandle(aKey, [&](auto&& lookup) {
+    if (lookup) {
+      lookup.Data() = aPreload;
+      return true;
+    }
+    lookup.Insert(aPreload);
+    return false;
+  });
 }
 
-void PreloadService::DeregisterPreload(PreloadHashKey* aKey) {
+void PreloadService::DeregisterPreload(const PreloadHashKey& aKey) {
   mPreloads.Remove(aKey);
 }
 
 void PreloadService::ClearAllPreloads() { mPreloads.Clear(); }
 
-bool PreloadService::PreloadExists(PreloadHashKey* aKey) {
-  bool found;
-  mPreloads.GetWeak(aKey, &found);
-  return found;
+bool PreloadService::PreloadExists(const PreloadHashKey& aKey) {
+  return mPreloads.Contains(aKey);
 }
 
 already_AddRefed<PreloaderBase> PreloadService::LookupPreload(
-    PreloadHashKey* aKey) const {
+    const PreloadHashKey& aKey) const {
   return mPreloads.Get(aKey);
 }
 
@@ -56,13 +60,8 @@ already_AddRefed<nsIURI> PreloadService::GetPreloadURI(const nsAString& aURL) {
 }
 
 already_AddRefed<PreloaderBase> PreloadService::PreloadLinkElement(
-    dom::HTMLLinkElement* aLinkElement, nsContentPolicyType aPolicyType,
-    nsIReferrerInfo* aReferrerInfo) {
+    dom::HTMLLinkElement* aLinkElement, nsContentPolicyType aPolicyType) {
   if (!StaticPrefs::network_preload()) {
-    return nullptr;
-  }
-
-  if (!CheckReferrerURIScheme(aReferrerInfo)) {
     return nullptr;
   }
 
@@ -103,12 +102,8 @@ already_AddRefed<PreloaderBase> PreloadService::PreloadLinkHeader(
     nsIURI* aURI, const nsAString& aURL, nsContentPolicyType aPolicyType,
     const nsAString& aAs, const nsAString& aType, const nsAString& aIntegrity,
     const nsAString& aSrcset, const nsAString& aSizes, const nsAString& aCORS,
-    const nsAString& aReferrerPolicy, nsIReferrerInfo* aReferrerInfo) {
+    const nsAString& aReferrerPolicy) {
   if (!StaticPrefs::network_preload()) {
-    return nullptr;
-  }
-
-  if (!CheckReferrerURIScheme(aReferrerInfo)) {
     return nullptr;
   }
 
@@ -128,6 +123,11 @@ already_AddRefed<PreloaderBase> PreloadService::PreloadOrCoalesce(
     const nsAString& aSrcset, const nsAString& aSizes,
     const nsAString& aIntegrity, const nsAString& aCORS,
     dom::ReferrerPolicy aReferrerPolicy, const nsAString& aReferrerPolicyAttr) {
+  if (!aURI) {
+    MOZ_ASSERT_UNREACHABLE("Should not pass null nsIURI");
+    return nullptr;
+  }
+
   bool isImgSet = false;
   PreloadHashKey preloadKey;
   nsCOMPtr<nsIURI> uri = aURI;
@@ -160,28 +160,24 @@ already_AddRefed<PreloaderBase> PreloadService::PreloadOrCoalesce(
     return nullptr;
   }
 
-  RefPtr<PreloaderBase> preload = LookupPreload(&preloadKey);
-  if (!preload) {
-    if (aAs.LowerCaseEqualsASCII("script")) {
-      PreloadScript(uri, aType, aCharset, aCORS, aReferrerPolicyAttr,
-                    aIntegrity, true /* isInHead - TODO */);
-    } else if (aAs.LowerCaseEqualsASCII("style")) {
-      PreloadStyle(uri, aCharset, aCORS, aReferrerPolicyAttr, aIntegrity);
-    } else if (aAs.LowerCaseEqualsASCII("image")) {
-      PreloadImage(uri, aCORS, aReferrerPolicyAttr, isImgSet);
-    } else if (aAs.LowerCaseEqualsASCII("font")) {
-      PreloadFont(uri, aCORS, aReferrerPolicyAttr);
-    } else if (aAs.LowerCaseEqualsASCII("fetch")) {
-      PreloadFetch(uri, aCORS, aReferrerPolicyAttr);
-    }
-
-    preload = LookupPreload(&preloadKey);
-    if (!preload) {
-      return nullptr;
-    }
+  if (RefPtr<PreloaderBase> preload = LookupPreload(preloadKey)) {
+    return preload.forget();
   }
 
-  return preload.forget();
+  if (aAs.LowerCaseEqualsASCII("script")) {
+    PreloadScript(uri, aType, aCharset, aCORS, aReferrerPolicyAttr, aIntegrity,
+                  true /* isInHead - TODO */);
+  } else if (aAs.LowerCaseEqualsASCII("style")) {
+    PreloadStyle(uri, aCharset, aCORS, aReferrerPolicyAttr, aIntegrity);
+  } else if (aAs.LowerCaseEqualsASCII("image")) {
+    PreloadImage(uri, aCORS, aReferrerPolicyAttr, isImgSet);
+  } else if (aAs.LowerCaseEqualsASCII("font")) {
+    PreloadFont(uri, aCORS, aReferrerPolicyAttr);
+  } else if (aAs.LowerCaseEqualsASCII("fetch")) {
+    PreloadFetch(uri, aCORS, aReferrerPolicyAttr);
+  }
+
+  return LookupPreload(preloadKey);
 }
 
 void PreloadService::PreloadScript(nsIURI* aURI, const nsAString& aType,
@@ -222,7 +218,7 @@ void PreloadService::PreloadFont(nsIURI* aURI, const nsAString& aCrossOrigin,
   // want to check if the font is already being preloaded here.
 
   RefPtr<FontPreloader> preloader = new FontPreloader();
-  preloader->OpenChannel(&key, aURI, cors, referrerPolicy, mDocument);
+  preloader->OpenChannel(key, aURI, cors, referrerPolicy, mDocument);
 }
 
 void PreloadService::PreloadFetch(nsIURI* aURI, const nsAString& aCrossOrigin,
@@ -235,7 +231,7 @@ void PreloadService::PreloadFetch(nsIURI* aURI, const nsAString& aCrossOrigin,
   // want to check if a fetch is already being preloaded here.
 
   RefPtr<FetchPreloader> preloader = new FetchPreloader();
-  preloader->OpenChannel(&key, aURI, cors, referrerPolicy, mDocument);
+  preloader->OpenChannel(key, aURI, cors, referrerPolicy, mDocument);
 }
 
 // static
@@ -249,8 +245,7 @@ void PreloadService::NotifyNodeEvent(nsINode* aNode, bool aSuccess) {
   // DocGroup of one of the mSources nodes--not necessarily this one).
 
   RefPtr<AsyncEventDispatcher> dispatcher = new AsyncEventDispatcher(
-      aNode, aSuccess ? NS_LITERAL_STRING("load") : NS_LITERAL_STRING("error"),
-      CanBubble::eNo);
+      aNode, aSuccess ? u"load"_ns : u"error"_ns, CanBubble::eNo);
 
   dispatcher->RequireNodeInDocument();
   dispatcher->PostDOMEvent();
@@ -265,22 +260,6 @@ dom::ReferrerPolicy PreloadService::PreloadReferrerPolicy(
   }
 
   return referrerPolicy;
-}
-
-bool PreloadService::CheckReferrerURIScheme(nsIReferrerInfo* aReferrerInfo) {
-  if (!aReferrerInfo) {
-    return false;
-  }
-
-  nsCOMPtr<nsIURI> referrer = aReferrerInfo->GetOriginalReferrer();
-  if (!referrer) {
-    return false;
-  }
-  if (!referrer->SchemeIs("http") && !referrer->SchemeIs("https")) {
-    return false;
-  }
-
-  return true;
 }
 
 nsIURI* PreloadService::BaseURIForPreload() {

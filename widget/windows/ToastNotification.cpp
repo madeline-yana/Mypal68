@@ -138,7 +138,7 @@ ToastNotification::ShowAlert(nsIAlertNotification* aAlert,
 
   RefPtr<ToastNotificationHandler> handler = new ToastNotificationHandler(
       this, aAlertListener, name, cookie, title, text, hostPort, textClickable);
-  mActiveHandlers.Put(name, RefPtr{handler});
+  mActiveHandlers.InsertOrUpdate(name, RefPtr{handler});
 
   rv = handler->InitAlertAsync(aAlert);
   if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -150,8 +150,7 @@ ToastNotification::ShowAlert(nsIAlertNotification* aAlert,
 }
 
 NS_IMETHODIMP
-ToastNotification::CloseAlert(const nsAString& aAlertName,
-                              nsIPrincipal* aPrincipal) {
+ToastNotification::CloseAlert(const nsAString& aAlertName) {
   RefPtr<ToastNotificationHandler> handler;
   if (NS_WARN_IF(!mActiveHandlers.Get(aAlertName, getter_AddRefs(handler)))) {
     return NS_OK;

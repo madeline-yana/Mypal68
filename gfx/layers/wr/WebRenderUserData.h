@@ -10,7 +10,9 @@
 #include "mozilla/layers/StackingContextHelper.h"
 #include "mozilla/webrender/WebRenderAPI.h"
 #include "mozilla/layers/AnimationInfo.h"
+#include "mozilla/UniquePtr.h"
 #include "nsIFrame.h"
+#include "nsTHashSet.h"
 #include "ImageTypes.h"
 
 class nsDisplayItemGeometry;
@@ -51,8 +53,7 @@ class WebRenderBackgroundData {
 /// to an nsFrame.
 class WebRenderUserData {
  public:
-  typedef nsTHashtable<nsRefPtrHashKey<WebRenderUserData>>
-      WebRenderUserDataRefTable;
+  typedef nsTHashSet<RefPtr<WebRenderUserData>> WebRenderUserDataRefTable;
 
   static bool SupportsAsyncUpdate(nsIFrame* aFrame);
 
@@ -197,7 +198,7 @@ class WebRenderFallbackData : public WebRenderUserData {
 
   std::vector<RefPtr<gfx::SourceSurface>> mExternalSurfaces;
   RefPtr<BasicLayerManager> mBasicLayerManager;
-  nsAutoPtr<nsDisplayItemGeometry> mGeometry;
+  UniquePtr<nsDisplayItemGeometry> mGeometry;
   nsRect mBounds;
   nsRect mBuildingRect;
   gfx::Size mScale;

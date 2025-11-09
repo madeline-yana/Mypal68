@@ -124,8 +124,8 @@ TranslationContentHandler.prototype = {
   },
 
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIWebProgressListener,
-    Ci.nsISupportsWeakReference,
+    "nsIWebProgressListener",
+    "nsISupportsWeakReference",
   ]),
 
   receiveMessage(msg) {

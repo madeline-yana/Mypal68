@@ -41,7 +41,7 @@
             searchbar.updateDisplay();
           }
         },
-        QueryInterface: ChromeUtils.generateQI([Ci.nsIObserver]),
+        QueryInterface: ChromeUtils.generateQI(["nsIObserver"]),
       };
 
       this.content = MozXULElement.parseXULToFragment(

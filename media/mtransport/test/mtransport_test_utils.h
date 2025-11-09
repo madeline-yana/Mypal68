@@ -18,7 +18,7 @@ class MtransportTestUtils {
  public:
   MtransportTestUtils() { InitServices(); }
 
-  ~MtransportTestUtils() {}
+  ~MtransportTestUtils() = default;
 
   void InitServices() {
     nsresult rv;

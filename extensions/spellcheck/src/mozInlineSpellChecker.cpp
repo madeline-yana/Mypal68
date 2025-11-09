@@ -544,7 +544,8 @@ mozInlineSpellChecker::Init(nsIEditor* aEditor) {
 //    flushed, which can cause editors to go away which will bring us here.
 //    We can not do anything that will cause DoSpellCheck to freak out.
 
-nsresult mozInlineSpellChecker::Cleanup(bool aDestroyingFrames) {
+MOZ_CAN_RUN_SCRIPT_BOUNDARY nsresult
+mozInlineSpellChecker::Cleanup(bool aDestroyingFrames) {
   mNumWordsInSpellSelection = 0;
   RefPtr<Selection> spellCheckSelection = GetSpellCheckSelection();
   nsresult rv = NS_OK;
@@ -865,8 +866,11 @@ mozInlineSpellChecker::ReplaceWord(nsINode* aNode, int32_t aOffset,
     nsContentUtils::PlatformToDOMLineBreaks(newWord);
   }
 
+  // Blink dispatches cancelable `beforeinput` event at collecting misspelled
+  // word so that we should allow to dispatch cancelable event.
   RefPtr<TextEditor> textEditor(mTextEditor);
-  DebugOnly<nsresult> rv = textEditor->ReplaceTextAsAction(newWord, range);
+  DebugOnly<nsresult> rv = textEditor->ReplaceTextAsAction(
+      newWord, range, TextEditor::AllowBeforeInputEventCancelable::Yes);
   NS_WARNING_ASSERTION(NS_SUCCEEDED(rv), "Failed to insert the new word");
   return NS_OK;
 }

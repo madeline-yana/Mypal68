@@ -123,7 +123,7 @@ class nsDisplayCanvas final : public nsPaintedDisplayItem {
         RefPtr<WebRenderCanvasData> canvasData =
             aManager->CommandBuilder()
                 .CreateOrRecycleWebRenderUserData<WebRenderCanvasData>(
-                    this, aBuilder.GetRenderRoot(), &isRecycled);
+                    this, &isRecycled);
         nsHTMLCanvasFrame* canvasFrame =
             static_cast<nsHTMLCanvasFrame*>(mFrame);
         if (!canvasFrame->UpdateWebRenderCanvasData(aDisplayListBuilder,
@@ -134,7 +134,7 @@ class nsDisplayCanvas final : public nsPaintedDisplayItem {
             static_cast<WebRenderCanvasRendererAsync*>(
                 canvasData->GetCanvasRenderer());
         MOZ_ASSERT(data);
-        data->UpdateCompositableClient(aBuilder.GetRenderRoot());
+        data->UpdateCompositableClient();
 
         // Push IFrame for async image pipeline.
         // XXX Remove this once partial display list update is supported.
@@ -178,8 +178,7 @@ class nsDisplayCanvas final : public nsPaintedDisplayItem {
         aManager->WrBridge()->AddWebRenderParentCommand(
             OpUpdateAsyncImagePipeline(data->GetPipelineId().value(), scBounds,
                                        scTransform, scaleToSize, filter,
-                                       mixBlendMode),
-            aBuilder.GetRenderRoot());
+                                       mixBlendMode));
         break;
       }
       case CanvasContextType::ImageBitmap: {

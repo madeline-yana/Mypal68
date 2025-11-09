@@ -185,8 +185,8 @@ const GloballyBlockedPermissions = {
     // navigation we care about is either leaving the current page or reloading.
     browser.addProgressListener({
       QueryInterface: ChromeUtils.generateQI([
-        Ci.nsIWebProgressListener,
-        Ci.nsISupportsWeakReference,
+        "nsIWebProgressListener",
+        "nsISupportsWeakReference",
       ]),
       onLocationChange(aWebProgress, aRequest, aLocation, aFlags) {
         let hasLeftPage =

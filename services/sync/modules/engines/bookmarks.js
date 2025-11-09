@@ -857,9 +857,9 @@ BookmarksTracker.prototype = {
   },
 
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsINavBookmarkObserver,
-    Ci.nsINavBookmarkObserver_MOZILLA_1_9_1_ADDITIONS,
-    Ci.nsISupportsWeakReference,
+    "nsINavBookmarkObserver",
+    "nsINavBookmarkObserver_MOZILLA_1_9_1_ADDITIONS",
+    "nsISupportsWeakReference",
   ]),
 
   /* Every add/remove/change will trigger a sync for MULTI_DEVICE */

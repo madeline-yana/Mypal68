@@ -76,7 +76,7 @@ let typeInSearchField = async function(browser, text, fieldName) {
 function makeMockPermissionRequest(browser) {
   let type = {
     options: Cc["@mozilla.org/array;1"].createInstance(Ci.nsIArray),
-    QueryInterface: ChromeUtils.generateQI([Ci.nsIContentPermissionType]),
+    QueryInterface: ChromeUtils.generateQI(["nsIContentPermissionType"]),
   };
   let types = Cc["@mozilla.org/array;1"].createInstance(Ci.nsIMutableArray);
   types.appendElement(type);
@@ -94,7 +94,7 @@ function makeMockPermissionRequest(browser) {
     allow() {
       this._allowed = true;
     },
-    QueryInterface: ChromeUtils.generateQI([Ci.nsIContentPermissionRequest]),
+    QueryInterface: ChromeUtils.generateQI(["nsIContentPermissionRequest"]),
   };
 
   // In the e10s-case, nsIContentPermissionRequest will have

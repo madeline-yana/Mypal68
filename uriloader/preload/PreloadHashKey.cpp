@@ -80,7 +80,8 @@ PreloadHashKey& PreloadHashKey::operator=(const PreloadHashKey& aOther) {
 
 // static
 PreloadHashKey PreloadHashKey::CreateAsScript(
-    nsIURI* aURI, const CORSMode& aCORSMode, const dom::ScriptKind& aScriptKind,
+    nsIURI* aURI, const CORSMode& aCORSMode,
+    const JS::loader::ScriptKind& aScriptKind,
     const dom::ReferrerPolicy& aReferrerPolicy) {
   PreloadHashKey key(aURI, ResourceType::SCRIPT);
   key.mCORSMode = aCORSMode;
@@ -95,9 +96,9 @@ PreloadHashKey PreloadHashKey::CreateAsScript(
 PreloadHashKey PreloadHashKey::CreateAsScript(
     nsIURI* aURI, const nsAString& aCrossOrigin, const nsAString& aType,
     const dom::ReferrerPolicy& aReferrerPolicy) {
-  dom::ScriptKind scriptKind = dom::ScriptKind::eClassic;
+  JS::loader::ScriptKind scriptKind = JS::loader::ScriptKind::eClassic;
   if (aType.LowerCaseEqualsASCII("module")) {
-    scriptKind = dom::ScriptKind::eModule;
+    scriptKind = JS::loader::ScriptKind::eModule;
   }
   CORSMode crossOrigin = dom::Element::StringToCORSMode(aCrossOrigin);
 

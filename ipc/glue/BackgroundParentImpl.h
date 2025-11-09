@@ -6,6 +6,7 @@
 #define mozilla_ipc_backgroundparentimpl_h__
 
 #include "mozilla/Attributes.h"
+#include "mozilla/ipc/InputStreamUtils.h"
 #include "mozilla/ipc/PBackgroundParent.h"
 
 namespace mozilla {
@@ -18,7 +19,14 @@ namespace ipc {
 
 // Instances of this class should never be created directly. This class is meant
 // to be inherited in BackgroundImpl.
-class BackgroundParentImpl : public PBackgroundParent {
+class BackgroundParentImpl : public PBackgroundParent,
+                             public ParentToChildStreamActorManager {
+ public:
+  PParentToChildStreamParent* SendPParentToChildStreamConstructor(
+      PParentToChildStreamParent* aActor) override;
+  PFileDescriptorSetParent* SendPFileDescriptorSetConstructor(
+      const FileDescriptor& aFD) override;
+
  protected:
   BackgroundParentImpl();
   virtual ~BackgroundParentImpl();
@@ -117,10 +125,12 @@ class BackgroundParentImpl : public PBackgroundParent {
       PBackgroundLocalStorageCacheParent* aActor) override;
 
   PBackgroundStorageParent* AllocPBackgroundStorageParent(
-      const nsString& aProfilePath) override;
+      const nsString& aProfilePath,
+      const uint32_t& aPrivateBrowsingId) override;
 
   mozilla::ipc::IPCResult RecvPBackgroundStorageConstructor(
-      PBackgroundStorageParent* aActor, const nsString& aProfilePath) override;
+      PBackgroundStorageParent* aActor, const nsString& aProfilePath,
+      const uint32_t& aPrivateBrowsingId) override;
 
   bool DeallocPBackgroundStorageParent(
       PBackgroundStorageParent* aActor) override;
@@ -267,6 +277,7 @@ class BackgroundParentImpl : public PBackgroundParent {
       PFileSystemRequestParent* actor, const FileSystemParams& params) override;
 
   // Gamepad API Background IPC
+#ifdef MOZ_GAMEPAD
   virtual PGamepadEventChannelParent* AllocPGamepadEventChannelParent()
       override;
 
@@ -277,6 +288,7 @@ class BackgroundParentImpl : public PBackgroundParent {
 
   virtual bool DeallocPGamepadTestChannelParent(
       PGamepadTestChannelParent* aActor) override;
+#endif
 
   PWebAuthnTransactionParent* AllocPWebAuthnTransactionParent() override;
 

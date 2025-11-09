@@ -1117,11 +1117,7 @@ LayoutDeviceIntRect PuppetWidget::GetScreenBounds() {
 }
 
 uint32_t PuppetWidget::GetMaxTouchPoints() const {
-  uint32_t maxTouchPoints = 0;
-  if (mBrowserChild) {
-    mBrowserChild->GetMaxTouchPoints(&maxTouchPoints);
-  }
-  return maxTouchPoints;
+  return mBrowserChild ? mBrowserChild->MaxTouchPoints() : 0;
 }
 
 void PuppetWidget::StartAsyncScrollbarDrag(

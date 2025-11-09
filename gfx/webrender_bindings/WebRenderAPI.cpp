@@ -91,7 +91,7 @@ class NewRenderer : public RendererEvent {
                 ? aRenderThread.GetShaders()->RawShaders()
                 : nullptr,
             aRenderThread.ThreadPool().Raw(), &WebRenderMallocSizeOf,
-            &WebRenderMallocEnclosingSizeOf, (uint32_t)wr::RenderRoot::Default,
+            &WebRenderMallocEnclosingSizeOf, 0,
             compositor->ShouldUseNativeCompositor() ? compositor.get()
                                                     : nullptr,
             compositor->GetMaxPartialPresentRects(), mDocHandle, &wrRenderer,
@@ -294,8 +294,7 @@ already_AddRefed<WebRenderAPI> WebRenderAPI::Create(
 
   return RefPtr<WebRenderAPI>(
              new WebRenderAPI(docHandle, aWindowId, maxTextureSize, useANGLE,
-                              useDComp, useTripleBuffering, syncHandle,
-                              wr::RenderRoot::Default))
+                              useDComp, useTripleBuffering, syncHandle))
       .forget();
 }
 
@@ -305,27 +304,10 @@ already_AddRefed<WebRenderAPI> WebRenderAPI::Clone() {
 
   RefPtr<WebRenderAPI> renderApi =
       new WebRenderAPI(docHandle, mId, mMaxTextureSize, mUseANGLE, mUseDComp,
-                       mUseTripleBuffering, mSyncHandle, mRenderRoot);
+                       mUseTripleBuffering, mSyncHandle);
   renderApi->mRootApi = this;  // Hold root api
   renderApi->mRootDocumentApi = this;
   return renderApi.forget();
-}
-
-already_AddRefed<WebRenderAPI> WebRenderAPI::CreateDocument(
-    LayoutDeviceIntSize aSize, int8_t aLayerIndex, wr::RenderRoot aRenderRoot) {
-  wr::DeviceIntSize wrSize;
-  wrSize.width = aSize.width;
-  wrSize.height = aSize.height;
-  wr::DocumentHandle* newDoc;
-
-  wr_api_create_document(mDocHandle, &newDoc, wrSize, aLayerIndex,
-                         (uint32_t)aRenderRoot);
-
-  RefPtr<WebRenderAPI> api(
-      new WebRenderAPI(newDoc, mId, mMaxTextureSize, mUseANGLE, mUseDComp,
-                       mUseTripleBuffering, mSyncHandle, aRenderRoot));
-  api->mRootApi = this;
-  return api.forget();
 }
 
 wr::WrIdNamespace WebRenderAPI::GetNamespace() {
@@ -335,8 +317,7 @@ wr::WrIdNamespace WebRenderAPI::GetNamespace() {
 WebRenderAPI::WebRenderAPI(wr::DocumentHandle* aHandle, wr::WindowId aId,
                            uint32_t aMaxTextureSize, bool aUseANGLE,
                            bool aUseDComp, bool aUseTripleBuffering,
-                           layers::SyncHandle aSyncHandle,
-                           wr::RenderRoot aRenderRoot)
+                           layers::SyncHandle aSyncHandle)
     : mDocHandle(aHandle),
       mId(aId),
       mMaxTextureSize(aMaxTextureSize),
@@ -344,8 +325,7 @@ WebRenderAPI::WebRenderAPI(wr::DocumentHandle* aHandle, wr::WindowId aId,
       mUseDComp(aUseDComp),
       mUseTripleBuffering(aUseTripleBuffering),
       mSyncHandle(aSyncHandle),
-      mDebugFlags({0}),
-      mRenderRoot(aRenderRoot) {}
+      mDebugFlags({0}) {}
 
 WebRenderAPI::~WebRenderAPI() {
   if (!mRootDocumentApi) {
@@ -376,40 +356,6 @@ void WebRenderAPI::UpdateDebugFlags(uint32_t aFlags) {
 void WebRenderAPI::SendTransaction(TransactionBuilder& aTxn) {
   UpdateDebugFlags(gfx::gfxVars::WebRenderDebugFlags());
   wr_api_send_transaction(mDocHandle, aTxn.Raw(), aTxn.UseSceneBuilderThread());
-}
-
-/* static */
-void WebRenderAPI::SendTransactions(
-    const RenderRootArray<RefPtr<WebRenderAPI>>& aApis,
-    RenderRootArray<TransactionBuilder*>& aTxns) {
-  if (!aApis[RenderRoot::Default]) {
-    return;
-  }
-
-  aApis[RenderRoot::Default]->UpdateDebugFlags(
-      gfx::gfxVars::WebRenderDebugFlags());
-  AutoTArray<DocumentHandle*, kRenderRootCount> documentHandles;
-  AutoTArray<Transaction*, kRenderRootCount> txns;
-  Maybe<bool> useSceneBuilderThread;
-  for (auto& api : aApis) {
-    if (!api) {
-      continue;
-    }
-    auto& txn = aTxns[api->GetRenderRoot()];
-    if (txn) {
-      documentHandles.AppendElement(api->mDocHandle);
-      txns.AppendElement(txn->Raw());
-      if (useSceneBuilderThread.isSome()) {
-        MOZ_ASSERT(txn->UseSceneBuilderThread() == *useSceneBuilderThread);
-      } else {
-        useSceneBuilderThread.emplace(txn->UseSceneBuilderThread());
-      }
-    }
-  }
-  if (!txns.IsEmpty()) {
-    wr_api_send_transactions(documentHandles.Elements(), txns.Elements(),
-                             txns.Length(), *useSceneBuilderThread);
-  }
 }
 
 enum SideBitsPacked {
@@ -804,12 +750,11 @@ void WebRenderAPI::RunOnRenderThread(UniquePtr<RendererEvent> aEvent) {
 
 DisplayListBuilder::DisplayListBuilder(PipelineId aId,
                                        const wr::LayoutSize& aContentSize,
-                                       size_t aCapacity, RenderRoot aRenderRoot)
+                                       size_t aCapacity)
     : mCurrentSpaceAndClipChain(wr::RootScrollNodeWithChain()),
       mActiveFixedPosTracker(nullptr),
       mPipelineId(aId),
-      mContentSize(aContentSize),
-      mRenderRoot(aRenderRoot) {
+      mContentSize(aContentSize) {
   MOZ_COUNT_CTOR(DisplayListBuilder);
   mWrState = wr_state_new(aId, aContentSize, aCapacity);
 }
@@ -837,7 +782,6 @@ void DisplayListBuilder::Finalize(wr::LayoutSize& aOutContentSize,
 
 void DisplayListBuilder::Finalize(
     layers::RenderRootDisplayListData& aOutTransaction) {
-  MOZ_ASSERT(mRenderRoot == wr::RenderRoot::Default);
   wr::VecU8 dl;
   wr_api_finalize_builder(mWrState, &aOutTransaction.mContentSize,
                           &aOutTransaction.mDLDesc, &dl.inner);

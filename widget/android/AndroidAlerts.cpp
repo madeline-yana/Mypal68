@@ -28,7 +28,7 @@ AndroidAlerts::ShowAlertNotification(
 NS_IMETHODIMP
 AndroidAlerts::ShowAlert(nsIAlertNotification* aAlert,
                          nsIObserver* aAlertListener) {
-  return ShowPersistentNotification(EmptyString(), aAlert, aAlertListener);
+  return ShowPersistentNotification(u""_ns, aAlert, aAlertListener);
 }
 
 NS_IMETHODIMP
@@ -72,7 +72,7 @@ AndroidAlerts::ShowPersistentNotification(const nsAString& aPersistentData,
       sListenerMap = new ListenerMap();
     }
     // This will remove any observers already registered for this name.
-    sListenerMap->Put(name, aAlertListener);
+    sListenerMap->InsertOrUpdate(name, aAlertListener);
   }
 
   java::GeckoAppShell::ShowNotification(
@@ -83,8 +83,7 @@ AndroidAlerts::ShowPersistentNotification(const nsAString& aPersistentData,
 }
 
 NS_IMETHODIMP
-AndroidAlerts::CloseAlert(const nsAString& aAlertName,
-                          nsIPrincipal* aPrincipal) {
+AndroidAlerts::CloseAlert(const nsAString& aAlertName) {
   // We delete the entry in sListenerMap later, when CloseNotification calls
   // NotifyListener.
   java::GeckoAppShell::CloseNotification(aAlertName);
