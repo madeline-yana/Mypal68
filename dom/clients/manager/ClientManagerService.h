@@ -5,7 +5,18 @@
 #define _mozilla_dom_ClientManagerService_h
 
 #include "ClientOpPromise.h"
-#include "nsDataHashtable.h"
+#include "mozilla/AlreadyAddRefed.h"
+#include "mozilla/Assertions.h"
+#include "mozilla/Maybe.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/dom/ClientIPCTypes.h"
+#include "mozilla/dom/ipc/IdType.h"
+#include "nsTHashMap.h"
+#include "nsHashKeys.h"
+#include "nsISupports.h"
+#include "nsTArray.h"
+
+struct nsID;
 
 namespace mozilla {
 
@@ -19,7 +30,6 @@ namespace dom {
 
 class ClientManagerParent;
 class ClientSourceParent;
-class ContentParent;
 
 // Define a singleton service to manage client activity throughout the
 // browser.  This service runs on the PBackground thread.  To interact
@@ -27,7 +37,7 @@ class ContentParent;
 class ClientManagerService final {
   // Store the ClientSourceParent objects in a hash table.  We want to
   // optimize for insertion, removal, and lookup by UUID.
-  nsDataHashtable<nsIDHashKey, ClientSourceParent*> mSourceTable;
+  nsTHashMap<nsIDHashKey, ClientSourceParent*> mSourceTable;
 
   nsTArray<ClientManagerParent*> mManagerList;
 

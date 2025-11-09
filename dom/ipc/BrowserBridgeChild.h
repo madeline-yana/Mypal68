@@ -34,7 +34,7 @@ class BrowserBridgeChild : public PBrowserBridgeChild {
 
   static already_AddRefed<BrowserBridgeChild> Create(
       nsFrameLoader* aFrameLoader, const TabContext& aContext,
-      const nsString& aRemoteType, BrowsingContext* aBrowsingContext);
+      const nsCString& aRemoteType, BrowsingContext* aBrowsingContext);
 
   void UpdateDimensions(const nsIntRect& aRect,
                         const mozilla::ScreenIntSize& aSize);

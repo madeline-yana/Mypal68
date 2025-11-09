@@ -52,8 +52,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMAttributeMap)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMAttributeMap)
-  for (auto iter = tmp->mAttributeCache.Iter(); !iter.Done(); iter.Next()) {
-    cb.NoteXPCOMChild(static_cast<nsINode*>(iter.Data().get()));
+  for (const auto& entry : tmp->mAttributeCache) {
+    cb.NoteXPCOMChild(static_cast<nsINode*>(entry.GetWeak()));
   }
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mContent)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -95,8 +95,8 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMAttributeMap)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMAttributeMap)
 
 nsresult nsDOMAttributeMap::SetOwnerDocument(Document* aDocument) {
-  for (auto iter = mAttributeCache.Iter(); !iter.Done(); iter.Next()) {
-    nsresult rv = iter.Data()->SetOwnerDocument(aDocument);
+  for (const auto& entry : mAttributeCache) {
+    nsresult rv = entry.GetData()->SetOwnerDocument(aDocument);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
   }
   return NS_OK;
@@ -116,17 +116,12 @@ Attr* nsDOMAttributeMap::GetAttribute(mozilla::dom::NodeInfo* aNodeInfo) {
 
   nsAttrKey attr(aNodeInfo->NamespaceID(), aNodeInfo->NameAtom());
 
-  RefPtr<Attr>& entryValue = mAttributeCache.GetOrInsert(attr);
-  Attr* node = entryValue;
-  if (!node) {
+  return mAttributeCache.LookupOrInsertWith(attr, [&] {
     // Newly inserted entry!
     RefPtr<mozilla::dom::NodeInfo> ni = aNodeInfo;
     auto* nim = ni->NodeInfoManager();
-    entryValue = new (nim) Attr(this, ni.forget(), u""_ns);
-    node = entryValue;
-  }
-
-  return node;
+    return new (nim) Attr(this, ni.forget(), u""_ns);
+  });
 }
 
 Attr* nsDOMAttributeMap::NamedGetter(const nsAString& aAttrName, bool& aFound) {
@@ -256,7 +251,7 @@ already_AddRefed<Attr> nsDOMAttributeMap::SetNamedItemNS(Attr& aAttr,
   // Add the new attribute to the attribute map before updating
   // its value in the element. @see bug 364413.
   nsAttrKey attrkey(ni->NamespaceID(), ni->NameAtom());
-  mAttributeCache.Put(attrkey, RefPtr{&aAttr});
+  mAttributeCache.InsertOrUpdate(attrkey, RefPtr{&aAttr});
   aAttr.SetMap(this);
 
   rv = mContent->SetAttr(ni->NamespaceID(), ni->NameAtom(), ni->GetPrefixAtom(),
@@ -391,8 +386,8 @@ size_t nsDOMAttributeMap::SizeOfIncludingThis(
   size_t n = aMallocSizeOf(this);
 
   n += mAttributeCache.ShallowSizeOfExcludingThis(aMallocSizeOf);
-  for (auto iter = mAttributeCache.ConstIter(); !iter.Done(); iter.Next()) {
-    n += aMallocSizeOf(iter.Data().get());
+  for (const auto& entry : mAttributeCache) {
+    n += aMallocSizeOf(entry.GetWeak());
   }
 
   // NB: mContent is non-owning and thus not counted.

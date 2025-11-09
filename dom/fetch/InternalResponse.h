@@ -14,6 +14,7 @@
 #include "mozilla/dom/RequestBinding.h"
 #include "mozilla/dom/ResponseBinding.h"
 #include "mozilla/dom/ChannelInfo.h"
+#include "mozilla/LoadTainting.h" //MY
 #include "mozilla/UniquePtr.h"
 
 namespace mozilla {
@@ -45,7 +46,7 @@ class InternalResponse final {
 
   static already_AddRefed<InternalResponse> NetworkError(nsresult aRv) {
     MOZ_DIAGNOSTIC_ASSERT(NS_FAILED(aRv));
-    RefPtr<InternalResponse> response = new InternalResponse(0, EmptyCString());
+    RefPtr<InternalResponse> response = new InternalResponse(0, ""_ns);
     ErrorResult result;
     response->Headers()->SetGuard(HeadersGuardEnum::Immutable, result);
     MOZ_ASSERT(!result.Failed());

@@ -11,6 +11,7 @@
 
 #include "nsContentUtils.h"
 
+#include "mozilla/intl/BidiEmbeddingLevel.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/PresShellInlines.h"
 #include "mozilla/SVGImageContext.h"
@@ -246,8 +247,8 @@ bool CanvasRenderingContext2D::PatternIsOpaque(
 // GeneralPattern class in gfxContext.cpp with this one.
 class CanvasGeneralPattern {
  public:
-  typedef CanvasRenderingContext2D::Style Style;
-  typedef CanvasRenderingContext2D::ContextState ContextState;
+  using Style = CanvasRenderingContext2D::Style;
+  using ContextState = CanvasRenderingContext2D::ContextState;
 
   Pattern& ForStyle(CanvasRenderingContext2D* aCtx, Style aStyle,
                     DrawTarget* aRT) {
@@ -319,7 +320,7 @@ class CanvasGeneralPattern {
  */
 class AdjustedTargetForFilter {
  public:
-  typedef CanvasRenderingContext2D::ContextState ContextState;
+  using ContextState = CanvasRenderingContext2D::ContextState;
 
   AdjustedTargetForFilter(CanvasRenderingContext2D* aCtx,
                           DrawTarget* aFinalTarget,
@@ -458,7 +459,7 @@ class AdjustedTargetForFilter {
  */
 class AdjustedTargetForShadow {
  public:
-  typedef CanvasRenderingContext2D::ContextState ContextState;
+  using ContextState = CanvasRenderingContext2D::ContextState;
 
   AdjustedTargetForShadow(CanvasRenderingContext2D* aCtx,
                           DrawTarget* aFinalTarget, const gfx::Rect& aBounds,
@@ -536,7 +537,7 @@ class AdjustedTargetForShadow {
  */
 class AdjustedTarget {
  public:
-  typedef CanvasRenderingContext2D::ContextState ContextState;
+  using ContextState = CanvasRenderingContext2D::ContextState;
 
   explicit AdjustedTarget(CanvasRenderingContext2D* aCtx,
                           const gfx::Rect* aBounds = nullptr) {
@@ -2452,8 +2453,8 @@ static bool ValidateRect(double& aX, double& aY, double& aWidth,
   // The values of canvas API input are in double precision, but Moz2D APIs are
   // using float precision. Bypass canvas API calls when the input is out of
   // float precision to avoid precision problem
-  if (!std::isfinite((float)aX) | !std::isfinite((float)aY) |
-      !std::isfinite((float)aWidth) | !std::isfinite((float)aHeight)) {
+  if (!std::isfinite((float)aX) || !std::isfinite((float)aY) ||
+      !std::isfinite((float)aWidth) || !std::isfinite((float)aHeight)) {
     return false;
   }
 
@@ -3447,7 +3448,7 @@ bool CanvasRenderingContext2D::GetHitRegionRect(Element* aElement,
  */
 struct MOZ_STACK_CLASS CanvasBidiProcessor
     : public nsBidiPresUtils::BidiProcessor {
-  typedef CanvasRenderingContext2D::Style Style;
+  using Style = CanvasRenderingContext2D::Style;
 
   CanvasBidiProcessor()
       : nsBidiPresUtils::BidiProcessor(),
@@ -3469,14 +3470,14 @@ struct MOZ_STACK_CLASS CanvasBidiProcessor
     }
   }
 
-  typedef CanvasRenderingContext2D::ContextState ContextState;
+  using ContextState = CanvasRenderingContext2D::ContextState;
 
   virtual void SetText(const char16_t* aText, int32_t aLength,
-                       nsBidiDirection aDirection) override {
+                       mozilla::intl::BidiDirection aDirection) override {
     mFontgrp->UpdateUserFonts();  // ensure user font generation is current
     // adjust flags for current direction run
     gfx::ShapedTextFlags flags = mTextRunFlags;
-    if (aDirection == NSBIDI_RTL) {
+    if (aDirection == mozilla::intl::BidiDirection::RTL) {
       flags |= gfx::ShapedTextFlags::TEXT_IS_RTL;
     } else {
       flags &= ~gfx::ShapedTextFlags::TEXT_IS_RTL;
@@ -3830,7 +3831,9 @@ TextMetrics* CanvasRenderingContext2D::DrawOrMeasureText(
   // calls bidi algo twice since it needs the full text width and the
   // bounding boxes before rendering anything
   aError = nsBidiPresUtils::ProcessText(
-      textToDraw.get(), textToDraw.Length(), isRTL ? NSBIDI_RTL : NSBIDI_LTR,
+      textToDraw.get(), textToDraw.Length(),
+      isRTL ? mozilla::intl::BidiEmbeddingLevel::RTL()
+            : mozilla::intl::BidiEmbeddingLevel::LTR(),
       presShell->GetPresContext(), processor, nsBidiPresUtils::MODE_MEASURE,
       nullptr, 0, &totalWidthCoord, &mBidiEngine);
   if (aError.Failed()) {
@@ -3969,7 +3972,9 @@ TextMetrics* CanvasRenderingContext2D::DrawOrMeasureText(
   processor.mDoMeasureBoundingBox = false;
 
   aError = nsBidiPresUtils::ProcessText(
-      textToDraw.get(), textToDraw.Length(), isRTL ? NSBIDI_RTL : NSBIDI_LTR,
+      textToDraw.get(), textToDraw.Length(),
+      isRTL ? mozilla::intl::BidiEmbeddingLevel::RTL()
+            : mozilla::intl::BidiEmbeddingLevel::LTR(),
       presShell->GetPresContext(), processor, nsBidiPresUtils::MODE_DRAW,
       nullptr, 0, nullptr, &mBidiEngine);
 
@@ -4991,8 +4996,10 @@ nsresult CanvasRenderingContext2D::GetImageDataArray(
     nsIPrincipal& aSubjectPrincipal, JSObject** aRetval) {
   MOZ_ASSERT(aWidth && aHeight);
 
+  // Restrict the typed array length to INT32_MAX because that's all we support
+  // in dom::TypedArray::ComputeState.
   CheckedInt<uint32_t> len = CheckedInt<uint32_t>(aWidth) * aHeight * 4;
-  if (!len.isValid()) {
+  if (!len.isValid() || len.value() > INT32_MAX) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
@@ -5270,8 +5277,10 @@ static already_AddRefed<ImageData> CreateImageData(
   if (aW == 0) aW = 1;
   if (aH == 0) aH = 1;
 
+  // Restrict the typed array length to INT32_MAX because that's all we support
+  // in dom::TypedArray::ComputeState.
   CheckedInt<uint32_t> len = CheckedInt<uint32_t>(aW) * aH * 4;
-  if (!len.isValid()) {
+  if (!len.isValid() || len.value() > INT32_MAX) {
     aError.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;
   }

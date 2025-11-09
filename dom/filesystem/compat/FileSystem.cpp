@@ -7,8 +7,7 @@
 #include "mozilla/dom/FileSystemBinding.h"
 #include "nsContentUtils.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(FileSystem, mParent, mRoot)
 
@@ -62,5 +61,4 @@ void FileSystem::CreateRoot(const Sequence<RefPtr<FileSystemEntry>>& aEntries) {
   mRoot = new FileSystemRootDirectoryEntry(mParent, aEntries, this);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

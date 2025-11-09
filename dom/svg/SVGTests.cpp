@@ -59,8 +59,6 @@ bool SVGTests::IsConditionalProcessingAttribute(
 
 int32_t SVGTests::GetBestLanguagePreferenceRank(
     const nsAString& aAcceptLangs) const {
-  auto caseInsensitiveComparator = nsCaseInsensitiveStringComparator;
-
   if (!mStringListAttributes[LANGUAGE].IsExplicitlySet()) {
     return -2;
   }
@@ -68,17 +66,15 @@ int32_t SVGTests::GetBestLanguagePreferenceRank(
   int32_t lowestRank = -1;
 
   for (uint32_t i = 0; i < mStringListAttributes[LANGUAGE].Length(); i++) {
-    nsCharSeparatedTokenizer languageTokenizer(aAcceptLangs, ',');
     int32_t index = 0;
-    while (languageTokenizer.hasMoreTokens()) {
-      const nsAString& languageToken = languageTokenizer.nextToken();
+    for (const nsAString& languageToken :
+         nsCharSeparatedTokenizer(aAcceptLangs, ',').ToRange()) {
       bool exactMatch = languageToken.Equals(mStringListAttributes[LANGUAGE][i],
-                                             caseInsensitiveComparator);
+                                             nsCaseInsensitiveStringComparator);
       bool prefixOnlyMatch =
-          !exactMatch &&
-          nsStyleUtil::DashMatchCompare(mStringListAttributes[LANGUAGE][i],
-                                        languageTokenizer.nextToken(),
-                                        caseInsensitiveComparator);
+          !exactMatch && nsStyleUtil::DashMatchCompare(
+                             mStringListAttributes[LANGUAGE][i], languageToken,
+                             nsCaseInsensitiveStringComparator);
       if (index == 0 && exactMatch) {
         // best possible match
         return 0;
@@ -93,10 +89,7 @@ int32_t SVGTests::GetBestLanguagePreferenceRank(
   return lowestRank;
 }
 
-const nsString* const SVGTests::kIgnoreSystemLanguage = (nsString*)0x01;
-
-bool SVGTests::PassesConditionalProcessingTests(
-    const nsString* aAcceptLangs) const {
+bool SVGTests::PassesConditionalProcessingTestsIgnoringSystemLanguage() const {
   // Required Extensions
   //
   // The requiredExtensions  attribute defines a list of required language
@@ -114,9 +107,12 @@ bool SVGTests::PassesConditionalProcessingTests(
       }
     }
   }
+  return true;
+}
 
-  if (aAcceptLangs == kIgnoreSystemLanguage) {
-    return true;
+bool SVGTests::PassesConditionalProcessingTests() const {
+  if (!PassesConditionalProcessingTestsIgnoringSystemLanguage()) {
+    return false;
   }
 
   // systemLanguage
@@ -133,11 +129,7 @@ bool SVGTests::PassesConditionalProcessingTests(
 
     // Get our language preferences
     nsAutoString acceptLangs;
-    if (aAcceptLangs) {
-      acceptLangs.Assign(*aAcceptLangs);
-    } else {
-      Preferences::GetLocalizedString("intl.accept_languages", acceptLangs);
-    }
+    Preferences::GetLocalizedString("intl.accept_languages", acceptLangs);
 
     if (acceptLangs.IsEmpty()) {
       NS_WARNING(

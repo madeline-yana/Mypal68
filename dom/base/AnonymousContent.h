@@ -6,6 +6,7 @@
 #define mozilla_dom_AnonymousContent_h
 
 #include "nsCycleCollectionParticipant.h"
+#include "nsISupportsImpl.h"
 
 class nsIPrincipal;
 

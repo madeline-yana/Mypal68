@@ -5,6 +5,13 @@
 #ifndef mozilla_dom_localstorage_LocalStorageCommon_h
 #define mozilla_dom_localstorage_LocalStorageCommon_h
 
+#include <cstdint>
+#include "ErrorList.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/dom/quota/QuotaCommon.h"
+#include "nsLiteralString.h"
+#include "nsStringFwd.h"
+
 /*
  * Local storage
  * ~~~~~~~~~~~~~
@@ -180,8 +187,12 @@
  * interface.
  */
 
-#include "mozilla/Attributes.h"
-#include "nsString.h"
+// XXX Replace all uses by the QM_* variants and remove these aliases
+#define LS_TRY QM_TRY
+#define LS_TRY_UNWRAP QM_TRY_UNWRAP
+#define LS_TRY_INSPECT QM_TRY_INSPECT
+#define LS_TRY_RETURN QM_TRY_RETURN
+#define LS_FAIL QM_FAIL
 
 namespace mozilla {
 
@@ -235,9 +246,12 @@ bool NextGenLocalStorageEnabled();
  */
 bool CachedNextGenLocalStorageEnabled();
 
-nsresult GenerateOriginKey2(const mozilla::ipc::PrincipalInfo& aPrincipalInfo,
-                            nsACString& aOriginAttrSuffix,
-                            nsACString& aOriginKey);
+/**
+ * Returns a success value containing a pair of origin attribute suffix and
+ * origin key.
+ */
+Result<std::pair<nsCString, nsCString>, nsresult> GenerateOriginKey2(
+    const mozilla::ipc::PrincipalInfo& aPrincipalInfo);
 
 LogModule* GetLocalStorageLogger();
 

@@ -436,7 +436,7 @@ int32_t Element::TabIndex() {
 }
 
 void Element::Focus(const FocusOptions& aOptions, ErrorResult& aError) {
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
+  RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager();
   if (!fm) {
     return;
   }
@@ -1119,9 +1119,7 @@ bool Element::CanAttachShadowDOM() const {
    */
   // It will always have CustomElementData when the element is a valid custom
   // element or has is value.
-  CustomElementData* ceData = GetCustomElementData();
-  if (StaticPrefs::dom_webcomponents_formAssociatedCustomElement_enabled() &&
-      ceData) {
+  if (CustomElementData* ceData = GetCustomElementData()) {
     CustomElementDefinition* definition = ceData->GetCustomElementDefinition();
     // If the definition is null, the element possible hasn't yet upgraded.
     // Fallback to use LookupCustomElementDefinition to find its definition.
@@ -1139,14 +1137,11 @@ bool Element::CanAttachShadowDOM() const {
   return true;
 }
 
-// https://dom.spec.whatwg.org/#dom-element-attachshadow
+// https://dom.spec.whatwg.org/commit-snapshots/1eadf0a4a271acc92013d1c0de8c730ac96204f9/#dom-element-attachshadow
 already_AddRefed<ShadowRoot> Element::AttachShadow(const ShadowRootInit& aInit,
                                                    ErrorResult& aError) {
   /**
-   * 1. If context object's namespace is not the HTML namespace,
-   *    then throw a "NotSupportedError" DOMException.
-   * 2. If context object's local name is not valid to attach shadow DOM to,
-   *    then throw a "NotSupportedError" DOMException.
+   * Step 1, 2, and 3.
    */
   if (!CanAttachShadowDOM()) {
     aError.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
@@ -1154,8 +1149,7 @@ already_AddRefed<ShadowRoot> Element::AttachShadow(const ShadowRootInit& aInit,
   }
 
   /**
-   * 4. If context object is a shadow host, then throw
-   *    an "NotSupportedError" DOMException.
+   * 4. If this is a shadow host, then throw a "NotSupportedError" DOMException.
    */
   if (GetShadowRoot()) {
     aError.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
@@ -1166,11 +1160,11 @@ already_AddRefed<ShadowRoot> Element::AttachShadow(const ShadowRootInit& aInit,
     OwnerDoc()->ReportShadowDOMUsage();
   }
 
-  return AttachShadowWithoutNameChecks(aInit.mMode);
+  return AttachShadowWithoutNameChecks(aInit.mMode, aInit.mSlotAssignment);
 }
 
 already_AddRefed<ShadowRoot> Element::AttachShadowWithoutNameChecks(
-    ShadowRootMode aMode) {
+    ShadowRootMode aMode, SlotAssignmentMode aSlotAssignment) {
   nsAutoScriptBlocker scriptBlocker;
 
   RefPtr<mozilla::dom::NodeInfo> nodeInfo =
@@ -1193,25 +1187,35 @@ already_AddRefed<ShadowRoot> Element::AttachShadowWithoutNameChecks(
   }
 
   /**
-   * 4. Let shadow be a new shadow root whose node document is
+   * 5. Let shadow be a new shadow root whose node document is
    *    context object's node document, host is context object,
    *    and mode is init's mode.
    */
   auto* nim = nodeInfo->NodeInfoManager();
   RefPtr<ShadowRoot> shadowRoot =
-      new (nim) ShadowRoot(this, aMode, nodeInfo.forget());
+      new (nim) ShadowRoot(this, aMode, aSlotAssignment, nodeInfo.forget());
 
   if (NodeOrAncestorHasDirAuto()) {
     shadowRoot->SetAncestorHasDirAuto();
   }
 
   /**
-   * 5. Set context object's shadow root to shadow.
+   * 7. If this’s custom element state is "precustomized" or "custom", then set
+   *    shadow’s available to element internals to true.
+   */
+  CustomElementData* ceData = GetCustomElementData();
+  if (ceData && (ceData->mState == CustomElementData::State::ePrecustomized ||
+                 ceData->mState == CustomElementData::State::eCustom)) {
+    shadowRoot->SetAvailableToElementInternals();
+  }
+
+  /**
+   * 9. Set context object's shadow root to shadow.
    */
   SetShadowRoot(shadowRoot);
 
-  // Dispatch a "shadowrootattached" event for devtools.
-  {
+  // Dispatch a "shadowrootattached" event for devtools if needed.
+  if (MOZ_UNLIKELY(nim->GetDocument()->ShadowRootAttachedEventEnabled())) {
     AsyncEventDispatcher* dispatcher = new AsyncEventDispatcher(
         this, u"shadowrootattached"_ns, CanBubble::eYes,
         ChromeOnlyDispatch::eYes, Composed::eYes);
@@ -1219,7 +1223,7 @@ already_AddRefed<ShadowRoot> Element::AttachShadowWithoutNameChecks(
   }
 
   /**
-   * 6. Return shadow.
+   * 10. Return shadow.
    */
   return shadowRoot.forget();
 }
@@ -2560,7 +2564,7 @@ nsresult Element::AfterSetAttr(int32_t aNamespaceID, nsAtom* aName,
       MOZ_ASSERT(HasPartAttribute() == isPart);
     } else if (aName == nsGkAtoms::slot && GetParent()) {
       if (ShadowRoot* shadow = GetParent()->GetShadowRoot()) {
-        shadow->MaybeReassignElement(*this);
+        shadow->MaybeReassignContent(*this);
       }
     }
   }
@@ -2776,7 +2780,7 @@ void Element::DescribeAttribute(uint32_t index,
   aOutDescription.Append('"');
 }
 
-#ifdef DEBUG
+#ifdef MOZ_DOM_LIST
 void Element::ListAttributes(FILE* out) const {
   uint32_t index, count = mAttrs.AttrCount();
   for (index = 0; index < count; index++) {
@@ -2973,7 +2977,7 @@ nsresult Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor) {
         aVisitor.mEvent->mFlags.mMultipleActionsPrevented = true;
 
         if (IsInComposedDoc()) {
-          if (nsFocusManager* fm = nsFocusManager::GetFocusManager()) {
+          if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
             RefPtr<Element> kungFuDeathGrip(this);
             fm->SetFocus(kungFuDeathGrip, nsIFocusManager::FLAG_BYMOUSE |
                                               nsIFocusManager::FLAG_NOSCROLL);
@@ -3035,8 +3039,8 @@ nsresult Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor) {
       WidgetKeyboardEvent* keyEvent = aVisitor.mEvent->AsKeyboardEvent();
       if (keyEvent && keyEvent->mKeyCode == NS_VK_RETURN) {
         nsEventStatus status = nsEventStatus_eIgnore;
-        rv = DispatchClickEvent(MOZ_KnownLive(aVisitor.mPresContext), keyEvent,
-                                this, false, nullptr, &status);
+        rv = DispatchClickEvent(aVisitor.mPresContext, keyEvent, this, false,
+                                nullptr, &status);
         if (NS_SUCCEEDED(rv)) {
           aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
         }
@@ -3098,10 +3102,34 @@ nsresult Element::CopyInnerTo(Element* aDst, ReparseAttributes aReparse) {
     }
   }
 
+  dom::NodeInfo* dstNodeInfo = aDst->NodeInfo();
+  if (CustomElementData* data = GetCustomElementData()) {
+    // The cloned node may be a custom element that may require
+    // enqueing upgrade reaction.
+    if (nsAtom* typeAtom = data->GetCustomElementType()) {
+      aDst->SetCustomElementData(MakeUnique<CustomElementData>(typeAtom));
+      MOZ_ASSERT(dstNodeInfo->NameAtom()->Equals(dstNodeInfo->LocalName()));
+      CustomElementDefinition* definition =
+          nsContentUtils::LookupCustomElementDefinition(
+              dstNodeInfo->GetDocument(), dstNodeInfo->NameAtom(),
+              dstNodeInfo->NamespaceID(), typeAtom);
+      if (definition) {
+        nsContentUtils::EnqueueUpgradeReaction(aDst, definition);
+      }
+    }
+  }
+
+  if (dstNodeInfo->GetDocument()->IsStaticDocument()) {
+    // Propagate :defined state to the static clone.
+    if (State().HasState(NS_EVENT_STATE_DEFINED)) {
+      aDst->SetDefined(true);
+    }
+  }
+
   return NS_OK;
 }
 
-Element* Element::Closest(const nsAString& aSelector, ErrorResult& aResult) {
+Element* Element::Closest(const nsACString& aSelector, ErrorResult& aResult) {
   const RawServoSelectorList* list = ParseSelectorList(aSelector, aResult);
   if (!list) {
     return nullptr;
@@ -3110,11 +3138,12 @@ Element* Element::Closest(const nsAString& aSelector, ErrorResult& aResult) {
   return const_cast<Element*>(Servo_SelectorList_Closest(this, list));
 }
 
-bool Element::Matches(const nsAString& aSelector, ErrorResult& aResult) {
+bool Element::Matches(const nsACString& aSelector, ErrorResult& aResult) {
   const RawServoSelectorList* list = ParseSelectorList(aSelector, aResult);
   if (!list) {
     return false;
   }
+
   return Servo_SelectorList_Matches(this, list);
 }
 
@@ -3472,6 +3501,35 @@ void Element::GetAnimationsUnsorted(Element* aElement,
   }
 }
 
+void Element::CloneAnimationsFrom(const Element& aOther) {
+  AnimationTimeline* const timeline = OwnerDoc()->Timeline();
+  MOZ_ASSERT(timeline, "Timeline has not been set on the document yet");
+  // Iterate through all pseudo types and copy the effects from each of the
+  // other element's effect sets into this element's effect set.
+  for (PseudoStyleType pseudoType :
+       {PseudoStyleType::NotPseudo, PseudoStyleType::before,
+        PseudoStyleType::after, PseudoStyleType::marker}) {
+    // If the element has an effect set for this pseudo type (or not pseudo)
+    // then copy the effects and animation properties.
+    if (EffectSet* const effects =
+            EffectSet::GetEffectSet(&aOther, pseudoType)) {
+      EffectSet* const clonedEffects =
+          EffectSet::GetOrCreateEffectSet(this, pseudoType);
+      for (KeyframeEffect* const effect : *effects) {
+        // Clone the effect.
+        RefPtr<KeyframeEffect> clonedEffect = new KeyframeEffect(
+            OwnerDoc(), OwningAnimationTarget{this, pseudoType}, *effect);
+
+        // Clone the animation
+        RefPtr<Animation> clonedAnimation = Animation::ClonePausedAnimation(
+            OwnerDoc()->GetParentObject(), *effect->GetAnimation(),
+            *clonedEffect, *timeline);
+        clonedEffects->AddEffect(*clonedEffect);
+      }
+    }
+  }
+}
+
 void Element::GetInnerHTML(nsAString& aInnerHTML, OOMReporter& aError) {
   GetMarkup(false, aInnerHTML);
 }
@@ -3810,8 +3868,8 @@ static void IntersectionObserverPropertyDtor(void* aObject,
                                              void* aData) {
   auto* element = static_cast<Element*>(aObject);
   auto* observers = static_cast<IntersectionObserverList*>(aPropertyValue);
-  for (auto iter = observers->Iter(); !iter.Done(); iter.Next()) {
-    DOMIntersectionObserver* observer = iter.Key();
+  for (const auto& entry : *observers) {
+    DOMIntersectionObserver* observer = entry.GetKey();
     observer->UnlinkTarget(*element);
   }
   delete observers;
@@ -3823,20 +3881,18 @@ void Element::RegisterIntersectionObserver(DOMIntersectionObserver* aObserver) {
 
   if (!observers) {
     observers = new IntersectionObserverList();
-    observers->Put(aObserver, eUninitialized);
+    observers->InsertOrUpdate(aObserver, eUninitialized);
     SetProperty(nsGkAtoms::intersectionobserverlist, observers,
                 IntersectionObserverPropertyDtor, /* aTransfer = */ true);
     return;
   }
 
-  observers->LookupForAdd(aObserver).OrInsert([]() {
-    // Value can be:
-    //   -2:   Makes sure next calculated threshold always differs, leading to a
-    //         notification task being scheduled.
-    //   -1:   Non-intersecting.
-    //   >= 0: Intersecting, valid index of aObserver->mThresholds.
-    return eUninitialized;
-  });
+  // Value can be:
+  //   -2:   Makes sure next calculated threshold always differs, leading to a
+  //         notification task being scheduled.
+  //   -1:   Non-intersecting.
+  //   >= 0: Intersecting, valid index of aObserver->mThresholds.
+  observers->LookupOrInsert(aObserver, eUninitialized);
 }
 
 void Element::UnregisterIntersectionObserver(
@@ -3899,7 +3955,7 @@ void Element::ClearServoData(Document* aDoc) {
   }
 }
 
-void Element::SetCustomElementData(CustomElementData* aData) {
+void Element::SetCustomElementData(UniquePtr<CustomElementData> aData) {
   SetHasCustomElementData();
 
   if (aData->mState != CustomElementData::State::eCustom) {
@@ -3930,7 +3986,7 @@ void Element::SetCustomElementData(CustomElementData* aData) {
     }
   }
 #endif
-  slots->mCustomElementData = aData;
+  slots->mCustomElementData = std::move(aData);
 }
 
 CustomElementDefinition* Element::GetCustomElementDefinition() const {
@@ -4328,6 +4384,23 @@ double Element::FirstLineBoxBSize() const {
   return line != lineEnd
              ? nsPresContext::AppUnitsToDoubleCSSPixels(line->BSize())
              : 0.0;
+}
+
+// static
+nsAtom* Element::GetEventNameForAttr(nsAtom* aAttr) {
+  if (aAttr == nsGkAtoms::onwebkitanimationend) {
+    return nsGkAtoms::onwebkitAnimationEnd;
+  }
+  if (aAttr == nsGkAtoms::onwebkitanimationiteration) {
+    return nsGkAtoms::onwebkitAnimationIteration;
+  }
+  if (aAttr == nsGkAtoms::onwebkitanimationstart) {
+    return nsGkAtoms::onwebkitAnimationStart;
+  }
+  if (aAttr == nsGkAtoms::onwebkittransitionend) {
+    return nsGkAtoms::onwebkitTransitionEnd;
+  }
+  return aAttr;
 }
 
 }  // namespace mozilla::dom

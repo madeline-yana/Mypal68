@@ -1070,9 +1070,29 @@ nsDOMWindowUtils::CycleCollect(nsICycleCollectorListener* aListener) {
   return NS_OK;
 }
 
+static bool ParseGCReason(const nsACString& aStr, JS::GCReason* aReason,
+                          JS::GCReason aDefault) {
+  if (aStr.IsEmpty()) {
+    *aReason = aDefault;
+    return true;
+  }
+#define CHECK_REASON(name, _)         \
+  if (aStr.EqualsIgnoreCase(#name)) { \
+    *aReason = JS::GCReason::name;    \
+    return true;                      \
+  }
+  GCREASONS(CHECK_REASON);
+  return false;
+}
+
 NS_IMETHODIMP
-nsDOMWindowUtils::RunNextCollectorTimer() {
-  nsJSContext::RunNextCollectorTimer(JS::GCReason::DOM_WINDOW_UTILS);
+nsDOMWindowUtils::RunNextCollectorTimer(const nsACString& aReason) {
+  JS::GCReason reason;
+  if (!ParseGCReason(aReason, &reason, JS::GCReason::DOM_WINDOW_UTILS)) {
+    return NS_ERROR_INVALID_ARG;
+  }
+
+  nsJSContext::RunNextCollectorTimer(reason);
 
   return NS_OK;
 }
@@ -1198,7 +1218,7 @@ nsDOMWindowUtils::GetTranslationNodes(nsINode* aRoot,
     return NS_ERROR_DOM_WRONG_DOCUMENT_ERR;
   }
 
-  nsTHashtable<nsPtrHashKey<nsIContent>> translationNodesHash(500);
+  nsTHashSet<nsIContent*> translationNodesHash(500);
   RefPtr<nsTranslationNodeList> list = new nsTranslationNodeList;
 
   uint32_t limit = 15000;
@@ -1225,7 +1245,7 @@ nsDOMWindowUtils::GetTranslationNodes(nsINode* aRoot,
     for (nsIContent* child = content->GetFirstChild(); child;
          child = child->GetNextSibling()) {
       if (child->IsText() && child->GetAsText()->HasTextForTranslation()) {
-        translationNodesHash.PutEntry(content);
+        translationNodesHash.Insert(content);
 
         nsIFrame* frame = content->GetPrimaryFrame();
         bool isTranslationRoot = frame && frame->IsBlockFrameOrSubclass();
@@ -1688,6 +1708,16 @@ nsDOMWindowUtils::GetFocusedActionHint(nsAString& aType) {
   }
 
   aType = widget->GetInputContext().mActionHint;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDOMWindowUtils::GetFocusedAutocapitalize(nsAString& aAutocapitalize) {
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  if (!widget) {
+    return NS_ERROR_FAILURE;
+  }
+  aAutocapitalize = widget->GetInputContext().mAutocapitalize;
   return NS_OK;
 }
 
@@ -2889,7 +2919,7 @@ nsDOMWindowUtils::IsPartOfOpaqueLayer(Element* aElement, bool* aResult) {
 NS_IMETHODIMP
 nsDOMWindowUtils::NumberOfAssignedPaintedLayers(
     const nsTArray<RefPtr<Element>>& aElements, uint32_t* aResult) {
-  nsTHashtable<nsPtrHashKey<PaintedLayer>> layers;
+  nsTHashSet<PaintedLayer*> layers;
   for (Element* element : aElements) {
     nsIFrame* frame = element->GetPrimaryFrame();
     if (!frame) {
@@ -2902,7 +2932,7 @@ nsDOMWindowUtils::NumberOfAssignedPaintedLayers(
       return NS_ERROR_FAILURE;
     }
 
-    layers.PutEntry(layer);
+    layers.Insert(layer);
   }
 
   *aResult = layers.Count();
@@ -2998,9 +3028,7 @@ nsDOMWindowUtils::GetFileReferences(const nsAString& aDatabaseName, int64_t aId,
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
   nsCString origin;
-  nsresult rv =
-      quota::QuotaManager::GetInfoFromWindow(window, nullptr, nullptr, &origin);
-  NS_ENSURE_SUCCESS(rv, rv);
+  MOZ_TRY_VAR(origin, quota::QuotaManager::GetOriginFromWindow(window));
 
   IDBOpenDBOptions options;
   JS::Rooted<JS::Value> optionsVal(aCx, aOptions);
@@ -3016,8 +3044,9 @@ nsDOMWindowUtils::GetFileReferences(const nsAString& aDatabaseName, int64_t aId,
   RefPtr<IndexedDatabaseManager> mgr = IndexedDatabaseManager::Get();
 
   if (mgr) {
-    rv = mgr->BlockAndGetFileReferences(persistenceType, origin, aDatabaseName,
-                                        aId, aRefCnt, aDBRefCnt, aResult);
+    nsresult rv =
+        mgr->BlockAndGetFileReferences(persistenceType, origin, aDatabaseName,
+                                       aId, aRefCnt, aDBRefCnt, aResult);
     NS_ENSURE_SUCCESS(rv, rv);
   } else {
     *aRefCnt = *aDBRefCnt = -1;
@@ -3277,8 +3306,9 @@ nsDOMWindowUtils::SelectAtPoint(float aX, float aY, uint32_t aSelectBehavior,
   nsPoint relPoint = nsLayoutUtils::GetEventCoordinatesRelativeTo(
       widget, pt, RelativeTo{targetFrame});
 
+  const RefPtr<nsPresContext> pinnedPresContext{GetPresContext()};
   nsresult rv = targetFrame->SelectByTypeAtPoint(
-      GetPresContext(), relPoint, amount, amount, nsIFrame::SELECT_ACCUMULATE);
+      pinnedPresContext, relPoint, amount, amount, nsIFrame::SELECT_ACCUMULATE);
   *_retval = !NS_FAILED(rv);
   return NS_OK;
 }

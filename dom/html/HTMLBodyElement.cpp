@@ -22,8 +22,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Body)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 //----------------------------------------------------------------------
 
@@ -338,5 +337,4 @@ nsresult HTMLBodyElement::AfterSetAttr(int32_t aNameSpaceID, nsAtom* aName,
 #undef WINDOW_EVENT_HELPER
 #undef EVENT
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

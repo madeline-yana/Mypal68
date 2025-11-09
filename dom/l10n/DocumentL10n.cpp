@@ -63,12 +63,14 @@ class L10nReadyHandler final : public PromiseNativeHandler {
   explicit L10nReadyHandler(Promise* aPromise, DocumentL10n* aDocumentL10n)
       : mPromise(aPromise), mDocumentL10n(aDocumentL10n) {}
 
-  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     mDocumentL10n->InitialTranslationCompleted();
     mPromise->MaybeResolveWithUndefined();
   }
 
-  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     mDocumentL10n->InitialTranslationCompleted();
     mPromise->MaybeRejectWithUndefined();
   }
@@ -91,6 +93,12 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(L10nReadyHandler)
 
 void DocumentL10n::TriggerInitialTranslation() {
   if (mState >= DocumentL10nState::InitialTranslationTriggered) {
+    return;
+  }
+  if (!mReady) {
+    // If we don't have `mReady` it means that we are in shutdown mode.
+    // See bug 1687118 for details.
+    InitialTranslationCompleted();
     return;
   }
 
@@ -255,6 +263,7 @@ void DocumentL10n::InitialTranslationCompleted() {
   // In XUL scenario contentSink is nullptr.
   if (mContentSink) {
     mContentSink->InitialTranslationCompleted();
+    mContentSink = nullptr;
   }
 
   // From now on, the state of Localization is unconditionally

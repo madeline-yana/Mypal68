@@ -21,8 +21,7 @@
 #include "nsIMultiPartChannel.h"
 #include "nsProxyRelease.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 MediaDocumentStreamListener::MediaDocumentStreamListener(
     MediaDocument* aDocument)
@@ -392,5 +391,4 @@ void MediaDocument::UpdateTitleAndCharset(const nsACString& aTypeStr,
   }
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

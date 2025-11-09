@@ -148,8 +148,7 @@ void PreallocatedProcessManagerImpl::RereadPrefs() {
     Disable();
   }
 
-  if (ContentParent::IsMaxProcessCountReached(
-          NS_LITERAL_STRING(DEFAULT_REMOTE_TYPE))) {
+  if (ContentParent::IsMaxProcessCountReached(DEFAULT_REMOTE_TYPE)) {
     CloseProcess();
   }
 }
@@ -215,8 +214,7 @@ void PreallocatedProcessManagerImpl::RemoveBlocker(ContentParent* aParent) {
 
 bool PreallocatedProcessManagerImpl::CanAllocate() {
   return mEnabled && mBlockers.IsEmpty() && IsEmpty() && !mShutdown &&
-         !ContentParent::IsMaxProcessCountReached(
-             NS_LITERAL_STRING(DEFAULT_REMOTE_TYPE));
+         !ContentParent::IsMaxProcessCountReached(DEFAULT_REMOTE_TYPE);
 }
 
 void PreallocatedProcessManagerImpl::AllocateAfterDelay() {

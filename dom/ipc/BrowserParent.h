@@ -171,6 +171,9 @@ class BrowserParent final : public PBrowserParent,
 
   nsIXULBrowserWindow* GetXULBrowserWindow();
 
+  static uint32_t GetMaxTouchPoints(Element* aElement);
+  uint32_t GetMaxTouchPoints() { return GetMaxTouchPoints(mFrameElement); }
+
   /**
    * Return the top level doc accessible parent for this tab.
    */
@@ -210,9 +213,9 @@ class BrowserParent final : public PBrowserParent,
   template <typename Callback>
   void VisitAllDescendants(Callback aCallback) {
     const auto& browserBridges = ManagedPBrowserBridgeParent();
-    for (auto iter = browserBridges.ConstIter(); !iter.Done(); iter.Next()) {
+    for (const auto& key : browserBridges) {
       BrowserBridgeParent* browserBridge =
-          static_cast<BrowserBridgeParent*>(iter.Get()->GetKey());
+          static_cast<BrowserBridgeParent*>(key);
       BrowserParent* browserParent = browserBridge->GetBrowserParent();
 
       aCallback(browserParent);
@@ -226,9 +229,9 @@ class BrowserParent final : public PBrowserParent,
   template <typename Callback>
   void VisitChildren(Callback aCallback) {
     const auto& browserBridges = ManagedPBrowserBridgeParent();
-    for (auto iter = browserBridges.ConstIter(); !iter.Done(); iter.Next()) {
+    for (const auto& key : browserBridges) {
       BrowserBridgeParent* browserBridge =
-          static_cast<BrowserBridgeParent*>(iter.Get()->GetKey());
+          static_cast<BrowserBridgeParent*>(key);
       aCallback(browserBridge);
     }
   }
@@ -470,12 +473,12 @@ class BrowserParent final : public PBrowserParent,
       PWindowGlobalParent* aActor, const WindowGlobalInit& aInit) override;
 
   already_AddRefed<PBrowserBridgeParent> AllocPBrowserBridgeParent(
-      const nsString& aPresentationURL, const nsString& aRemoteType,
+      const nsString& aPresentationURL, const nsCString& aRemoteType,
       BrowsingContext* aBrowsingContext, const uint32_t& aChromeFlags);
 
   virtual mozilla::ipc::IPCResult RecvPBrowserBridgeConstructor(
       PBrowserBridgeParent* aActor, const nsString& aPresentationURL,
-      const nsString& aRemoteType, BrowsingContext* aBrowsingContext,
+      const nsCString& aRemoteType, BrowsingContext* aBrowsingContext,
       const uint32_t& aChromeFlags) override;
 
   void LoadURL(nsIURI* aURI);
@@ -586,9 +589,9 @@ class BrowserParent final : public PBrowserParent,
 
   bool SendSelectionEvent(mozilla::WidgetSelectionEvent& aEvent);
 
-  bool SendHandleTap(TapType aType, const LayoutDevicePoint& aPoint,
-                     Modifiers aModifiers, const ScrollableLayerGuid& aGuid,
-                     uint64_t aInputBlockId);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY bool SendHandleTap(
+      TapType aType, const LayoutDevicePoint& aPoint, Modifiers aModifiers,
+      const ScrollableLayerGuid& aGuid, uint64_t aInputBlockId);
 
   PFilePickerParent* AllocPFilePickerParent(const nsString& aTitle,
                                             const int16_t& aMode);
@@ -770,8 +773,7 @@ class BrowserParent final : public PBrowserParent,
  private:
   // This is used when APZ needs to find the BrowserParent associated with a
   // layer to dispatch events.
-  typedef nsDataHashtable<nsUint64HashKey, BrowserParent*>
-      LayerToBrowserParentTable;
+  typedef nsTHashMap<nsUint64HashKey, BrowserParent*> LayerToBrowserParentTable;
   static LayerToBrowserParentTable* sLayerToBrowserParentTable;
 
   static void AddBrowserParentToTable(layers::LayersId aLayersId,

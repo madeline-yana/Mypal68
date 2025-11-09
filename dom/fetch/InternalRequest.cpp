@@ -15,8 +15,7 @@
 #include "mozilla/dom/WorkerCommon.h"
 #include "mozilla/dom/WorkerPrivate.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 // The global is used to extract the principal.
 SafeRefPtr<InternalRequest> InternalRequest::GetRequestConstructorCopy(
     nsIGlobalObject* aGlobal, ErrorResult& aRv) const {
@@ -80,7 +79,7 @@ InternalRequest::InternalRequest(const nsACString& aURL,
       mHeaders(new InternalHeaders(HeadersGuardEnum::None)),
       mBodyLength(InternalResponse::UNKNOWN_BODY_SIZE),
       mContentPolicyType(nsIContentPolicy::TYPE_FETCH),
-      mReferrer(NS_LITERAL_STRING(kFETCH_CLIENT_REFERRER_STR)),
+      mReferrer(NS_LITERAL_STRING_FROM_CSTRING(kFETCH_CLIENT_REFERRER_STR)),
       mReferrerPolicy(ReferrerPolicy::_empty),
       mEnvironmentReferrerPolicy(ReferrerPolicy::_empty),
       mMode(RequestMode::No_cors),
@@ -360,5 +359,4 @@ void InternalRequest::SetPrincipalInfo(
   mPrincipalInfo = std::move(aPrincipalInfo);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

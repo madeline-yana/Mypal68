@@ -1679,7 +1679,7 @@ class MediaDecoderStateMachine::VideoOnlySeekingState
     // changes.
     mMaster->mOnPlaybackEvent.Notify(MediaPlaybackEvent::VideoOnlySeekBegin);
 
-    return p.forget();
+    return p;
   }
 
   void Exit() override {
@@ -2094,8 +2094,8 @@ static void ReportRecoveryTelemetry(const TimeStamp& aRecoveryStart,
   double duration_ms = duration.ToMilliseconds();
   Telemetry::Accumulate(Telemetry::VIDEO_SUSPEND_RECOVERY_TIME_MS, key,
                         uint32_t(duration_ms + 0.5));
-  Telemetry::Accumulate(Telemetry::VIDEO_SUSPEND_RECOVERY_TIME_MS,
-                        NS_LITERAL_CSTRING("All"), uint32_t(duration_ms + 0.5));
+  Telemetry::Accumulate(Telemetry::VIDEO_SUSPEND_RECOVERY_TIME_MS, "All"_ns,
+                        uint32_t(duration_ms + 0.5));
 }
 
 void MediaDecoderStateMachine::StateObject::HandleResumeVideoDecoding(
@@ -3744,31 +3744,31 @@ MediaDecoderStateMachine::RequestDebugInfo() {
       AbstractThread::TailDispatch);
   MOZ_DIAGNOSTIC_ASSERT(NS_SUCCEEDED(rv));
   Unused << rv;
-  return p.forget();
+  return p;
 }
 
-class VideoQueueMemoryFunctor : public nsDequeFunctor {
+class VideoQueueMemoryFunctor : public nsDequeFunctor<VideoData> {
  public:
   VideoQueueMemoryFunctor() : mSize(0) {}
 
   MOZ_DEFINE_MALLOC_SIZE_OF(MallocSizeOf);
 
-  virtual void operator()(void* aObject) override {
-    const VideoData* v = static_cast<const VideoData*>(aObject);
+  virtual void operator()(VideoData* aObject) override {
+    const VideoData* v = aObject;
     mSize += v->SizeOfIncludingThis(MallocSizeOf);
   }
 
   size_t mSize;
 };
 
-class AudioQueueMemoryFunctor : public nsDequeFunctor {
+class AudioQueueMemoryFunctor : public nsDequeFunctor<AudioData> {
  public:
   AudioQueueMemoryFunctor() : mSize(0) {}
 
   MOZ_DEFINE_MALLOC_SIZE_OF(MallocSizeOf);
 
-  virtual void operator()(void* aObject) override {
-    const AudioData* audioData = static_cast<const AudioData*>(aObject);
+  virtual void operator()(AudioData* aObject) override {
+    const AudioData* audioData = aObject;
     mSize += audioData->SizeOfIncludingThis(MallocSizeOf);
   }
 

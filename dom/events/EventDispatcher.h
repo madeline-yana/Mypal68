@@ -64,11 +64,9 @@ class MOZ_STACK_CLASS EventChainVisitor {
 
   /**
    * The prescontext, possibly nullptr.
-   * Note that the lifetime of mPresContext is guaranteed by the creators so
-   * that you can use this with MOZ_KnownLive() when you set argument
-   * of can-run-script methods to this.
+   * Note that the lifetime of mPresContext is guaranteed by the creators.
    */
-  nsPresContext* const mPresContext;
+  MOZ_KNOWN_LIVE nsPresContext* const mPresContext;
 
   /**
    * The WidgetEvent which is being dispatched. Never nullptr.
@@ -305,7 +303,7 @@ class MOZ_STACK_CLASS EventChainPostVisitor final
   // of this class is alive.
   MOZ_CAN_RUN_SCRIPT
   explicit EventChainPostVisitor(EventChainVisitor& aOther)
-      : EventChainVisitor(MOZ_KnownLive(aOther.mPresContext), aOther.mEvent,
+      : EventChainVisitor(aOther.mPresContext, aOther.mEvent,
                           MOZ_KnownLive(aOther.mDOMEvent),
                           aOther.mEventStatus) {}
 };
@@ -361,10 +359,9 @@ class EventDispatcher {
    * Otherwise this works like EventDispatcher::Dispatch.
    * @note Use this method when dispatching a dom::Event.
    */
-  static nsresult DispatchDOMEvent(nsISupports* aTarget, WidgetEvent* aEvent,
-                                   dom::Event* aDOMEvent,
-                                   nsPresContext* aPresContext,
-                                   nsEventStatus* aEventStatus);
+  MOZ_CAN_RUN_SCRIPT static nsresult DispatchDOMEvent(
+      nsISupports* aTarget, WidgetEvent* aEvent, dom::Event* aDOMEvent,
+      nsPresContext* aPresContext, nsEventStatus* aEventStatus);
 
   /**
    * Creates a DOM Event.  Returns null if the event type is unsupported.

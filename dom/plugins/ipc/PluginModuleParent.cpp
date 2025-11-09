@@ -13,9 +13,9 @@
 #include "mozilla/ipc/CrashReporterClient.h"
 #include "mozilla/ipc/CrashReporterHost.h"
 #include "mozilla/dom/Element.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "mozilla/ipc/MessageChannel.h"
-#include "mozilla/ipc/ProtocolUtils.h"
 #include "mozilla/plugins/BrowserStreamParent.h"
 #include "mozilla/plugins/PluginBridge.h"
 #include "mozilla/plugins/PluginInstanceParent.h"
@@ -2022,8 +2022,8 @@ class nsCaseInsensitiveUTF8StringArrayComparator {
 static void ForceWindowless(nsTArray<nsCString>& names,
                             nsTArray<nsCString>& values) {
   nsCaseInsensitiveUTF8StringArrayComparator comparator;
-  NS_NAMED_LITERAL_CSTRING(wmodeAttributeName, "wmode");
-  NS_NAMED_LITERAL_CSTRING(opaqueAttributeValue, "opaque");
+  constexpr auto wmodeAttributeName = "wmode"_ns;
+  constexpr auto opaqueAttributeValue = "opaque"_ns;
   auto wmodeAttributeIndex = names.IndexOf(wmodeAttributeName, 0, comparator);
   if (wmodeAttributeIndex != names.NoIndex) {
     if (!values[wmodeAttributeIndex].EqualsLiteral("transparent")) {
@@ -2039,8 +2039,8 @@ static void ForceWindowless(nsTArray<nsCString>& names,
 static void ForceDirect(nsTArray<nsCString>& names,
                         nsTArray<nsCString>& values) {
   nsCaseInsensitiveUTF8StringArrayComparator comparator;
-  NS_NAMED_LITERAL_CSTRING(wmodeAttributeName, "wmode");
-  NS_NAMED_LITERAL_CSTRING(directAttributeValue, "direct");
+  constexpr auto wmodeAttributeName = "wmode"_ns;
+  constexpr auto directAttributeValue = "direct"_ns;
   auto wmodeAttributeIndex = names.IndexOf(wmodeAttributeName, 0, comparator);
   if (wmodeAttributeIndex != names.NoIndex) {
     if (values[wmodeAttributeIndex].EqualsLiteral("window")) {
@@ -2063,7 +2063,7 @@ nsresult PluginModuleParent::NPP_NewInternal(
   }
 
   nsCaseInsensitiveUTF8StringArrayComparator comparator;
-  NS_NAMED_LITERAL_CSTRING(srcAttributeName, "src");
+  constexpr auto srcAttributeName = "src"_ns;
   auto srcAttributeIndex = names.IndexOf(srcAttributeName, 0, comparator);
   nsAutoCString srcAttribute;
   if (srcAttributeIndex != names.NoIndex) {

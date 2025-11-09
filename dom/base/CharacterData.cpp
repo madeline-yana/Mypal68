@@ -39,8 +39,7 @@
 #  include "nsAccessibilityService.h"
 #endif
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 CharacterData::CharacterData(already_AddRefed<dom::NodeInfo>&& aNodeInfo)
     : nsIContent(std::move(aNodeInfo)) {
@@ -283,7 +282,7 @@ nsresult CharacterData::SetTextInternal(
     bool bidi = mText.IsBidi();
 
     // Allocate new buffer
-    int32_t newLength = textLength - aCount + aLength;
+    const uint32_t newLength = textLength - aCount + aLength;
     // Use nsString and not nsAutoString so that we get a nsStringBuffer which
     // can be just AddRefed in nsTextFragment.
     nsString to;
@@ -356,7 +355,7 @@ nsresult CharacterData::SetTextInternal(
 
 // Implementation of nsIContent
 
-#ifdef DEBUG
+#ifdef MOZ_DOM_LIST
 void CharacterData::ToCString(nsAString& aBuf, int32_t aOffset,
                               int32_t aLen) const {
   if (mText.Is2b()) {
@@ -596,5 +595,4 @@ void CharacterData::AddSizeOfExcludingThis(nsWindowSizes& aSizes,
   *aNodeSize += mText.SizeOfExcludingThis(aSizes.mState.mMallocSizeOf);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

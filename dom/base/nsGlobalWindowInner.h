@@ -15,8 +15,7 @@
 // Helper Classes
 #include "nsCOMPtr.h"
 #include "nsWeakReference.h"
-#include "nsDataHashtable.h"
-#include "nsJSThingHashtable.h"
+#include "nsTHashMap.h"
 #include "nsCycleCollectionParticipant.h"
 
 // Interfaces Needed
@@ -105,7 +104,9 @@ class CustomElementRegistry;
 class DocGroup;
 class External;
 class Function;
+#ifdef MOZ_GAMEPAD
 class Gamepad;
+#endif
 enum class ImageBitmapFormat : uint8_t;
 class IdleRequest;
 class IdleRequestCallback;
@@ -190,7 +191,7 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
 
-  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindowInner*>
+  typedef nsTHashMap<nsUint64HashKey, nsGlobalWindowInner*>
       InnerWindowByIdTable;
 
   static void AssertIsOnMainThread()
@@ -300,9 +301,10 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   EventTarget* GetTargetForDOMEvent() override;
 
   using mozilla::dom::EventTarget::DispatchEvent;
-  bool DispatchEvent(mozilla::dom::Event& aEvent,
-                     mozilla::dom::CallerType aCallerType,
-                     mozilla::ErrorResult& aRv) override;
+  // TODO: Convert this to MOZ_CAN_RUN_SCRIPT (bug 1415230)
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY bool DispatchEvent(
+      mozilla::dom::Event& aEvent, mozilla::dom::CallerType aCallerType,
+      mozilla::ErrorResult& aRv) override;
 
   void GetEventTargetParent(mozilla::EventChainPreVisitor& aVisitor) override;
 
@@ -353,6 +355,8 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
       const mozilla::dom::ServiceWorkerRegistrationDescriptor& aDescriptor)
       override;
 
+  mozilla::StorageAccess GetStorageAccess() final;
+
   void NoteCalledRegisterForServiceWorkerScope(const nsACString& aScope);
 
   void NoteDOMContentLoaded();
@@ -368,7 +372,9 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   friend class FullscreenTransitionTask;
 
   // Inner windows only.
+#ifdef MOZ_GAMEPAD
   virtual void SetHasGamepadEventListener(bool aHasGamepad = true) override;
+#endif
 #ifdef MOZ_VR
   void NotifyVREventListenerAdded();
   bool HasUsedVR() const;
@@ -488,6 +494,7 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
                                           const nsString& aAddonId);
 
   // Inner windows only.
+#ifdef MOZ_GAMEPAD
   void AddGamepad(uint32_t aIndex, mozilla::dom::Gamepad* aGamepad);
   void RemoveGamepad(uint32_t aIndex);
   void GetGamepads(nsTArray<RefPtr<mozilla::dom::Gamepad>>& aGamepads);
@@ -501,6 +508,7 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   // Enable/disable updates for gamepad input.
   void EnableGamepadUpdates();
   void DisableGamepadUpdates();
+#endif
 
   // Inner windows only.
   // Enable/disable updates for VR
@@ -588,6 +596,7 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   mozilla::dom::Location* Location() override;
   nsHistory* GetHistory(mozilla::ErrorResult& aError);
   mozilla::dom::CustomElementRegistry* CustomElements() override;
+  mozilla::dom::CustomElementRegistry* GetExistingCustomElements();
   mozilla::dom::BarProp* GetLocationbar(mozilla::ErrorResult& aError);
   mozilla::dom::BarProp* GetMenubar(mozilla::ErrorResult& aError);
   mozilla::dom::BarProp* GetPersonalbar(mozilla::ErrorResult& aError);
@@ -1110,8 +1119,8 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   bool IsInModalState();
 
   void SetFocusedElement(mozilla::dom::Element* aElement,
-                         uint32_t aFocusMethod = 0, bool aNeedsFocus = false,
-                         bool aWillShowOutline = false) override;
+                         uint32_t aFocusMethod = 0,
+                         bool aNeedsFocus = false) override;
 
   uint32_t GetFocusMethod() override;
 
@@ -1193,9 +1202,8 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   // NOTE: Chrome Only
   void DisconnectAndClearGroupMessageManagers() {
     MOZ_RELEASE_ASSERT(IsChromeWindow());
-    for (auto iter = mChromeFields.mGroupMessageManagers.Iter(); !iter.Done();
-         iter.Next()) {
-      mozilla::dom::ChromeMessageBroadcaster* mm = iter.UserData();
+    for (const auto& entry : mChromeFields.mGroupMessageManagers) {
+      mozilla::dom::ChromeMessageBroadcaster* mm = entry.GetWeak();
       if (mm) {
         mm->Disconnect();
       }
@@ -1253,6 +1261,9 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   // Hint to the JS engine whether we are currently loading.
   void HintIsLoading(bool aIsLoading);
 
+  virtual JS::loader::ModuleLoaderBase* GetModuleLoader(
+      JSContext* aCx) override;
+
  protected:
   // Window offline status. Checked to see if we need to fire offline event
   bool mWasOffline : 1;
@@ -1285,8 +1296,9 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   bool mDidFireDocElemInserted : 1;
 
   // Indicates whether this window wants gamepad input events
+#ifdef MOZ_GAMEPAD
   bool mHasGamepad : 1;
-
+#endif
   // Indicates whether this window wants VR events
 #ifdef MOZ_VR
   bool mHasVREvents : 1;
@@ -1299,9 +1311,11 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
 #ifdef MOZ_VR
   bool mHasVRDisplayActivateEvents : 1;
 #endif
+#ifdef MOZ_GAMEPAD
   nsCheapSet<nsUint32HashKey> mGamepadIndexSet;
   nsRefPtrHashtable<nsUint32HashKey, mozilla::dom::Gamepad> mGamepads;
   bool mHasSeenGamepadInput;
+#endif
 
   RefPtr<nsScreen> mScreen;
 

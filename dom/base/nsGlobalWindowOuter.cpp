@@ -10,6 +10,7 @@
 
 // Local Includes
 #include "Navigator.h"
+#include "mozilla/Encoding.h"
 #include "nsContentSecurityManager.h"
 #include "nsScreen.h"
 #include "nsHistory.h"
@@ -30,6 +31,7 @@
 #include "mozilla/dom/Storage.h"
 #include "mozilla/dom/MaybeCrossOriginObject.h"
 #include "mozilla/dom/Performance.h"
+#include "mozilla/dom/ProxyHandlerUtils.h"
 #include "mozilla/dom/StorageEvent.h"
 #include "mozilla/dom/StorageEventBinding.h"
 #include "mozilla/dom/StorageNotifierService.h"
@@ -191,9 +193,10 @@
 #include "mozilla/dom/MessageChannel.h"
 #include "mozilla/dom/Promise.h"
 
-#include "mozilla/dom/Gamepad.h"
-#include "mozilla/dom/GamepadManager.h"
-
+#ifdef MOZ_GAMEPAD
+#  include "mozilla/dom/Gamepad.h"
+#  include "mozilla/dom/GamepadManager.h"
+#endif
 #ifdef MOZ_VR
 #  include "gfxVR.h"
 #  include "mozilla/dom/VRDisplay.h"
@@ -479,7 +482,7 @@ class nsOuterWindowProxy : public MaybeCrossOriginObject<js::Wrapper> {
   const char* className(JSContext* cx,
                         JS::Handle<JSObject*> wrapper) const override;
 
-  void finalize(JSFreeOp* fop, JSObject* proxy) const override;
+  void finalize(JS::GCContext* gcx, JSObject* proxy) const override;
   size_t objectMoved(JSObject* proxy, JSObject* old) const override;
 
   bool isCallable(JSObject* obj) const override { return false; }
@@ -546,7 +549,7 @@ const char* nsOuterWindowProxy::className(JSContext* cx,
   return "Window";
 }
 
-void nsOuterWindowProxy::finalize(JSFreeOp* fop, JSObject* proxy) const {
+void nsOuterWindowProxy::finalize(JS::GCContext* gcx, JSObject* proxy) const {
   nsGlobalWindowOuter* outerWindow = GetOuterWindow(proxy);
   if (outerWindow) {
     outerWindow->ClearWrapper(proxy);
@@ -672,9 +675,9 @@ bool nsOuterWindowProxy::getOwnPropertyDescriptor(
   }
 
   // Step 6 -- check for named subframes.
-  if (JSID_IS_STRING(id)) {
+  if (id.isString()) {
     nsAutoJSString name;
-    if (!name.init(cx, JSID_TO_STRING(id))) {
+    if (!name.init(cx, id.toString())) {
       return false;
     }
     nsGlobalWindowOuter* win = GetOuterWindow(proxy);
@@ -1071,7 +1074,7 @@ bool nsOuterWindowProxy::AppendIndexedPropertyNames(
     return false;
   }
   for (int32_t i = 0; i < int32_t(length); ++i) {
-    if (!props.append(INT_TO_JSID(i))) {
+    if (!props.append(JS::PropertyKey::Int(i))) {
       return false;
     }
   }
@@ -1265,7 +1268,7 @@ already_AddRefed<nsIPrincipal> nsOuterWindowProxy::GetNoPDFJSPrincipal(
   }
 
   nsCOMPtr<nsIPrincipal> principal;
-  propBag->GetPropertyAsInterface(NS_LITERAL_STRING("noPDFJSPrincipal"),
+  propBag->GetPropertyAsInterface(u"noPDFJSPrincipal"_ns,
                                   NS_GET_IID(nsIPrincipal),
                                   getter_AddRefs(principal));
   return principal.forget();
@@ -1377,12 +1380,12 @@ nsGlobalWindowOuter::nsGlobalWindowOuter(uint64_t aWindowID)
   MOZ_ASSERT(sOuterWindowsById, "Outer Windows hash table must be created!");
 
   // |this| is an outer window, add to the outer windows list.
-  MOZ_ASSERT(!sOuterWindowsById->Get(mWindowID),
+  MOZ_ASSERT(!sOuterWindowsById->Contains(mWindowID),
              "This window shouldn't be in the hash table yet!");
   // We seem to see crashes in release builds because of null
   // |sOuterWindowsById|.
   if (sOuterWindowsById) {
-    sOuterWindowsById->Put(mWindowID, this);
+    sOuterWindowsById->InsertOrUpdate(mWindowID, this);
   }
 }
 
@@ -1637,7 +1640,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindowOuter)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocShell)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBrowsingContext)
 
-  tmp->TraverseHostObjectURIs(cb);
+  tmp->TraverseObjectsInGlobal(cb);
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChromeFields.mBrowserDOMWindow)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
@@ -1673,7 +1676,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindowOuter)
     tmp->mBrowsingContext = nullptr;
   }
 
-  tmp->UnlinkHostObjectURIs();
+  tmp->UnlinkObjectsInGlobal();
 
   if (tmp->IsChromeWindow()) {
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mChromeFields.mBrowserDOMWindow)
@@ -4710,11 +4713,9 @@ bool nsGlobalWindowOuter::SetWidgetFullscreen(FullscreenReason aReason,
 /* virtual */
 void nsGlobalWindowOuter::FullscreenWillChange(bool aIsFullscreen) {
   if (aIsFullscreen) {
-    DispatchCustomEvent(NS_LITERAL_STRING("willenterfullscreen"),
-                        ChromeOnlyDispatch::eYes);
+    DispatchCustomEvent(u"willenterfullscreen"_ns, ChromeOnlyDispatch::eYes);
   } else {
-    DispatchCustomEvent(NS_LITERAL_STRING("willexitfullscreen"),
-                        ChromeOnlyDispatch::eYes);
+    DispatchCustomEvent(u"willexitfullscreen"_ns, ChromeOnlyDispatch::eYes);
   }
 }
 
@@ -4745,8 +4746,7 @@ void nsGlobalWindowOuter::FinishFullscreenChange(bool aIsFullscreen) {
 
   // dispatch a "fullscreen" DOM event so that XUL apps can
   // respond visually if we are kicked into full screen mode
-  DispatchCustomEvent(NS_LITERAL_STRING("fullscreen"),
-                      ChromeOnlyDispatch::eYes);
+  DispatchCustomEvent(u"fullscreen"_ns, ChromeOnlyDispatch::eYes);
 
   if (!NS_WARN_IF(!IsChromeWindow())) {
     if (RefPtr<PresShell> presShell =
@@ -4965,7 +4965,7 @@ bool nsGlobalWindowOuter::AlertOrConfirm(bool aAlert, const nsAString& aMessage,
 
   // Always allow tab modal prompts for alert and confirm.
   if (nsCOMPtr<nsIWritablePropertyBag2> promptBag = do_QueryInterface(prompt)) {
-    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), true);
+    promptBag->SetPropertyAsBool(u"allowTabModal"_ns, true);
   }
 
   bool result = false;
@@ -5054,7 +5054,7 @@ void nsGlobalWindowOuter::PromptOuter(const nsAString& aMessage,
 
   // Always allow tab modal prompts for prompt.
   if (nsCOMPtr<nsIWritablePropertyBag2> promptBag = do_QueryInterface(prompt)) {
-    promptBag->SetPropertyAsBool(NS_LITERAL_STRING("allowTabModal"), true);
+    promptBag->SetPropertyAsBool(u"allowTabModal"_ns, true);
   }
 
   // Pass in the default value, if any.
@@ -5877,7 +5877,7 @@ Nullable<WindowProxyHolder> nsGlobalWindowOuter::OpenOuter(
   if (!window || !(bc = window->GetBrowsingContext())) {
     return nullptr;
   }
-  return WindowProxyHolder(bc.forget());
+  return WindowProxyHolder(std::move(bc));
 }
 
 nsresult nsGlobalWindowOuter::Open(const nsAString& aUrl,
@@ -5976,7 +5976,7 @@ Nullable<WindowProxyHolder> nsGlobalWindowOuter::OpenDialogOuter(
   if (!dialog || !(bc = dialog->GetBrowsingContext())) {
     return nullptr;
   }
-  return WindowProxyHolder(bc.forget());
+  return WindowProxyHolder(std::move(bc));
 }
 
 BrowsingContext* nsGlobalWindowOuter::GetFramesOuter() {
@@ -6335,8 +6335,8 @@ void nsGlobalWindowOuter::CloseOuter(bool aTrustedCaller) {
     nsresult rv = mDoc->GetURL(url);
     NS_ENSURE_SUCCESS_VOID(rv);
 
-    if (!StringBeginsWith(url, NS_LITERAL_STRING("about:neterror")) &&
-        !mHadOriginalOpener && !aTrustedCaller) {
+    if (!StringBeginsWith(url, u"about:neterror"_ns) && !HadOriginalOpener() &&
+        !aTrustedCaller) {
       bool allowClose =
           mAllowScriptsToClose ||
           Preferences::GetBool("dom.allow_scripts_to_close_windows", true);
@@ -6344,7 +6344,7 @@ void nsGlobalWindowOuter::CloseOuter(bool aTrustedCaller) {
         // We're blocking the close operation
         // report localized error msg in JS console
         nsContentUtils::ReportToConsole(
-            nsIScriptError::warningFlag, NS_LITERAL_CSTRING("DOM Window"),
+            nsIScriptError::warningFlag, "DOM Window"_ns,
             mDoc,  // Better name for the category?
             nsContentUtils::eDOM_PROPERTIES, "WindowCloseBlockedWarning");
 
@@ -6367,8 +6367,7 @@ void nsGlobalWindowOuter::CloseOuter(bool aTrustedCaller) {
   bool wasInClose = mInClose;
   mInClose = true;
 
-  if (!DispatchCustomEvent(NS_LITERAL_STRING("DOMWindowClose"),
-                           ChromeOnlyDispatch::eYes)) {
+  if (!DispatchCustomEvent(u"DOMWindowClose"_ns, ChromeOnlyDispatch::eYes)) {
     // Someone chose to prevent the default action for this event, if
     // so, let's not close this window after all...
 
@@ -6401,8 +6400,7 @@ void nsGlobalWindowOuter::ForceClose() {
 
   mInClose = true;
 
-  DispatchCustomEvent(NS_LITERAL_STRING("DOMWindowClose"),
-                      ChromeOnlyDispatch::eYes);
+  DispatchCustomEvent(u"DOMWindowClose"_ns, ChromeOnlyDispatch::eYes);
 
   FinalClose();
 }
@@ -6959,7 +6957,9 @@ void nsGlobalWindowOuter::SetIsBackground(bool aIsBackground) {
     // Stop the vr telemery time spent when it switches to
     // the background window.
     if (inner && changed) {
+#ifdef MOZ_GAMEPAD
       inner->StopGamepadHaptics();
+#endif
 #ifdef MOZ_VR
       inner->StopVRActivity();
       // true is for asking to set the delta time to
@@ -6977,7 +6977,9 @@ void nsGlobalWindowOuter::SetIsBackground(bool aIsBackground) {
     inner->ResetVRTelemetry(false);
     inner->StartVRActivity();
 #endif
+#ifdef MOZ_GAMEPAD
     inner->SyncGamepadState();
+#endif
   }
 }
 
@@ -7006,10 +7008,9 @@ void nsGlobalWindowOuter::SetChromeEventHandler(
 
 void nsGlobalWindowOuter::SetFocusedElement(Element* aElement,
                                             uint32_t aFocusMethod,
-                                            bool aNeedsFocus,
-                                            bool aWillShowOutline) {
-  FORWARD_TO_INNER_VOID(SetFocusedElement, (aElement, aFocusMethod, aNeedsFocus,
-                                            aWillShowOutline));
+                                            bool aNeedsFocus) {
+  FORWARD_TO_INNER_VOID(SetFocusedElement,
+                        (aElement, aFocusMethod, aNeedsFocus));
 }
 
 uint32_t nsGlobalWindowOuter::GetFocusMethod() {
@@ -7608,14 +7609,11 @@ nsresult nsGlobalWindowOuter::RestoreWindowState(nsISupports* aState) {
 
   // if a link is focused, refocus with the FLAG_SHOWRING flag set. This makes
   // it easy to tell which link was last clicked when going back a page.
-  Element* focusedElement = inner->GetFocusedElement();
+  RefPtr<Element> focusedElement = inner->GetFocusedElement();
   if (nsContentUtils::ContentIsLink(focusedElement)) {
-    nsFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm) {
-      // XXXbz Do we need the stack strong ref here?
-      RefPtr<Element> kungFuDeathGrip(focusedElement);
-      fm->SetFocus(kungFuDeathGrip, nsIFocusManager::FLAG_NOSCROLL |
-                                        nsIFocusManager::FLAG_SHOWRING);
+    if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
+      fm->SetFocus(focusedElement, nsIFocusManager::FLAG_NOSCROLL |
+                                       nsIFocusManager::FLAG_SHOWRING);
     }
   }
 

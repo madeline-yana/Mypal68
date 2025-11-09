@@ -4,36 +4,36 @@
 
 #include "LSWriteOptimizer.h"
 
-namespace mozilla {
-namespace dom {
+#include <new>
+#include "nsBaseHashtable.h"
+#include "nsTArray.h"
+
+namespace mozilla::dom {
 
 class LSWriteOptimizerBase::WriteInfoComparator {
  public:
   bool Equals(const WriteInfo* a, const WriteInfo* b) const {
-    if (a == b) {
-      return true;
-    }
-    return a && b && a->SerialNumber() == b->SerialNumber();
+    MOZ_ASSERT(a && b);
+    return a->SerialNumber() == b->SerialNumber();
   }
 
   bool LessThan(const WriteInfo* a, const WriteInfo* b) const {
-    if (a && b) {
-      return a->SerialNumber() < b->SerialNumber();
-    }
-    return !!b;
+    MOZ_ASSERT(a && b);
+    return a->SerialNumber() < b->SerialNumber();
   }
 };
 
 void LSWriteOptimizerBase::DeleteItem(const nsAString& aKey, int64_t aDelta) {
   AssertIsOnOwningThread();
 
-  WriteInfo* existingWriteInfo;
-  if (mWriteInfos.Get(aKey, &existingWriteInfo) &&
-      existingWriteInfo->GetType() == WriteInfo::InsertItem) {
-    mWriteInfos.Remove(aKey);
-  } else {
-    mWriteInfos.Put(aKey, MakeUnique<DeleteItemInfo>(NextSerialNumber(), aKey));
-  }
+  mWriteInfos.WithEntryHandle(aKey, [&](auto&& entry) {
+    if (entry && entry.Data()->GetType() == WriteInfo::InsertItem) {
+      entry.Remove();
+    } else {
+      entry.InsertOrUpdate(
+          MakeUnique<DeleteItemInfo>(NextSerialNumber(), aKey));
+    }
+  });
 
   mTotalDelta += aDelta;
 }
@@ -51,17 +51,19 @@ void LSWriteOptimizerBase::Truncate(int64_t aDelta) {
 }
 
 void LSWriteOptimizerBase::GetSortedWriteInfos(
-    nsTArray<WriteInfo*>& aWriteInfos) {
+    nsTArray<NotNull<WriteInfo*>>& aWriteInfos) {
   AssertIsOnOwningThread();
 
   if (mTruncateInfo) {
-    aWriteInfos.InsertElementSorted(mTruncateInfo.get(), WriteInfoComparator());
+    aWriteInfos.InsertElementSorted(WrapNotNullUnchecked(mTruncateInfo.get()),
+                                    WriteInfoComparator());
   }
 
-  for (auto iter = mWriteInfos.ConstIter(); !iter.Done(); iter.Next()) {
-    WriteInfo* writeInfo = iter.UserData();
+  for (const auto& entry : mWriteInfos) {
+    WriteInfo* writeInfo = entry.GetWeak();
 
-    aWriteInfos.InsertElementSorted(writeInfo, WriteInfoComparator());
+    aWriteInfos.InsertElementSorted(WrapNotNull(writeInfo),
+                                    WriteInfoComparator());
   }
 }
 
@@ -88,7 +90,7 @@ void LSWriteOptimizer<T, U>::InsertItem(const nsAString& aKey, const T& aValue,
   } else {
     newWriteInfo = MakeUnique<InsertItemInfo>(NextSerialNumber(), aKey, aValue);
   }
-  mWriteInfos.Put(aKey, std::move(newWriteInfo));
+  mWriteInfos.InsertOrUpdate(aKey, std::move(newWriteInfo));
 
   mTotalDelta += aDelta;
 }
@@ -107,10 +109,9 @@ void LSWriteOptimizer<T, U>::UpdateItem(const nsAString& aKey, const T& aValue,
     newWriteInfo = MakeUnique<UpdateItemInfo>(NextSerialNumber(), aKey, aValue,
                                               /* aUpdateWithMove */ false);
   }
-  mWriteInfos.Put(aKey, std::move(newWriteInfo));
+  mWriteInfos.InsertOrUpdate(aKey, std::move(newWriteInfo));
 
   mTotalDelta += aDelta;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

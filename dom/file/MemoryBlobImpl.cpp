@@ -5,10 +5,13 @@
 #include "MemoryBlobImpl.h"
 #include "mozilla/IntegerPrintfMacros.h"
 #include "mozilla/SHA1.h"
+#include "nsMemory.h"
 #include "nsPrintfCString.h"
+#include "nsRFPService.h"
+#include "nsStringStream.h"
+#include "prtime.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_ADDREF(MemoryBlobImpl::DataOwnerAdapter)
 NS_IMPL_RELEASE(MemoryBlobImpl::DataOwnerAdapter)
@@ -22,6 +25,25 @@ NS_INTERFACE_MAP_BEGIN(MemoryBlobImpl::DataOwnerAdapter)
                                      mSerializableInputStream)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIInputStream)
 NS_INTERFACE_MAP_END
+
+// static
+already_AddRefed<MemoryBlobImpl> MemoryBlobImpl::CreateWithCustomLastModified(
+    void* aMemoryBuffer, uint64_t aLength, const nsAString& aName,
+    const nsAString& aContentType, int64_t aLastModifiedDate) {
+  RefPtr<MemoryBlobImpl> blobImpl = new MemoryBlobImpl(
+      aMemoryBuffer, aLength, aName, aContentType, aLastModifiedDate);
+  return blobImpl.forget();
+}
+
+// static
+already_AddRefed<MemoryBlobImpl> MemoryBlobImpl::CreateWithLastModifiedNow(
+    void* aMemoryBuffer, uint64_t aLength, const nsAString& aName,
+    const nsAString& aContentType) {
+  int64_t lastModificationDate =
+      nsRFPService::ReduceTimePrecisionAsUSecs(PR_Now(), 0);
+  return CreateWithCustomLastModified(aMemoryBuffer, aLength, aName,
+                                      aContentType, lastModificationDate);
+}
 
 nsresult MemoryBlobImpl::DataOwnerAdapter::Create(DataOwner* aDataOwner,
                                                   uint32_t aStart,
@@ -111,7 +133,7 @@ class MemoryBlobImplDataOwnerMemoryReporter final : public nsIMemoryReporter {
         }
 
         aHandleReport->Callback(
-            /* process */ NS_LITERAL_CSTRING(""),
+            /* process */ ""_ns,
             nsPrintfCString(
                 "explicit/dom/memory-file-data/large/file(length=%" PRIu64
                 ", sha1=%s)",
@@ -134,9 +156,8 @@ class MemoryBlobImplDataOwnerMemoryReporter final : public nsIMemoryReporter {
 
     if (smallObjectsTotal > 0) {
       aHandleReport->Callback(
-          /* process */ NS_LITERAL_CSTRING(""),
-          NS_LITERAL_CSTRING("explicit/dom/memory-file-data/small"), KIND_HEAP,
-          UNITS_BYTES, smallObjectsTotal,
+          /* process */ ""_ns, "explicit/dom/memory-file-data/small"_ns,
+          KIND_HEAP, UNITS_BYTES, smallObjectsTotal,
           nsPrintfCString(
               "Memory used to back small memory files (i.e. those taking up "
               "less "
@@ -166,5 +187,4 @@ void MemoryBlobImpl::DataOwner::EnsureMemoryReporterRegistered() {
   sMemoryReporterRegistered = true;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

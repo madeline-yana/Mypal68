@@ -5,7 +5,9 @@
 #ifndef mozilla_dom_indexeddb_filemanager_h__
 #define mozilla_dom_indexeddb_filemanager_h__
 
+#include "mozilla/dom/quota/CommonMetadata.h"
 #include "mozilla/dom/quota/PersistenceType.h"
+#include "mozilla/dom/quota/UsageInfo.h"
 #include "mozilla/InitializedOnce.h"
 #include "FileManagerBase.h"
 
@@ -23,8 +25,7 @@ class FileManager final : public FileManagerBase<FileManager>,
   using FileManagerBase<FileManager>::MutexType;
 
   const PersistenceType mPersistenceType;
-  const nsCString mGroup;
-  const nsCString mOrigin;
+  const quota::OriginMetadata mOriginMetadata;
   const nsString mDatabaseName;
 
   LazyInitializedOnce<const nsString> mDirectoryPath;
@@ -45,22 +46,21 @@ class FileManager final : public FileManagerBase<FileManager>,
       nsIFile* aDirectory, int64_t aId);
 
   static nsresult InitDirectory(nsIFile& aDirectory, nsIFile& aDatabaseFile,
-                                const nsACString& aOrigin,
-                                uint32_t aTelemetryId);
+                                const nsACString& aOrigin);
 
-  static nsresult GetUsage(nsIFile* aDirectory, Maybe<uint64_t>& aUsage);
+  static Result<quota::FileUsageType, nsresult> GetUsage(nsIFile* aDirectory);
 
-  static nsresult GetUsage(nsIFile* aDirectory, uint64_t& aUsage);
-
-  FileManager(PersistenceType aPersistenceType, const nsACString& aGroup,
-              const nsACString& aOrigin, const nsAString& aDatabaseName,
-              bool aEnforcingQuota);
+  FileManager(PersistenceType aPersistenceType,
+              const quota::OriginMetadata& aOriginMetadata,
+              const nsAString& aDatabaseName, bool aEnforcingQuota);
 
   PersistenceType Type() const { return mPersistenceType; }
 
-  const nsACString& Group() const { return mGroup; }
+  const quota::OriginMetadata& OriginMetadata() const {
+    return mOriginMetadata;
+  }
 
-  const nsACString& Origin() const { return mOrigin; }
+  const nsACString& Origin() const { return mOriginMetadata.mOrigin; }
 
   const nsAString& DatabaseName() const { return mDatabaseName; }
 

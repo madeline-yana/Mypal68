@@ -15,8 +15,7 @@
 
 using namespace mozilla::ipc;
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 namespace {
 
@@ -52,28 +51,14 @@ class TemporaryFileInputStream final : public nsFileInputStream {
   void Serialize(InputStreamParams& aParams,
                  FileDescriptorArray& aFileDescriptors, bool aDelayedStart,
                  uint32_t aMaxSize, uint32_t* aSizeUsed,
-                 ContentChild* aManager) override {
+                 ParentToChildStreamActorManager* aManager) override {
     MOZ_CRASH("This inputStream cannot be serialized.");
   }
 
   void Serialize(InputStreamParams& aParams,
                  FileDescriptorArray& aFileDescriptors, bool aDelayedStart,
                  uint32_t aMaxSize, uint32_t* aSizeUsed,
-                 PBackgroundChild* aManager) override {
-    MOZ_CRASH("This inputStream cannot be serialized.");
-  }
-
-  void Serialize(InputStreamParams& aParams,
-                 FileDescriptorArray& aFileDescriptors, bool aDelayedStart,
-                 uint32_t aMaxSize, uint32_t* aSizeUsed,
-                 ContentParent* aManager) override {
-    MOZ_CRASH("This inputStream cannot be serialized.");
-  }
-
-  void Serialize(InputStreamParams& aParams,
-                 FileDescriptorArray& aFileDescriptors, bool aDelayedStart,
-                 uint32_t aMaxSize, uint32_t* aSizeUsed,
-                 PBackgroundParent* aManager) override {
+                 ChildToParentStreamActorManager* aManager) override {
     MOZ_CRASH("This inputStream cannot be serialized.");
   }
 
@@ -109,8 +94,7 @@ class TemporaryFileInputStream final : public nsFileInputStream {
 
 TemporaryFileBlobImpl::TemporaryFileBlobImpl(nsIFile* aFile,
                                              const nsAString& aContentType)
-    : FileBlobImpl(aFile, EmptyString(), aContentType,
-                   NS_LITERAL_STRING("TemporaryBlobImpl"))
+    : FileBlobImpl(aFile, u""_ns, aContentType)
 #ifdef DEBUG
       ,
       mInputStreamCreated(false)
@@ -147,5 +131,4 @@ void TemporaryFileBlobImpl::CreateInputStream(nsIInputStream** aStream,
   }
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

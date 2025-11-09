@@ -34,14 +34,15 @@
 #include "mozilla/dom/CredentialsContainer.h"
 #include "mozilla/dom/Clipboard.h"
 #include "mozilla/dom/FeaturePolicyUtils.h"
-#include "mozilla/dom/GamepadServiceTest.h"
+#ifdef MOZ_GAMEPAD
+#  include "mozilla/dom/GamepadServiceTest.h"
+#endif
 #include "mozilla/dom/MediaCapabilities.h"
 #include "mozilla/dom/WakeLock.h"
 #include "mozilla/dom/power/PowerManagerService.h"
 #include "mozilla/dom/MIDIAccessManager.h"
 #include "mozilla/dom/MIDIOptionsBinding.h"
 #include "mozilla/dom/Permissions.h"
-#include "mozilla/dom/Presentation.h"
 #include "mozilla/dom/ServiceWorkerContainer.h"
 #include "mozilla/dom/StorageManager.h"
 #include "mozilla/dom/TCPSocket.h"
@@ -100,8 +101,7 @@
 #  include "mozilla/webgpu/Instance.h"
 #endif
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 static const nsLiteralCString kVibrationPermissionType = "vibration"_ns;
 
@@ -144,8 +144,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Navigator)
 #endif
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPresentation)
+#ifdef MOZ_GAMEPAD
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGamepadServiceTest)
+#endif
 #ifdef MOZ_VR
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVRGetDisplaysPromises)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVRServiceTest)
@@ -189,17 +190,14 @@ void Navigator::Invalidate() {
 
   mMediaDevices = nullptr;
 
-  if (mPresentation) {
-    mPresentation = nullptr;
-  }
-
   mServiceWorkerContainer = nullptr;
 
+#ifdef MOZ_GAMEPAD
   if (mGamepadServiceTest) {
     mGamepadServiceTest->Shutdown();
     mGamepadServiceTest = nullptr;
   }
-
+#endif
 #ifdef MOZ_VR
   mVRGetDisplaysPromises.Clear();
 
@@ -304,10 +302,8 @@ void Navigator::GetAcceptLanguages(nsTArray<nsString>& aLanguages) {
   Preferences::GetLocalizedString("intl.accept_languages", acceptLang);
 
   // Split values on commas.
-  nsCharSeparatedTokenizer langTokenizer(acceptLang, ',');
-  while (langTokenizer.hasMoreTokens()) {
-    nsDependentSubstring lang = langTokenizer.nextToken();
-
+  for (nsDependentSubstring lang :
+       nsCharSeparatedTokenizer(acceptLang, ',').ToRange()) {
     // Replace "_" with "-" to avoid POSIX/Windows "en_US" notation.
     // NOTE: we should probably rely on the pref being set correctly.
     if (lang.Length() > 2 && lang[2] == char16_t('_')) {
@@ -318,12 +314,10 @@ void Navigator::GetAcceptLanguages(nsTArray<nsString>& aLanguages) {
     // only uppercase 2-letter country codes, not "zh-Hant", "de-DE-x-goethe".
     // NOTE: we should probably rely on the pref being set correctly.
     if (lang.Length() > 2) {
-      nsCharSeparatedTokenizer localeTokenizer(lang, '-');
       int32_t pos = 0;
       bool first = true;
-      while (localeTokenizer.hasMoreTokens()) {
-        const nsAString& code = localeTokenizer.nextToken();
-
+      for (const nsAString& code :
+           nsCharSeparatedTokenizer(lang, '-').ToRange()) {
         if (code.Length() == 2 && !first) {
           nsAutoString upper(code);
           ToUpperCase(upper);
@@ -1286,6 +1280,7 @@ already_AddRefed<LegacyMozTCPSocket> Navigator::MozTCPSocket() {
   return socket.forget();
 }
 
+#ifdef MOZ_GAMEPAD
 void Navigator::GetGamepads(nsTArray<RefPtr<Gamepad>>& aGamepads,
                             ErrorResult& aRv) {
   if (!mWindow) {
@@ -1304,7 +1299,7 @@ GamepadServiceTest* Navigator::RequestGamepadServiceTest() {
   }
   return mGamepadServiceTest;
 }
-
+#endif
 #ifdef MOZ_VR
 already_AddRefed<Promise> Navigator::GetVRDisplays(ErrorResult& aRv) {
   if (!mWindow || !mWindow->GetDocShell() || !mWindow->GetExtantDoc()) {
@@ -1734,18 +1729,6 @@ nsresult Navigator::GetUserAgent(nsPIDOMWindowInner* aWindow,
   return NS_OK;
 }
 
-Presentation* Navigator::GetPresentation(ErrorResult& aRv) {
-  if (!mPresentation) {
-    if (!mWindow) {
-      aRv.Throw(NS_ERROR_UNEXPECTED);
-      return nullptr;
-    }
-    mPresentation = Presentation::Create(mWindow);
-  }
-
-  return mPresentation;
-}
-
 CredentialsContainer* Navigator::Credentials() {
   if (!mCredentials) {
     mCredentials = new CredentialsContainer(GetWindow());
@@ -1799,5 +1782,4 @@ bool Navigator::Webdriver() {
   return Preferences::GetBool("marionette.enabled", false);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

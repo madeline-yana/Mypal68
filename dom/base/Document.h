@@ -54,7 +54,7 @@
 #include "nsCompatibility.h"
 #include "nsContentListDeclarations.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsDebug.h"
 #include "nsExpirationTracker.h"
 #include "nsGkAtoms.h"
@@ -89,7 +89,7 @@
 #include "nsString.h"
 #include "nsStubMutationObserver.h"
 #include "nsTArray.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 #include "nsTLiteralString.h"
 #include "nsTObserverArray.h"
 #include "nsThreadUtils.h"
@@ -556,9 +556,9 @@ class Document : public nsINode,
   NS_DECL_NSIAPPLICATIONCACHECONTAINER
 
   // nsIRadioGroupContainer
-  NS_IMETHOD WalkRadioGroup(const nsAString& aName, nsIRadioVisitor* aVisitor,
-                            bool aFlushContent) final {
-    return DocumentOrShadowRoot::WalkRadioGroup(aName, aVisitor, aFlushContent);
+  NS_IMETHOD WalkRadioGroup(const nsAString& aName,
+                            nsIRadioVisitor* aVisitor) final {
+    return DocumentOrShadowRoot::WalkRadioGroup(aName, aVisitor);
   }
 
   void SetCurrentRadioButton(const nsAString& aName,
@@ -620,9 +620,6 @@ class Document : public nsINode,
   nsIPrincipal* GetContentBlockingAllowListPrincipal() const {
     return mContentBlockingAllowListPrincipal;
   }
-
-  already_AddRefed<nsIPrincipal> RecomputeContentBlockingAllowListPrincipal(
-      nsIURI* aURIBeingLoaded, const OriginAttributes& aAttrs);
 
   // EventTarget
   void GetEventTargetParent(EventChainPreVisitor& aVisitor) override;
@@ -1588,13 +1585,13 @@ class Document : public nsINode,
    * is removed.
    */
   void ScheduleSVGForPresAttrEvaluation(SVGElement* aSVG) {
-    mLazySVGPresElements.PutEntry(aSVG);
+    mLazySVGPresElements.Insert(aSVG);
   }
 
   // Unschedule an element scheduled by ScheduleFrameRequestCallback (e.g. for
   // when it is destroyed)
   void UnscheduleSVGForPresAttrEvaluation(SVGElement* aSVG) {
-    mLazySVGPresElements.RemoveEntry(aSVG);
+    mLazySVGPresElements.Remove(aSVG);
   }
 
   // Resolve all SVG pres attrs scheduled in ScheduleSVGForPresAttrEvaluation
@@ -1747,13 +1744,12 @@ class Document : public nsINode,
                          NotNull<const Encoding*>& aEncoding,
                          nsHtml5TreeOpExecutor* aExecutor);
 
-  void DispatchContentLoadedEvents();
+  MOZ_CAN_RUN_SCRIPT void DispatchContentLoadedEvents();
 
-  void DispatchPageTransition(EventTarget* aDispatchTarget,
-                              const nsAString& aType,
-                              bool aInFrameSwap,
-                              bool aPersisted,
-                              bool aOnlySystemGroup);
+  // TODO: Convert this to MOZ_CAN_RUN_SCRIPT (bug 1415230)
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY void DispatchPageTransition(
+      EventTarget* aDispatchTarget, const nsAString& aType, bool aInFrameSwap,
+      bool aPersisted, bool aOnlySystemGroup);
 
   // Call this before the document does something that will unbind all content.
   // That will stop us from doing a lot of work as each element is removed.
@@ -1816,11 +1812,11 @@ class Document : public nsINode,
  private:
   class SelectorCacheKey {
    public:
-    explicit SelectorCacheKey(const nsAString& aString) : mKey(aString) {
+    explicit SelectorCacheKey(const nsACString& aString) : mKey(aString) {
       MOZ_COUNT_CTOR(SelectorCacheKey);
     }
 
-    nsString mKey;
+    nsCString mKey;
     nsExpirationState mState;
 
     nsExpirationState* GetExpirationState() { return &mState; }
@@ -1834,17 +1830,10 @@ class Document : public nsINode,
   class SelectorCache final : public nsExpirationTracker<SelectorCacheKey, 4> {
    public:
     using SelectorList = UniquePtr<RawServoSelectorList>;
+    using Table = nsTHashMap<nsCStringHashKey, SelectorList>;
 
     explicit SelectorCache(nsIEventTarget* aEventTarget);
-
-    void CacheList(const nsAString& aSelector, SelectorList aSelectorList) {
-      MOZ_ASSERT(NS_IsMainThread());
-      SelectorCacheKey* key = new SelectorCacheKey(aSelector);
-      mTable.Put(key->mKey, std::move(aSelectorList));
-      AddObject(key);
-    }
-
-    void NotifyExpired(SelectorCacheKey* aSelector) final;
+    void NotifyExpired(SelectorCacheKey*) final;
 
     // We do not call MarkUsed because it would just slow down lookups and
     // because we're OK expiring things after a few seconds even if they're
@@ -1853,14 +1842,17 @@ class Document : public nsINode,
     // If we have an entry and the selector list returned has a null
     // RawServoSelectorList*, that indicates that aSelector has already been
     // parsed and is not a syntactically valid selector.
-    SelectorList* GetList(const nsAString& aSelector) {
-      return mTable.GetValue(aSelector);
+    template <typename F>
+    RawServoSelectorList* GetListOrInsertFrom(const nsACString& aSelector,
+                                              F&& aFrom) {
+      MOZ_ASSERT(NS_IsMainThread());
+      return mTable.LookupOrInsertWith(aSelector, std::forward<F>(aFrom)).get();
     }
 
     ~SelectorCache();
 
    private:
-    nsDataHashtable<nsStringHashKey, SelectorList> mTable;
+    Table mTable;
   };
 
   SelectorCache& GetSelectorCache() {
@@ -2290,7 +2282,7 @@ class Document : public nsINode,
    * Another variant of the above FlushPendingNotifications.  This function
    * takes a ChangesToFlush to specify whether throttled animations are flushed
    * or not.
-   * If in doublt, use the above FlushPendingNotifications.
+   * If in doubt, use the above FlushPendingNotifications.
    */
   MOZ_CAN_RUN_SCRIPT_BOUNDARY
   void FlushPendingNotifications(ChangesToFlush aFlush);
@@ -2541,7 +2533,7 @@ class Document : public nsINode,
 
   void BlockDOMContentLoaded() { ++mBlockDOMContentLoaded; }
 
-  void UnblockDOMContentLoaded();
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY void UnblockDOMContentLoaded();
 
   /**
    * Notification that the page has been shown, for documents which are loaded
@@ -2585,11 +2577,11 @@ class Document : public nsINode,
   void AddStyleRelevantLink(Link* aLink) {
     NS_ASSERTION(aLink, "Passing in a null link.  Expect crashes RSN!");
 #ifdef DEBUG
-    nsPtrHashKey<Link>* entry = mStyledLinks.GetEntry(aLink);
-    NS_ASSERTION(!entry, "Document already knows about this Link!");
+    NS_ASSERTION(!mStyledLinks.Contains(aLink),
+                 "Document already knows about this Link!");
     mStyledLinksCleared = false;
 #endif
-    mStyledLinks.PutEntry(aLink);
+    mStyledLinks.Insert(aLink);
   }
 
   /**
@@ -2601,11 +2593,11 @@ class Document : public nsINode,
   void ForgetLink(Link* aLink) {
     NS_ASSERTION(aLink, "Passing in a null link.  Expect crashes RSN!");
 #ifdef DEBUG
-    nsPtrHashKey<Link>* entry = mStyledLinks.GetEntry(aLink);
-    NS_ASSERTION(entry || mStyledLinksCleared,
+    bool linkContained = mStyledLinks.Contains(aLink);
+    NS_ASSERTION(linkContained || mStyledLinksCleared,
                  "Document knows nothing about this Link!");
 #endif
-    mStyledLinks.RemoveEntry(aLink);
+    mStyledLinks.Remove(aLink);
   }
 
   // Refreshes the hrefs of all the links in the document.
@@ -2894,6 +2886,13 @@ class Document : public nsINode,
   }
 
   /**
+   * Some clipboard commands are unconditionally enabled on some documents, so
+   * as to always dispatch copy / paste events even though you'd normally not be
+   * able to copy.
+   */
+  bool AreClipboardCommandsUnconditionallyEnabled() const;
+
+  /**
    * Note a ChannelEventQueue which has been suspended on the document's behalf
    * to prevent XHRs from running content scripts while event handling is
    * suppressed. The document is responsible for resuming the queue after
@@ -2979,6 +2978,12 @@ class Document : public nsINode,
    * HTMLTemplateElement.
    */
   Document* GetTemplateContentsOwner();
+
+  bool IsTemplateContentsOwner() const {
+    // Template contents owner documents are the template contents owner of
+    // themselves.
+    return mTemplateContentsOwner == this;
+  }
 
   /**
    * Returns true if this document is a static clone of a normal document.
@@ -3228,14 +3233,14 @@ class Document : public nsINode,
   // added to the tree.
   void AddPlugin(nsIObjectLoadingContent* aPlugin) {
     MOZ_ASSERT(aPlugin);
-    mPlugins.PutEntry(aPlugin);
+    mPlugins.Insert(aPlugin);
   }
 
   // RemovePlugin removes a plugin-related element to mPlugins when the
   // element is removed from the tree.
   void RemovePlugin(nsIObjectLoadingContent* aPlugin) {
     MOZ_ASSERT(aPlugin);
-    mPlugins.RemoveEntry(aPlugin);
+    mPlugins.Remove(aPlugin);
   }
 
   // GetPlugins returns the plugin-related elements from
@@ -3246,33 +3251,33 @@ class Document : public nsINode,
   // added to the tree.
   void AddResponsiveContent(HTMLImageElement* aContent) {
     MOZ_ASSERT(aContent);
-    mResponsiveContent.PutEntry(aContent);
+    mResponsiveContent.Insert(aContent);
   }
 
   // Removes an element from mResponsiveContent when the element is
   // removed from the tree.
   void RemoveResponsiveContent(HTMLImageElement* aContent) {
     MOZ_ASSERT(aContent);
-    mResponsiveContent.RemoveEntry(aContent);
+    mResponsiveContent.Remove(aContent);
   }
 
   void ScheduleSVGUseElementShadowTreeUpdate(SVGUseElement&);
   void UnscheduleSVGUseElementShadowTreeUpdate(SVGUseElement& aElement) {
-    mSVGUseElementsNeedingShadowTreeUpdate.RemoveEntry(&aElement);
+    mSVGUseElementsNeedingShadowTreeUpdate.Remove(&aElement);
   }
 
   bool SVGUseElementNeedsShadowTreeUpdate(SVGUseElement& aElement) const {
-    return mSVGUseElementsNeedingShadowTreeUpdate.GetEntry(&aElement);
+    return mSVGUseElementsNeedingShadowTreeUpdate.Contains(&aElement);
   }
 
-  using ShadowRootSet = nsTHashtable<nsPtrHashKey<ShadowRoot>>;
+  using ShadowRootSet = nsTHashSet<ShadowRoot*>;
 
   void AddComposedDocShadowRoot(ShadowRoot& aShadowRoot) {
-    mComposedShadowRoots.PutEntry(&aShadowRoot);
+    mComposedShadowRoots.Insert(&aShadowRoot);
   }
 
   void RemoveComposedDocShadowRoot(ShadowRoot& aShadowRoot) {
-    mComposedShadowRoots.RemoveEntry(&aShadowRoot);
+    mComposedShadowRoots.Remove(&aShadowRoot);
   }
 
   // If you're considering using this, you probably want to use
@@ -3285,6 +3290,9 @@ class Document : public nsINode,
   const ShadowRootSet& ComposedShadowRoots() const {
     return mComposedShadowRoots;
   }
+
+  // WebIDL method for chrome code.
+  void GetConnectedShadowRoots(nsTArray<RefPtr<ShadowRoot>>&) const;
 
   // Notifies any responsive content added by AddResponsiveContent upon media
   // features values changing.
@@ -3375,8 +3383,8 @@ class Document : public nsINode,
   static already_AddRefed<Document> Constructor(const GlobalObject& aGlobal,
                                                 ErrorResult& rv);
   DOMImplementation* GetImplementation(ErrorResult& rv);
-  MOZ_MUST_USE nsresult GetURL(nsString& retval) const;
-  MOZ_MUST_USE nsresult GetDocumentURI(nsString& retval) const;
+  [[nodiscard]] nsresult GetURL(nsString& retval) const;
+  [[nodiscard]] nsresult GetDocumentURI(nsString& retval) const;
   // Return the URI for the document.
   // The returned value may differ if the document is loaded via XHR, and
   // when accessed from chrome privileged script and
@@ -3616,6 +3624,13 @@ class Document : public nsINode,
     return mStyleSheetChangeEventsEnabled;
   }
 
+  void SetShadowRootAttachedEventEnabled(bool aValue) {
+    mShadowRootAttachedEventEnabled = aValue;
+  }
+  bool ShadowRootAttachedEventEnabled() const {
+    return mShadowRootAttachedEventEnabled;
+  }
+
   already_AddRefed<Promise> BlockParsing(Promise& aPromise,
                                          const BlockParsingOptions& aOptions,
                                          ErrorResult& aRv);
@@ -3760,11 +3775,11 @@ class Document : public nsINode,
   void AddIntersectionObserver(DOMIntersectionObserver* aObserver) {
     MOZ_ASSERT(!mIntersectionObservers.Contains(aObserver),
                "Intersection observer already in the list");
-    mIntersectionObservers.PutEntry(aObserver);
+    mIntersectionObservers.Insert(aObserver);
   }
 
   void RemoveIntersectionObserver(DOMIntersectionObserver* aObserver) {
-    mIntersectionObservers.RemoveEntry(aObserver);
+    mIntersectionObservers.Remove(aObserver);
   }
 
   bool HasIntersectionObservers() const {
@@ -3972,6 +3987,8 @@ class Document : public nsINode,
 
   bool ModuleScriptsEnabled();
 
+  bool ImportMapsEnabled();
+
   /**
    * Find the (non-anonymous) content in this document for aFrame. It will
    * be aFrame's content node if that content is in this document and not
@@ -4169,8 +4186,36 @@ class Document : public nsINode,
       const nsAString& aHTMLCommandName, const nsAString& aValue = u""_ns,
       nsAString* aAdjustedValue = nullptr);
 
+  /**
+   * AutoRunningExecCommandMarker is AutoRestorer for mIsRunningExecCommand.
+   * Since it's a bit field, not a bool member, therefore, we cannot use
+   * AutoRestorer for it.
+   */
+  class MOZ_STACK_CLASS AutoRunningExecCommandMarker final {
+   public:
+    AutoRunningExecCommandMarker() = delete;
+    explicit AutoRunningExecCommandMarker(const AutoRunningExecCommandMarker&) =
+        delete;
+    // Guaranteeing the document's lifetime with `MOZ_CAN_RUN_SCRIPT`.
+    MOZ_CAN_RUN_SCRIPT explicit AutoRunningExecCommandMarker(
+        Document& aDocument)
+        : mDocument(aDocument),
+          mHasBeenRunning(aDocument.mIsRunningExecCommand) {
+      aDocument.mIsRunningExecCommand = true;
+    }
+    ~AutoRunningExecCommandMarker() {
+      if (!mHasBeenRunning) {
+        mDocument.mIsRunningExecCommand = false;
+      }
+    }
+
+   private:
+    Document& mDocument;
+    bool mHasBeenRunning;
+  };
+
   // Mapping table from HTML command name to internal command.
-  typedef nsDataHashtable<nsStringCaseInsensitiveHashKey, InternalCommandData>
+  typedef nsTHashMap<nsStringCaseInsensitiveHashKey, InternalCommandData>
       InternalCommandDataHashtable;
   static InternalCommandDataHashtable* sInternalCommandDataHashtable;
 
@@ -4322,7 +4367,7 @@ class Document : public nsINode,
   // See ShadowRoot::Bind and ShadowRoot::Unbind.
   ShadowRootSet mComposedShadowRoots;
 
-  using SVGUseElementSet = nsTHashtable<nsPtrHashKey<SVGUseElement>>;
+  using SVGUseElementSet = nsTHashSet<SVGUseElement*>;
 
   // The set of <svg:use> elements that need a shadow tree reclone because the
   // tree they map to has changed.
@@ -4334,10 +4379,10 @@ class Document : public nsINode,
   //
   // These are non-owning pointers, the elements are responsible for removing
   // themselves when they go away.
-  UniquePtr<nsTHashtable<nsPtrHashKey<nsISupports>>> mActivityObservers;
+  UniquePtr<nsTHashSet<nsISupports*>> mActivityObservers;
 
   // A hashtable of styled links keyed by address pointer.
-  nsTHashtable<nsPtrHashKey<Link>> mStyledLinks;
+  nsTHashSet<Link*> mStyledLinks;
 #ifdef DEBUG
   // Indicates whether mStyledLinks was cleared or not.  This is used to track
   // state so we can provide useful assertions to consumers of ForgetLink and
@@ -4514,6 +4559,9 @@ class Document : public nsINode,
   // Whether style sheet change events will be dispatched for this document
   bool mStyleSheetChangeEventsEnabled : 1;
 
+  // Whether shadowrootattached events will be dispatched for this document.
+  bool mShadowRootAttachedEventEnabled : 1;
+
   // Whether the document was created by a srcdoc iframe.
   bool mIsSrcdocDocument : 1;
 
@@ -4658,6 +4706,9 @@ class Document : public nsINode,
   // eDesignMode or eContentEditable.
   bool mHasBeenEditable : 1;
 
+  // While we're handling an execCommand call, set to true.
+  bool mIsRunningExecCommand : 1;
+
   uint8_t mPendingFullscreenRequests;
 
   uint8_t mXMLDeclarationBits;
@@ -4770,7 +4821,7 @@ class Document : public nsINode,
   // A list of preconnects initiated by the preloader. This prevents
   // the same uri from being used more than once, and allows the dom
   // builder to not repeat the work of the preloader.
-  nsDataHashtable<nsURIHashKey, bool> mPreloadedPreconnects;
+  nsTHashMap<nsURIHashKey, bool> mPreloadedPreconnects;
 
   // Current depth of picture elements from parser
   uint32_t mPreloadPictureDepth;
@@ -4873,7 +4924,7 @@ class Document : public nsINode,
   // The set of all the tracking script URLs.  URLs are added to this set by
   // calling NoteScriptTrackingStatus().  Currently we assume that a URL not
   // existing in the set means the corresponding script isn't a tracking script.
-  nsTHashtable<nsCStringHashKey> mTrackingScripts;
+  nsTHashSet<nsCString> mTrackingScripts;
 
   // The log of all content blocking actions taken on this document.  This is
   // only stored on top-level documents and includes the activity log for all of
@@ -4938,7 +4989,7 @@ class Document : public nsINode,
   nsWeakPtr mScopeObject;
 
   // Array of intersection observers
-  nsTHashtable<nsPtrHashKey<DOMIntersectionObserver>> mIntersectionObservers;
+  nsTHashSet<DOMIntersectionObserver*> mIntersectionObservers;
 
   // Stack of top layer elements.
   nsTArray<nsWeakPtr> mTopLayer;
@@ -4952,10 +5003,10 @@ class Document : public nsINode,
   RefPtr<nsContentList> mImageMaps;
 
   // A set of responsive images keyed by address pointer.
-  nsTHashtable<nsPtrHashKey<HTMLImageElement>> mResponsiveContent;
+  nsTHashSet<HTMLImageElement*> mResponsiveContent;
 
   // Tracking for plugins in the document.
-  nsTHashtable<nsPtrHashKey<nsIObjectLoadingContent>> mPlugins;
+  nsTHashSet<nsIObjectLoadingContent*> mPlugins;
 
   RefPtr<DocumentTimeline> mDocumentTimeline;
   LinkedList<DocumentTimeline> mTimelines;
@@ -5019,9 +5070,9 @@ class Document : public nsINode,
   // We lazily calculate declaration blocks for SVG elements with mapped
   // attributes in Servo mode. This list contains all elements which need lazy
   // resolution.
-  nsTHashtable<nsPtrHashKey<SVGElement>> mLazySVGPresElements;
+  nsTHashSet<SVGElement*> mLazySVGPresElements;
 
-  nsTHashtable<nsRefPtrHashKey<nsAtom>> mLanguagesUsed;
+  nsTHashSet<RefPtr<nsAtom>> mLanguagesUsed;
 
   // TODO(emilio): Is this hot enough to warrant to be cached?
   RefPtr<nsAtom> mLanguageFromCharset;
@@ -5096,8 +5147,6 @@ class Document : public nsINode,
 
   nsRefPtrHashtable<nsRefPtrHashKey<Element>, nsXULPrototypeElement>
       mL10nProtoElements;
-
-  void TraceProtos(JSTracer* aTrc);
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(Document, NS_IDOCUMENT_IID)

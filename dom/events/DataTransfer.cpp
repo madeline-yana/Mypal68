@@ -42,8 +42,7 @@
 #include "nsNetUtil.h"
 #include "nsReadableUtils.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(DataTransfer)
 
@@ -336,7 +335,8 @@ bool DataTransfer::HasType(const nsAString& aType) const {
 bool DataTransfer::HasFile() const { return mItems->HasFile(); }
 
 void DataTransfer::GetData(const nsAString& aFormat, nsAString& aData,
-                           nsIPrincipal& aSubjectPrincipal, ErrorResult& aRv) {
+                           nsIPrincipal& aSubjectPrincipal,
+                           ErrorResult& aRv) const {
   // return an empty string if data for the format was not found
   aData.Truncate();
 
@@ -481,7 +481,7 @@ already_AddRefed<DOMStringList> DataTransfer::MozTypesAt(
 
 nsresult DataTransfer::GetDataAtNoSecurityCheck(const nsAString& aFormat,
                                                 uint32_t aIndex,
-                                                nsIVariant** aData) {
+                                                nsIVariant** aData) const {
   return GetDataAtInternal(aFormat, aIndex,
                            nsContentUtils::GetSystemPrincipal(), aData);
 }
@@ -489,7 +489,7 @@ nsresult DataTransfer::GetDataAtNoSecurityCheck(const nsAString& aFormat,
 nsresult DataTransfer::GetDataAtInternal(const nsAString& aFormat,
                                          uint32_t aIndex,
                                          nsIPrincipal* aSubjectPrincipal,
-                                         nsIVariant** aData) {
+                                         nsIVariant** aData) const {
   *aData = nullptr;
 
   if (aFormat.IsEmpty()) {
@@ -1547,5 +1547,4 @@ bool DataTransfer::MozAtAPIsEnabled(JSContext* aCx, JSObject* aObj /*unused*/) {
          StaticPrefs::dom_datatransfer_mozAtAPIs_DoNotUseDirectly();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

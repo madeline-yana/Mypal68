@@ -6,8 +6,7 @@
 #include "PluginInstanceChild.h"
 #include "nsComponentManagerUtils.h"
 
-namespace mozilla {
-namespace plugins {
+namespace mozilla::plugins {
 
 ChildTimer::ChildTimer(PluginInstanceChild* instance, uint32_t interval,
                        bool repeat, TimerFunc func)
@@ -26,5 +25,4 @@ void ChildTimer::Run() {
   mFunc(mInstance->GetNPP(), mID);
 }
 
-}  // namespace plugins
-}  // namespace mozilla
+}  // namespace mozilla::plugins

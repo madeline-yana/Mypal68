@@ -24,6 +24,7 @@
 #include "mozilla/PresShell.h"
 #include "mozilla/ServoBindings.h"
 #include "mozilla/Telemetry.h"
+#include "mozilla/TextControlElement.h"
 #include "mozilla/TextEditor.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/dom/BindContext.h"
@@ -318,7 +319,7 @@ bool nsINode::IsSelected(const uint32_t aStartOffset,
                "Selection is for sure not selected.");
 
   // Collect the selection objects for potential ranges.
-  nsTHashtable<nsPtrHashKey<Selection>> ancestorSelections;
+  nsTHashSet<Selection*> ancestorSelections;
   Selection* prevSelection = nullptr;
   for (; n; n = GetClosestCommonInclusiveAncestorForRangeInSelection(
                 n->GetParentNode())) {
@@ -335,7 +336,7 @@ bool nsINode::IsSelected(const uint32_t aStartOffset,
         Selection* selection = range->GetSelection();
         if (prevSelection != selection) {
           prevSelection = selection;
-          ancestorSelections.PutEntry(selection);
+          ancestorSelections.Insert(selection);
         }
       }
     }
@@ -343,8 +344,7 @@ bool nsINode::IsSelected(const uint32_t aStartOffset,
 
   nsContentUtils::ComparePointsCache cache;
   IsItemInRangeComparator comparator{*this, aStartOffset, aEndOffset, &cache};
-  for (auto iter = ancestorSelections.ConstIter(); !iter.Done(); iter.Next()) {
-    Selection* selection = iter.Get()->GetKey();
+  for (Selection* selection : ancestorSelections) {
     // Binary search the sorted ranges in this selection.
     // (Selection::GetRangeAt returns its ranges ordered).
     size_t low = 0;
@@ -396,25 +396,37 @@ bool nsINode::IsSelected(const uint32_t aStartOffset,
   return false;
 }
 
-nsIContent* nsINode::GetTextEditorRootContent(TextEditor** aTextEditor) {
+Element* nsINode::GetAnonymousRootElementOfTextEditor(
+    TextEditor** aTextEditor) {
   if (aTextEditor) {
     *aTextEditor = nullptr;
   }
-  for (auto* element : InclusiveAncestorsOfType<nsGenericHTMLElement>()) {
-    RefPtr<TextEditor> textEditor = element->GetTextEditorInternal();
-    if (!textEditor) {
-      continue;
-    }
-
-    MOZ_ASSERT(!textEditor->AsHTMLEditor(),
-               "If it were an HTML editor, needs to use GetRootElement()");
-    Element* rootElement = textEditor->GetRoot();
-    if (aTextEditor) {
-      textEditor.forget(aTextEditor);
-    }
-    return rootElement;
+  RefPtr<TextControlElement> textControlElement;
+  if (IsInNativeAnonymousSubtree()) {
+    textControlElement = TextControlElement::FromNodeOrNull(
+        GetClosestNativeAnonymousSubtreeRootParent());
+  } else {
+    textControlElement = TextControlElement::FromNode(this);
   }
-  return nullptr;
+  if (!textControlElement) {
+    return nullptr;
+  }
+  RefPtr<TextEditor> textEditor = textControlElement->GetTextEditor();
+  if (!textEditor) {
+    // The found `TextControlElement` may be an input element which is not a
+    // text control element.  In this case, such element must not be in a
+    // native anonymous tree of a `TextEditor` so this node is not in any
+    // `TextEditor`.
+    return nullptr;
+  }
+
+  MOZ_ASSERT(!textEditor->IsHTMLEditor(),
+             "If it were an HTML editor, needs to use GetRootElement()");
+  Element* rootElement = textEditor->GetRoot();
+  if (aTextEditor) {
+    textEditor.forget(aTextEditor);
+  }
+  return rootElement;
 }
 
 nsINode* nsINode::GetRootNode(const GetRootNodeOptions& aOptions) {
@@ -531,8 +543,10 @@ nsIContent* nsINode::GetSelectionRootContent(PresShell* aPresShell) {
 
   if (AsContent()->HasIndependentSelection()) {
     // This node should be a descendant of input/textarea editor.
-    nsIContent* content = GetTextEditorRootContent();
-    if (content) return content;
+    Element* anonymousDivElement = GetAnonymousRootElementOfTextEditor();
+    if (anonymousDivElement) {
+      return anonymousDivElement;
+    }
   }
 
   nsPresContext* presContext = aPresShell->GetPresContext();
@@ -632,6 +646,14 @@ void nsINode::LastRelease() {
     if (!slots->mMutationObservers.IsEmpty()) {
       NS_OBSERVER_ARRAY_NOTIFY_OBSERVERS(slots->mMutationObservers,
                                          NodeWillBeDestroyed, (this));
+    }
+
+    if (IsContent()) {
+      nsIContent* content = AsContent();
+      if (HTMLSlotElement* slot = content->GetManualSlotAssignment()) {
+        content->SetManualSlotAssignment(nullptr);
+        slot->RemoveManuallyAssignedNode(*content);
+      }
     }
 
     delete slots;
@@ -1806,19 +1828,18 @@ ConvertNodesOrStringsIntoNode(const Sequence<OwningNodeOrString>& aNodes,
   return fragment.forget();
 }
 
-static void InsertNodesIntoHashset(
-    const Sequence<OwningNodeOrString>& aNodes,
-    nsTHashtable<nsPtrHashKey<nsINode>>& aHashset) {
+static void InsertNodesIntoHashset(const Sequence<OwningNodeOrString>& aNodes,
+                                   nsTHashSet<nsINode*>& aHashset) {
   for (const auto& node : aNodes) {
     if (node.IsNode()) {
-      aHashset.PutEntry(node.GetAsNode());
+      aHashset.Insert(node.GetAsNode());
     }
   }
 }
 
 static nsINode* FindViablePreviousSibling(
     const nsINode& aNode, const Sequence<OwningNodeOrString>& aNodes) {
-  nsTHashtable<nsPtrHashKey<nsINode>> nodeSet(16);
+  nsTHashSet<nsINode*> nodeSet(16);
   InsertNodesIntoHashset(aNodes, nodeSet);
 
   nsINode* viablePreviousSibling = nullptr;
@@ -1835,7 +1856,7 @@ static nsINode* FindViablePreviousSibling(
 
 static nsINode* FindViableNextSibling(
     const nsINode& aNode, const Sequence<OwningNodeOrString>& aNodes) {
-  nsTHashtable<nsPtrHashKey<nsINode>> nodeSet(16);
+  nsTHashSet<nsINode*> nodeSet(16);
   InsertNodesIntoHashset(aNodes, nodeSet);
 
   nsINode* viableNextSibling = nullptr;
@@ -2855,38 +2876,23 @@ uint32_t nsINode::Length() const {
 }
 
 const RawServoSelectorList* nsINode::ParseSelectorList(
-    const nsAString& aSelectorString, ErrorResult& aRv) {
+    const nsACString& aSelectorString, ErrorResult& aRv) {
   Document* doc = OwnerDoc();
 
   Document::SelectorCache& cache = doc->GetSelectorCache();
-  Document::SelectorCache::SelectorList* list = cache.GetList(aSelectorString);
-  if (list) {
-    if (!*list) {
-      // Invalid selector.
-      aRv.ThrowSyntaxError("'"_ns + NS_ConvertUTF16toUTF8(aSelectorString) +
-                           "' is not a valid selector"_ns);
-      return nullptr;
-    }
+  RawServoSelectorList* list = cache.GetListOrInsertFrom(aSelectorString, [&] {
+    // Note that we want to cache even if null was returned, because we
+    // want to cache the "This is not a valid selector" result.
+    return Servo_SelectorList_Parse(&aSelectorString).Consume();
+  });
 
-    return list->get();
-  }
-
-  NS_ConvertUTF16toUTF8 selectorString(aSelectorString);
-
-  UniquePtr<RawServoSelectorList> selectorList =
-      Servo_SelectorList_Parse(&selectorString).Consume();
-  // We want to cache even if null was returned, because we want to
-  // cache the "This is not a valid selector" result.
-  auto* ret = selectorList.get();
-  cache.CacheList(aSelectorString, std::move(selectorList));
-
-  // Now make sure we throw an exception if the selector was invalid.
-  if (!ret) {
-    aRv.ThrowSyntaxError("'"_ns + selectorString +
+  if (!list) {
+    // Invalid selector.
+    aRv.ThrowSyntaxError("'"_ns + aSelectorString +
                          "' is not a valid selector"_ns);
   }
 
-  return ret;
+  return list;
 }
 
 // Given an id, find first element with that id under aRoot.
@@ -2925,10 +2931,10 @@ inline static Element* FindMatchingElementWithId(
   return nullptr;
 }
 
-Element* nsINode::QuerySelector(const nsAString& aSelector,
+Element* nsINode::QuerySelector(const nsACString& aSelector,
                                 ErrorResult& aResult) {
-  AUTO_PROFILER_LABEL_DYNAMIC_LOSSY_NSSTRING("nsINode::QuerySelector",
-                                             LAYOUT_SelectorQuery, aSelector);
+  AUTO_PROFILER_LABEL_DYNAMIC_NSCSTRING("nsINode::QuerySelector",
+                                        LAYOUT_SelectorQuery, aSelector);
 
   const RawServoSelectorList* list = ParseSelectorList(aSelector, aResult);
   if (!list) {
@@ -2940,9 +2946,9 @@ Element* nsINode::QuerySelector(const nsAString& aSelector,
 }
 
 already_AddRefed<nsINodeList> nsINode::QuerySelectorAll(
-    const nsAString& aSelector, ErrorResult& aResult) {
-  AUTO_PROFILER_LABEL_DYNAMIC_LOSSY_NSSTRING("nsINode::QuerySelectorAll",
-                                             LAYOUT_SelectorQuery, aSelector);
+    const nsACString& aSelector, ErrorResult& aResult) {
+  AUTO_PROFILER_LABEL_DYNAMIC_NSCSTRING("nsINode::QuerySelectorAll",
+                                        LAYOUT_SelectorQuery, aSelector);
 
   RefPtr<nsSimpleContentList> contentList = new nsSimpleContentList(this);
   const RawServoSelectorList* list = ParseSelectorList(aSelector, aResult);
@@ -3137,27 +3143,6 @@ already_AddRefed<nsINode> nsINode::CloneAndAdopt(
       return nullptr;
     }
 
-    if (clone->IsHTMLElement() || clone->IsXULElement()) {
-      // The cloned node may be a custom element that may require
-      // enqueing upgrade reaction.
-      Element* cloneElem = clone->AsElement();
-      CustomElementData* data = elem->GetCustomElementData();
-      RefPtr<nsAtom> typeAtom = data ? data->GetCustomElementType() : nullptr;
-
-      if (typeAtom) {
-        cloneElem->SetCustomElementData(new CustomElementData(typeAtom));
-
-        MOZ_ASSERT(nodeInfo->NameAtom()->Equals(nodeInfo->LocalName()));
-        CustomElementDefinition* definition =
-            nsContentUtils::LookupCustomElementDefinition(
-                nodeInfo->GetDocument(), nodeInfo->NameAtom(),
-                nodeInfo->NamespaceID(), typeAtom);
-        if (definition) {
-          nsContentUtils::EnqueueUpgradeReaction(cloneElem, definition);
-        }
-      }
-    }
-
     if (aParent) {
       // If we're cloning we need to insert the cloned children into the cloned
       // parent.
@@ -3337,7 +3322,17 @@ already_AddRefed<nsINode> nsINode::CloneAndAdopt(
 
   if (aDeep && aNode->IsElement()) {
     if (aClone) {
-      if (clone->OwnerDoc()->IsStaticDocument()) {
+      if (nodeInfo->GetDocument()->IsStaticDocument()) {
+        // Clone any animations to the node in the static document, including
+        // the current timing. They will need to be paused later after the new
+        // document's pres shell gets initialized.
+        //
+        // This needs to be done here rather than in Element::CopyInnerTo
+        // because the animations clone code relies on the target (that is,
+        // `clone`) being connected already.
+        clone->AsElement()->CloneAnimationsFrom(*aNode->AsElement());
+
+        // Clone the Shadow DOM
         ShadowRoot* originalShadowRoot = aNode->AsElement()->GetShadowRoot();
         if (originalShadowRoot) {
           RefPtr<ShadowRoot> newShadowRoot =

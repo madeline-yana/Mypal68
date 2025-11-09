@@ -31,14 +31,27 @@ class nsPIDOMWindowInner;
 
 namespace mozilla {
 class DOMEventTargetHelper;
+enum class StorageAccess;
 namespace dom {
 class VoidFunction;
 class DebuggerNotificationManager;
+class Function;
+#ifdef THE_REPORTING
+class Report;
+class ReportBody;
+class ReportingObserver;
+#endif
 class ServiceWorker;
 class ServiceWorkerRegistration;
 class ServiceWorkerRegistrationDescriptor;
 }  // namespace dom
 }  // namespace mozilla
+
+namespace JS {
+namespace loader {
+class ModuleLoaderBase;
+}  // namespace loader
+}  // namespace JS
 
 class nsIGlobalObject : public nsISupports,
                         public mozilla::dom::DispatcherTrait {
@@ -54,8 +67,7 @@ class nsIGlobalObject : public nsISupports,
  protected:
   bool mIsInnerWindow;
 
-  nsIGlobalObject()
-      : mIsDying(false), mIsScriptForbidden(false), mIsInnerWindow(false) {}
+  nsIGlobalObject();
 
  public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IGLOBALOBJECT_IID)
@@ -120,10 +132,10 @@ class nsIGlobalObject : public nsISupports,
 
   void UnregisterHostObjectURI(const nsACString& aURI);
 
-  // Any CC class inheriting nsIGlobalObject should call these 2 methods if it
-  // exposes the URL API.
-  void UnlinkHostObjectURIs();
-  void TraverseHostObjectURIs(nsCycleCollectionTraversalCallback& aCb);
+  // Any CC class inheriting nsIGlobalObject should call these 2 methods to
+  // cleanup objects stored in nsIGlobalObject such as blobURLs and Reports.
+  void UnlinkObjectsInGlobal();
+  void TraverseObjectsInGlobal(nsCycleCollectionTraversalCallback& aCb);
 
   // DETH objects must register themselves on the global when they
   // bind to it in order to get the DisconnectFromOwner() method
@@ -173,11 +185,50 @@ class nsIGlobalObject : public nsISupports,
   GetOrCreateServiceWorkerRegistration(
       const mozilla::dom::ServiceWorkerRegistrationDescriptor& aDescriptor);
 
+  /**
+   * Returns the storage access of this global.
+   *
+   * If you have a global that needs storage access, you should be overriding
+   * this method in your subclass of this class!
+   */
+  virtual mozilla::StorageAccess GetStorageAccess();
+
   // Returns a pointer to this object as an inner window if this is one or
   // nullptr otherwise.
   nsPIDOMWindowInner* AsInnerWindow();
 
   void QueueMicrotask(mozilla::dom::VoidFunction& aCallback);
+
+#ifdef THE_REPORTING
+  void RegisterReportingObserver(mozilla::dom::ReportingObserver* aObserver,
+                                 bool aBuffered);
+
+  void UnregisterReportingObserver(mozilla::dom::ReportingObserver* aObserver);
+
+  void BroadcastReport(mozilla::dom::Report* aReport);
+
+  MOZ_CAN_RUN_SCRIPT void NotifyReportingObservers();
+
+  void RemoveReportRecords();
+#endif
+  // https://streams.spec.whatwg.org/#count-queuing-strategy-size-function
+  // This function is set once by CountQueuingStrategy::GetSize.
+  already_AddRefed<mozilla::dom::Function>
+  GetCountQueuingStrategySizeFunction();
+  void SetCountQueuingStrategySizeFunction(mozilla::dom::Function* aFunction);
+
+  already_AddRefed<mozilla::dom::Function>
+  GetByteLengthQueuingStrategySizeFunction();
+  void SetByteLengthQueuingStrategySizeFunction(
+      mozilla::dom::Function* aFunction);
+
+  /**
+   * Get the module loader to use for this global, if any. By default this
+   * returns null.
+   */
+  virtual JS::loader::ModuleLoaderBase* GetModuleLoader(JSContext* aCx) {
+    return nullptr;
+  }
 
  protected:
   virtual ~nsIGlobalObject();
@@ -190,6 +241,19 @@ class nsIGlobalObject : public nsISupports,
   void DisconnectEventTargetObjects();
 
   size_t ShallowSizeOfExcludingThis(mozilla::MallocSizeOf aSizeOf) const;
+
+ private:
+#ifdef THE_REPORTING
+  // List of Report objects for ReportingObservers.
+  nsTArray<RefPtr<mozilla::dom::ReportingObserver>> mReportingObservers;
+  nsTArray<RefPtr<mozilla::dom::Report>> mReportRecords;
+#endif
+
+  // https://streams.spec.whatwg.org/#count-queuing-strategy-size-function
+  RefPtr<mozilla::dom::Function> mCountQueuingStrategySizeFunction;
+
+  // https://streams.spec.whatwg.org/#byte-length-queuing-strategy-size-function
+  RefPtr<mozilla::dom::Function> mByteLengthQueuingStrategySizeFunction;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIGlobalObject, NS_IGLOBALOBJECT_IID)

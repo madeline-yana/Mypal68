@@ -9,8 +9,7 @@
 #include "mozilla/dom/FileSystemDirectoryEntryBinding.h"
 #include "mozilla/dom/FileSystemUtils.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(FileSystemDirectoryEntry, FileSystemEntry,
                                    mDirectory)
@@ -88,5 +87,4 @@ void FileSystemDirectoryEntry::GetInternal(
   helper->Run();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

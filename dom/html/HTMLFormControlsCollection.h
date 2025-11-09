@@ -15,8 +15,7 @@ class nsIFormControl;
 template <class T>
 class RefPtr;
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 class Element;
 class HTMLFormElement;
 class HTMLImageElement;
@@ -57,7 +56,7 @@ class HTMLFormControlsCollection final : public nsIHTMLCollection,
                                   const nsAString& aName);
   nsresult IndexOfControl(nsIFormControl* aControl, int32_t* aIndex);
 
-  nsISupports* NamedItemInternal(const nsAString& aName, bool aFlushContent);
+  nsISupports* NamedItemInternal(const nsAString& aName);
 
   /**
    * Create a sorted list of form control elements. This list is sorted
@@ -108,9 +107,6 @@ class HTMLFormControlsCollection final : public nsIHTMLCollection,
   // Drop all our references to the form elements
   void Clear();
 
-  // Flush out the content model so it's up to date.
-  void FlushPendingNotifications();
-
   // A map from an ID or NAME attribute to the form control(s), this
   // hash holds strong references either to the named form control, or
   // to a list of named form controls, in the case where this hash
@@ -120,7 +116,6 @@ class HTMLFormControlsCollection final : public nsIHTMLCollection,
   nsInterfaceHashtable<nsStringHashKey, nsISupports> mNameLookupTable;
 };
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom
 
 #endif  // mozilla_dom_HTMLFormControlsCollection_h

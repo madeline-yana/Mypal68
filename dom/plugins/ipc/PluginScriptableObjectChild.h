@@ -10,7 +10,7 @@
 #include "mozilla/plugins/PluginTypes.h"
 
 #include "npruntime.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 
 namespace mozilla {
 namespace plugins {
@@ -245,8 +245,7 @@ class PluginScriptableObjectChild : public PPluginScriptableObjectChild {
   static StoredIdentifier* HashIdentifier(const nsCString& aIdentifier);
   static void UnhashIdentifier(StoredIdentifier* aIdentifier);
 
-  typedef nsDataHashtable<nsCStringHashKey, RefPtr<StoredIdentifier>>
-      IdentifierTable;
+  typedef nsTHashMap<nsCString, RefPtr<StoredIdentifier>> IdentifierTable;
   static IdentifierTable sIdentifiers;
 
   struct NPObjectData : public nsPtrHashKey<NPObject> {

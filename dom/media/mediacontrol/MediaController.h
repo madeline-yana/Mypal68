@@ -8,7 +8,6 @@
 #include "ContentMediaController.h"
 #include "MediaEventSource.h"
 #include "mozilla/LinkedList.h"
-#include "nsDataHashtable.h"
 #include "nsISupportsImpl.h"
 
 namespace mozilla {

@@ -9,15 +9,15 @@
  * Opera Software ASA. You are granted a license to use, reproduce
  * and create derivative works of this document.
  */
-[TreatNonObjectAsNull]
+[LegacyTreatNonObjectAsNull]
 callback EventHandlerNonNull = any (Event event);
 typedef EventHandlerNonNull? EventHandler;
 
-[TreatNonObjectAsNull]
+[LegacyTreatNonObjectAsNull]
 callback OnBeforeUnloadEventHandlerNonNull = DOMString? (Event event);
 typedef OnBeforeUnloadEventHandlerNonNull? OnBeforeUnloadEventHandler;
 
-[TreatNonObjectAsNull]
+[LegacyTreatNonObjectAsNull]
 callback OnErrorEventHandlerNonNull = any ((Event or DOMString) event, optional DOMString source, optional unsigned long lineno, optional unsigned long column, optional any error);
 typedef OnErrorEventHandlerNonNull? OnErrorEventHandler;
 
@@ -64,8 +64,8 @@ interface mixin GlobalEventHandlers {
            attribute EventHandler onloadend;
            attribute EventHandler onloadstart;
            attribute EventHandler onmousedown;
-  [LenientThis] attribute EventHandler onmouseenter;
-  [LenientThis] attribute EventHandler onmouseleave;
+  [LegacyLenientThis] attribute EventHandler onmouseenter;
+  [LegacyLenientThis] attribute EventHandler onmouseleave;
            attribute EventHandler onmousemove;
            attribute EventHandler onmouseout;
            attribute EventHandler onmouseover;
@@ -97,25 +97,15 @@ interface mixin GlobalEventHandlers {
            attribute EventHandler ontoggle;
 
            // Pointer events handlers
-           [Pref="dom.w3c_pointer_events.enabled"]
            attribute EventHandler onpointercancel;
-           [Pref="dom.w3c_pointer_events.enabled"]
            attribute EventHandler onpointerdown;
-           [Pref="dom.w3c_pointer_events.enabled"]
            attribute EventHandler onpointerup;
-           [Pref="dom.w3c_pointer_events.enabled"]
            attribute EventHandler onpointermove;
-           [Pref="dom.w3c_pointer_events.enabled"]
            attribute EventHandler onpointerout;
-           [Pref="dom.w3c_pointer_events.enabled"]
            attribute EventHandler onpointerover;
-           [Pref="dom.w3c_pointer_events.enabled"]
            attribute EventHandler onpointerenter;
-           [Pref="dom.w3c_pointer_events.enabled"]
            attribute EventHandler onpointerleave;
-           [Pref="dom.w3c_pointer_events.enabled"]
            attribute EventHandler ongotpointercapture;
-           [Pref="dom.w3c_pointer_events.enabled"]
            attribute EventHandler onlostpointercapture;
 
            // Mozilla-specific handlers. Unprefixed handlers live in
@@ -137,9 +127,13 @@ interface mixin GlobalEventHandlers {
 
            // CSS-Animation and CSS-Transition legacy handlers.
            // This handler isn't standard.
+           [BinaryName="onwebkitAnimationEnd"]
            attribute EventHandler onwebkitanimationend;
+           [BinaryName="onwebkitAnimationIteration"]
            attribute EventHandler onwebkitanimationiteration;
+           [BinaryName="onwebkitAnimationStart"]
            attribute EventHandler onwebkitanimationstart;
+           [BinaryName="onwebkitTransitionEnd"]
            attribute EventHandler onwebkittransitionend;
 };
 

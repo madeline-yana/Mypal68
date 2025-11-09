@@ -2,17 +2,48 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "LSSnapshot.h"
+#include "mozilla/dom/LSSnapshot.h"
 
+// Local includes
 #include "ActorsChild.h"
-#include "LocalStorageCommon.h"
 #include "LSDatabase.h"
 #include "LSWriteOptimizer.h"
-#include "mozilla/dom/PBackgroundLSSnapshot.h"
-#include "nsContentUtils.h"
+#include "LSWriteOptimizer.h"
+#include "LocalStorageCommon.h"
 
-namespace mozilla {
-namespace dom {
+// Global includes
+#include <cstdint>
+#include <cstdlib>
+#include <new>
+#include <type_traits>
+#include <utility>
+#include "ErrorList.h"
+#include "mozilla/DebugOnly.h"
+#include "mozilla/MacroForEach.h"
+#include "mozilla/Maybe.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/ScopeExit.h"
+#include "mozilla/UniquePtr.h"
+#include "mozilla/dom/BindingDeclarations.h"
+#include "mozilla/dom/LSValue.h"
+#include "mozilla/dom/PBackgroundLSDatabase.h"
+#include "mozilla/dom/PBackgroundLSSharedTypes.h"
+#include "mozilla/dom/PBackgroundLSSnapshot.h"
+#include "nsBaseHashtable.h"
+#include "nsCOMPtr.h"
+#include "nsContentUtils.h"
+#include "nsDebug.h"
+#include "nsError.h"
+#include "nsITimer.h"
+#include "nsString.h"
+#include "nsStringFlags.h"
+#include "nsStringFwd.h"
+#include "nsTArray.h"
+#include "nsTStringRepr.h"
+#include "nscore.h"
+
+namespace mozilla::dom {
 
 namespace {
 
@@ -38,7 +69,7 @@ void SnapshotWriteOptimizer::Enumerate(nsTArray<LSWriteInfo>& aWriteInfos) {
   // an arbitrary order, which means write infos need to be sorted before being
   // processed.
 
-  nsTArray<WriteInfo*> writeInfos;
+  nsTArray<NotNull<WriteInfo*>> writeInfos;
   GetSortedWriteInfos(writeInfos);
 
   for (WriteInfo* writeInfo : writeInfos) {
@@ -165,15 +196,15 @@ nsresult LSSnapshot::Init(const nsAString& aKey,
     const LSValue& value = itemInfo.value();
 
     if (loadState != LoadState::AllOrderedItems && !value.IsVoid()) {
-      mLoadedItems.PutEntry(itemInfo.key());
+      mLoadedItems.Insert(itemInfo.key());
     }
 
-    mValues.Put(itemInfo.key(), value.AsString());
+    mValues.InsertOrUpdate(itemInfo.key(), value.AsString());
   }
 
   if (loadState == LoadState::Partial) {
     if (aInitInfo.addKeyToUnknownItems()) {
-      mUnknownItems.PutEntry(aKey);
+      mUnknownItems.Insert(aKey);
     }
     mInitLength = aInitInfo.totalLength();
     mLength = mInitLength;
@@ -318,7 +349,7 @@ nsresult LSSnapshot::SetItem(const nsAString& aKey, const nsAString& aValue,
       if (oldValue.IsVoid()) {
         mValues.Remove(aKey);
       } else {
-        mValues.Put(aKey, oldValue);
+        mValues.InsertOrUpdate(aKey, oldValue);
       }
     });
 
@@ -407,7 +438,7 @@ nsresult LSSnapshot::RemoveItem(const nsAString& aKey,
 
     auto autoRevertValue = MakeScopeExit([&] {
       MOZ_ASSERT(!oldValue.IsVoid());
-      mValues.Put(aKey, oldValue);
+      mValues.InsertOrUpdate(aKey, oldValue);
     });
 
     // Anything that can fail must be done early before we start modifying the
@@ -596,7 +627,7 @@ nsresult LSSnapshot::GetItemInternal(const nsAString& aKey,
     case LoadState::Partial: {
       if (mValues.Get(aKey, &result)) {
         MOZ_ASSERT(!result.IsVoid());
-      } else if (mLoadedItems.GetEntry(aKey) || mUnknownItems.GetEntry(aKey)) {
+      } else if (mLoadedItems.Contains(aKey) || mUnknownItems.Contains(aKey)) {
         result.SetIsVoid(true);
       } else {
         LSValue value;
@@ -609,10 +640,10 @@ nsresult LSSnapshot::GetItemInternal(const nsAString& aKey,
         result = value.AsString();
 
         if (result.IsVoid()) {
-          mUnknownItems.PutEntry(aKey);
+          mUnknownItems.Insert(aKey);
         } else {
-          mLoadedItems.PutEntry(aKey);
-          mValues.Put(aKey, result);
+          mLoadedItems.Insert(aKey);
+          mValues.InsertOrUpdate(aKey, result);
 
           // mLoadedItems.Count()==mInitLength is checked below.
         }
@@ -620,8 +651,8 @@ nsresult LSSnapshot::GetItemInternal(const nsAString& aKey,
         for (uint32_t i = 0; i < itemInfos.Length(); i++) {
           const LSItemInfo& itemInfo = itemInfos[i];
 
-          mLoadedItems.PutEntry(itemInfo.key());
-          mValues.Put(itemInfo.key(), itemInfo.value().AsString());
+          mLoadedItems.Insert(itemInfo.key());
+          mValues.InsertOrUpdate(itemInfo.key(), itemInfo.value().AsString());
         }
 
         if (mLoadedItems.Count() == mInitLength) {
@@ -635,7 +666,7 @@ nsresult LSSnapshot::GetItemInternal(const nsAString& aKey,
       if (aValue.WasPassed()) {
         const nsString& value = aValue.Value();
         if (!value.IsVoid()) {
-          mValues.Put(aKey, value);
+          mValues.InsertOrUpdate(aKey, value);
         } else if (!result.IsVoid()) {
           mValues.Remove(aKey);
         }
@@ -658,16 +689,16 @@ nsresult LSSnapshot::GetItemInternal(const nsAString& aKey,
 
           MOZ_ASSERT(!result.IsVoid());
 
-          mLoadedItems.PutEntry(aKey);
-          mValues.Put(aKey, result);
+          mLoadedItems.Insert(aKey);
+          mValues.InsertOrUpdate(aKey, result);
 
           // mLoadedItems.Count()==mInitLength is checked below.
 
           for (uint32_t i = 0; i < itemInfos.Length(); i++) {
             const LSItemInfo& itemInfo = itemInfos[i];
 
-            mLoadedItems.PutEntry(itemInfo.key());
-            mValues.Put(itemInfo.key(), itemInfo.value().AsString());
+            mLoadedItems.Insert(itemInfo.key());
+            mValues.InsertOrUpdate(itemInfo.key(), itemInfo.value().AsString());
           }
 
           if (mLoadedItems.Count() == mInitLength) {
@@ -683,7 +714,7 @@ nsresult LSSnapshot::GetItemInternal(const nsAString& aKey,
       if (aValue.WasPassed()) {
         const nsString& value = aValue.Value();
         if (!value.IsVoid()) {
-          mValues.Put(aKey, value);
+          mValues.InsertOrUpdate(aKey, value);
         } else if (!result.IsVoid()) {
           mValues.Remove(aKey);
         }
@@ -750,10 +781,10 @@ nsresult LSSnapshot::EnsureAllKeys() {
     return NS_ERROR_FAILURE;
   }
 
-  nsDataHashtable<nsStringHashKey, nsString> newValues;
+  nsTHashMap<nsStringHashKey, nsString> newValues;
 
   for (auto key : keys) {
-    newValues.Put(key, VoidString());
+    newValues.InsertOrUpdate(key, VoidString());
   }
 
   if (mHasOtherProcessObservers) {
@@ -767,8 +798,9 @@ nsresult LSSnapshot::EnsureAllKeys() {
 
         switch (writeAndNotifyInfo.type()) {
           case LSWriteAndNotifyInfo::TLSSetItemAndNotifyInfo: {
-            newValues.Put(writeAndNotifyInfo.get_LSSetItemAndNotifyInfo().key(),
-                          VoidString());
+            newValues.InsertOrUpdate(
+                writeAndNotifyInfo.get_LSSetItemAndNotifyInfo().key(),
+                VoidString());
             break;
           }
           case LSWriteAndNotifyInfo::TLSRemoveItemAndNotifyInfo: {
@@ -800,7 +832,8 @@ nsresult LSSnapshot::EnsureAllKeys() {
 
         switch (writeInfo.type()) {
           case LSWriteInfo::TLSSetItemInfo: {
-            newValues.Put(writeInfo.get_LSSetItemInfo().key(), VoidString());
+            newValues.InsertOrUpdate(writeInfo.get_LSSetItemInfo().key(),
+                                     VoidString());
             break;
           }
           case LSWriteInfo::TLSRemoveItemInfo: {
@@ -985,5 +1018,4 @@ LSSnapshot::Run() {
   return NS_OK;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

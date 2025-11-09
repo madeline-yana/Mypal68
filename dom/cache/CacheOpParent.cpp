@@ -13,9 +13,7 @@
 #include "mozilla/ipc/InputStreamUtils.h"
 #include "mozilla/ipc/IPCStreamUtils.h"
 
-namespace mozilla {
-namespace dom {
-namespace cache {
+namespace mozilla::dom::cache {
 
 using mozilla::ipc::FileDescriptorSetParent;
 using mozilla::ipc::PBackgroundParent;
@@ -102,14 +100,14 @@ void CacheOpParent::WaitForVerification(PrincipalVerifier* aVerifier) {
   MOZ_DIAGNOSTIC_ASSERT(!mVerifier);
 
   mVerifier = aVerifier;
-  mVerifier->AddListener(this);
+  mVerifier->AddListener(*this);
 }
 
 void CacheOpParent::ActorDestroy(ActorDestroyReason aReason) {
   NS_ASSERT_OWNINGTHREAD(CacheOpParent);
 
   if (mVerifier) {
-    mVerifier->RemoveListener(this);
+    mVerifier->RemoveListener(*this);
     mVerifier = nullptr;
   }
 
@@ -125,7 +123,7 @@ void CacheOpParent::OnPrincipalVerified(
     nsresult aRv, const SafeRefPtr<ManagerId>& aManagerId) {
   NS_ASSERT_OWNINGTHREAD(CacheOpParent);
 
-  mVerifier->RemoveListener(this);
+  mVerifier->RemoveListener(*this);
   mVerifier = nullptr;
 
   if (NS_WARN_IF(NS_FAILED(aRv))) {
@@ -207,6 +205,4 @@ already_AddRefed<nsIInputStream> CacheOpParent::DeserializeCacheStream(
   return DeserializeIPCStream(readStream.stream());
 }
 
-}  // namespace cache
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom::cache

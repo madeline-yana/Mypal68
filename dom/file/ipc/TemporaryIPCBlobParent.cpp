@@ -9,8 +9,7 @@
 #include "TemporaryFileBlobImpl.h"
 #include "mozilla/dom/IPCBlobUtils.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 TemporaryIPCBlobParent::TemporaryIPCBlobParent() : mActive(true) {}
 
@@ -98,5 +97,4 @@ mozilla::ipc::IPCResult TemporaryIPCBlobParent::SendDeleteError(nsresult aRv) {
   return IPC_OK();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

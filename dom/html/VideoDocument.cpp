@@ -11,8 +11,7 @@
 #include "nsContentUtils.h"
 #include "mozilla/dom/Element.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 class VideoDocument final : public MediaDocument {
  public:
@@ -141,8 +140,7 @@ void VideoDocument::UpdateTitle(nsIChannel* aChannel) {
   SetTitle(fileName, ignored);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom
 
 nsresult NS_NewVideoDocument(mozilla::dom::Document** aResult) {
   auto* doc = new mozilla::dom::VideoDocument();

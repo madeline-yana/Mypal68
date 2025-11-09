@@ -7,8 +7,7 @@
 #include "mozilla/dom/TabMessageUtils.h"
 #include "nsCOMPtr.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 bool ReadRemoteEvent(const IPC::Message* aMsg, PickleIterator* aIter,
                      RemoteDOMEvent* aResult) {
@@ -22,5 +21,4 @@ bool ReadRemoteEvent(const IPC::Message* aMsg, PickleIterator* aIter,
   return aResult->mEvent->Deserialize(aMsg, aIter);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

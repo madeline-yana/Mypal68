@@ -12,8 +12,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Title)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 HTMLTitleElement::HTMLTitleElement(
     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo)
@@ -91,5 +90,4 @@ void HTMLTitleElement::SendTitleChangeEvent(bool aBound) {
   }
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

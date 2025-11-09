@@ -93,7 +93,7 @@ already_AddRefed<nsISpeechRecognitionService> GetSpeechRecognitionService(
         NS_SPEECH_RECOGNITION_SERVICE_CONTRACTID_PREFIX "fake";
   } else {
     speechRecognitionServiceCID =
-        NS_LITERAL_CSTRING(NS_SPEECH_RECOGNITION_SERVICE_CONTRACTID_PREFIX) +
+        nsLiteralCString(NS_SPEECH_RECOGNITION_SERVICE_CONTRACTID_PREFIX) +
         speechRecognitionService;
   }
 
@@ -184,8 +184,8 @@ bool SpeechRecognition::IsAuthorized(JSContext* aCx, JSObject* aGlobal) {
   }
 
   uint32_t speechRecognition = nsIPermissionManager::UNKNOWN_ACTION;
-  rv = mgr->TestExactPermissionFromPrincipal(
-      principal, NS_LITERAL_CSTRING("speech-recognition"), &speechRecognition);
+  rv = mgr->TestExactPermissionFromPrincipal(principal, "speech-recognition"_ns,
+                                             &speechRecognition);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return false;
   }
@@ -430,7 +430,7 @@ void SpeechRecognition::Reset() {
 
 void SpeechRecognition::ResetAndEnd() {
   Reset();
-  DispatchTrustedEvent(NS_LITERAL_STRING("end"));
+  DispatchTrustedEvent(u"end"_ns);
 }
 
 void SpeechRecognition::WaitForAudioData(SpeechEvent* aEvent) {
@@ -444,9 +444,9 @@ void SpeechRecognition::StartedAudioCapture(SpeechEvent* aEvent) {
   mEstimationSamples +=
       ProcessAudioSegment(aEvent->mAudioSegment, aEvent->mTrackRate);
 
-  DispatchTrustedEvent(NS_LITERAL_STRING("audiostart"));
+  DispatchTrustedEvent(u"audiostart"_ns);
   if (mCurrentState == STATE_ESTIMATING) {
-    DispatchTrustedEvent(NS_LITERAL_STRING("start"));
+    DispatchTrustedEvent(u"start"_ns);
   }
 }
 
@@ -477,7 +477,7 @@ void SpeechRecognition::DetectSpeech(SpeechEvent* aEvent) {
   if (mEndpointer.DidStartReceivingSpeech()) {
     mSpeechDetectionTimer->Cancel();
     SetState(STATE_RECOGNIZING);
-    DispatchTrustedEvent(NS_LITERAL_STRING("speechstart"));
+    DispatchTrustedEvent(u"speechstart"_ns);
   }
 }
 
@@ -486,7 +486,7 @@ void SpeechRecognition::WaitForSpeechEnd(SpeechEvent* aEvent) {
 
   ProcessAudioSegment(aEvent->mAudioSegment, aEvent->mTrackRate);
   if (mEndpointer.speech_input_complete()) {
-    DispatchTrustedEvent(NS_LITERAL_STRING("speechend"));
+    DispatchTrustedEvent(u"speechend"_ns);
 
     if (mCurrentState == STATE_RECOGNIZING) {
       // FIXME: StopRecordingAndRecognize should only be called for single
@@ -507,8 +507,8 @@ void SpeechRecognition::NotifyFinalResult(SpeechEvent* aEvent) {
   init.mInterpretation = JS::NullValue();
   // init.mEmma = nullptr;
 
-  RefPtr<SpeechRecognitionEvent> event = SpeechRecognitionEvent::Constructor(
-      this, NS_LITERAL_STRING("result"), init);
+  RefPtr<SpeechRecognitionEvent> event =
+      SpeechRecognitionEvent::Constructor(this, u"result"_ns, init);
   event->SetTrusted(true);
 
   DispatchEvent(*event);
@@ -557,7 +557,7 @@ SpeechRecognition::StartRecording(RefPtr<AudioStreamTrack>& aTrack) {
   mShutdownBlocker = MakeAndAddRef<SpeechRecognitionShutdownBlocker>(this);
   RefPtr<nsIAsyncShutdownClient> shutdown = media::GetShutdownBarrier();
   shutdown->AddBlocker(mShutdownBlocker, NS_LITERAL_STRING(__FILE__), __LINE__,
-                       NS_LITERAL_STRING("SpeechRecognition shutdown"));
+                       u"SpeechRecognition shutdown"_ns);
 
   mEndpointer.StartSession();
 
@@ -589,7 +589,7 @@ SpeechRecognition::StopRecording() {
   mTrack = nullptr;
 
   mEndpointer.EndSession();
-  DispatchTrustedEvent(NS_LITERAL_STRING("audioend"));
+  DispatchTrustedEvent(u"audioend"_ns);
 
   return NS_OK;
 }
@@ -603,7 +603,7 @@ SpeechRecognition::Observe(nsISupports* aSubject, const char* aTopic,
       StateBetween(STATE_IDLE, STATE_WAITING_FOR_SPEECH)) {
     DispatchError(SpeechRecognition::EVENT_AUDIO_ERROR,
                   SpeechRecognitionErrorCode::No_speech,
-                  NS_LITERAL_STRING("No speech detected (timeout)"));
+                  u"No speech detected (timeout)"_ns);
   } else if (!strcmp(aTopic, SPEECH_RECOGNITION_TEST_END_TOPIC)) {
     nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
     obs->RemoveObserver(this, SPEECH_RECOGNITION_TEST_EVENT_REQUEST_TOPIC);
@@ -624,7 +624,7 @@ void SpeechRecognition::ProcessTestEventRequest(nsISupports* aSubject,
     DispatchError(
         SpeechRecognition::EVENT_AUDIO_ERROR,
         SpeechRecognitionErrorCode::Audio_capture,  // TODO different codes?
-        NS_LITERAL_STRING("AUDIO_ERROR test event"));
+        u"AUDIO_ERROR test event"_ns);
   } else {
     NS_ASSERTION(StaticPrefs::media_webspeech_test_fake_recognition_service(),
                  "Got request for fake recognition service event, but "
@@ -858,8 +858,8 @@ void SpeechRecognition::DispatchError(EventType aErrorType,
   RefPtr<SpeechRecognitionError> srError =
       new SpeechRecognitionError(nullptr, nullptr, nullptr);
 
-  srError->InitSpeechRecognitionError(NS_LITERAL_STRING("error"), true, false,
-                                      aErrorCode, aMessage);
+  srError->InitSpeechRecognitionError(u"error"_ns, true, false, aErrorCode,
+                                      aMessage);
 
   RefPtr<SpeechEvent> event = new SpeechEvent(this, aErrorType);
   event->mError = srError;

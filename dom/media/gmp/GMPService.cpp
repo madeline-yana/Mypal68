@@ -180,8 +180,8 @@ GeckoMediaPluginService::RunPluginCrashCallbacks(
     CopyUTF8toUTF16(aPluginName, init.mPluginName);
     init.mSubmittedCrashReport = false;
     RefPtr<dom::PluginCrashedEvent> event =
-        dom::PluginCrashedEvent::Constructor(
-            document, NS_LITERAL_STRING("PluginCrashed"), init);
+        dom::PluginCrashedEvent::Constructor(document, u"PluginCrashed"_ns,
+                                             init);
     event->SetTrusted(true);
     event->WidgetEventPtr()->mFlags.mOnlyChromeDispatch = true;
 
@@ -292,7 +292,7 @@ GeckoMediaPluginService::GetDecryptingGMPVideoDecoder(
   GetGMPVideoDecoderCallback* rawCallback = aCallback.release();
   RefPtr<AbstractThread> thread(GetAbstractGMPThread());
   RefPtr<GMPCrashHelper> helper(aHelper);
-  GetContentParent(aHelper, aNodeId, NS_LITERAL_CSTRING(GMP_API_VIDEO_DECODER),
+  GetContentParent(aHelper, aNodeId, nsLiteralCString(GMP_API_VIDEO_DECODER),
                    *aTags)
       ->Then(
           thread, __func__,
@@ -333,7 +333,7 @@ GeckoMediaPluginService::GetGMPVideoEncoder(
   GetGMPVideoEncoderCallback* rawCallback = aCallback.release();
   RefPtr<AbstractThread> thread(GetAbstractGMPThread());
   RefPtr<GMPCrashHelper> helper(aHelper);
-  GetContentParent(aHelper, aNodeId, NS_LITERAL_CSTRING(GMP_API_VIDEO_ENCODER),
+  GetContentParent(aHelper, aNodeId, nsLiteralCString(GMP_API_VIDEO_ENCODER),
                    *aTags)
       ->Then(
           thread, __func__,
@@ -362,15 +362,16 @@ void GeckoMediaPluginService::ConnectCrashHelper(uint32_t aPluginId,
   if (!aHelper) {
     return;
   }
+
   MutexAutoLock lock(mMutex);
-  nsTArray<RefPtr<GMPCrashHelper>>* helpers;
-  if (!mPluginCrashHelpers.Get(aPluginId, &helpers)) {
-    helpers = new nsTArray<RefPtr<GMPCrashHelper>>();
-    mPluginCrashHelpers.Put(aPluginId, helpers);
-  } else if (helpers->Contains(aHelper)) {
-    return;
-  }
-  helpers->AppendElement(aHelper);
+  mPluginCrashHelpers.WithEntryHandle(aPluginId, [&](auto&& entry) {
+    if (!entry) {
+      entry.Insert(MakeUnique<nsTArray<RefPtr<GMPCrashHelper>>>());
+    } else if (entry.Data()->Contains(aHelper)) {
+      return;
+    }
+    entry.Data()->AppendElement(aHelper);
+  });
 }
 
 void GeckoMediaPluginService::DisconnectCrashHelper(GMPCrashHelper* aHelper) {

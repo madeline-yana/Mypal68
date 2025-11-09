@@ -12,6 +12,7 @@
 #include "VideoUtils.h"  // for MediaThreadType
 
 #include "ImageContainer.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/layers/VideoBridgeChild.h"
 #include "mozilla/layers/ImageDataSerializer.h"
 #include "mozilla/SyncRunnable.h"

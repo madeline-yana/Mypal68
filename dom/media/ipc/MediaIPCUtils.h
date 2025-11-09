@@ -6,7 +6,7 @@
 #define mozilla_dom_media_MediaIPCUtils_h
 
 #include "PlatformDecoderModule.h"
-#include "ipc/IPCMessageUtils.h"
+#include "ipc/EnumSerializer.h"
 #include "mozilla/GfxMessageUtils.h"
 #include "mozilla/gfx/Rect.h"
 

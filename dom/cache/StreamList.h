@@ -37,7 +37,6 @@ class StreamList final : public Context::Activity,
 
   void NoteClosed(const nsID& aId);
   void NoteClosedAll();
-  void Close(const nsID& aId);
   void CloseAll();
 
   // Context::Activity methods

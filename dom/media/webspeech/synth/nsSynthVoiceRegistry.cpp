@@ -474,8 +474,7 @@ nsSynthVoiceRegistry::GetVoiceName(const nsAString& aUri, nsAString& aRetval) {
 nsresult nsSynthVoiceRegistry::AddVoiceImpl(
     nsISpeechService* aService, const nsAString& aUri, const nsAString& aName,
     const nsAString& aLang, bool aLocalService, bool aQueuesUtterances) {
-  bool found = false;
-  mUriVoiceMap.GetWeak(aUri, &found);
+  const bool found = mUriVoiceMap.Contains(aUri);
   if (NS_WARN_IF(found)) {
     return NS_ERROR_INVALID_ARG;
   }
@@ -484,7 +483,7 @@ nsresult nsSynthVoiceRegistry::AddVoiceImpl(
                                           aLocalService, aQueuesUtterances);
 
   mVoices.AppendElement(voice);
-  mUriVoiceMap.Put(aUri, std::move(voice));
+  mUriVoiceMap.InsertOrUpdate(aUri, std::move(voice));
   mUseGlobalQueue |= aQueuesUtterances;
 
   nsTArray<SpeechSynthesisParent*> ssplist;
@@ -533,7 +532,7 @@ bool nsSynthVoiceRegistry::FindVoiceByLang(const nsAString& aLang,
     dashPos = end;
     end = start;
 
-    if (!RFindInReadable(NS_LITERAL_STRING("-"), end, dashPos)) {
+    if (!RFindInReadable(u"-"_ns, end, dashPos)) {
       break;
     }
   }
@@ -580,7 +579,7 @@ VoiceData* nsSynthVoiceRegistry::FindBestMatch(const nsAString& aUri,
   }
 
   // Try en-US, the language of locale "C"
-  if (FindVoiceByLang(NS_LITERAL_STRING("en-US"), &retval)) {
+  if (FindVoiceByLang(u"en-US"_ns, &retval)) {
     LOG(LogLevel::Debug, ("nsSynthVoiceRegistry::FindBestMatch - Matched C "
                           "locale language (en-US ~= %s)",
                           NS_ConvertUTF16toUTF8(retval->mLang).get()));

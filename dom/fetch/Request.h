@@ -125,6 +125,7 @@ class Request final : public FetchBody<Request>, public nsWrapperCache {
 
   // This can return a null AbortSignalImpl.
   AbortSignalImpl* GetSignalImpl() const override;
+  AbortSignalImpl* GetSignalImplToConsumeBody() const final;
 
  private:
   ~Request();

@@ -5,6 +5,7 @@
 #ifndef mozilla_dom_PromiseNativeHandler_h
 #define mozilla_dom_PromiseNativeHandler_h
 
+#include "mozilla/ErrorResult.h"
 #include "nsISupports.h"
 #include "js/TypeDecls.h"
 
@@ -18,16 +19,16 @@ namespace dom {
  */
 class PromiseNativeHandler : public nsISupports {
  protected:
-  virtual ~PromiseNativeHandler() {}
+  virtual ~PromiseNativeHandler() = default;
 
  public:
   MOZ_CAN_RUN_SCRIPT
-  virtual void ResolvedCallback(JSContext* aCx,
-                                JS::Handle<JS::Value> aValue) = 0;
+  virtual void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                                ErrorResult& aRv) = 0;
 
   MOZ_CAN_RUN_SCRIPT
-  virtual void RejectedCallback(JSContext* aCx,
-                                JS::Handle<JS::Value> aValue) = 0;
+  virtual void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                                ErrorResult& aRv) = 0;
 };
 
 }  // namespace dom

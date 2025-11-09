@@ -11,9 +11,7 @@
 #include "mozilla/CheckedInt.h"  // mozilla::CheckedInt
 #include "mozilla/Encoding.h"    // mozilla::Decoder
 #include "mozilla/Span.h"        // mozilla::Span
-#include "mozilla/Tuple.h"       // mozilla::Tie
 #include "mozilla/UniquePtr.h"   // mozilla::UniquePtr
-#include "mozilla/Unused.h"      // mozilla::Unused
 
 #include <stddef.h>     // size_t
 #include <stdint.h>     // uint8_t, uint32_t
@@ -42,13 +40,11 @@ struct ScriptDecoding<char16_t> {
     uint32_t result;
     size_t read;
     size_t written;
-    bool hadErrors;
-    Tie(result, read, written, hadErrors) =
+    std::tie(result, read, written, std::ignore) =
         aDecoder->DecodeToUTF16(aSrc, aDest, aEndOfSource);
     MOZ_ASSERT(result == kInputEmpty);
     MOZ_ASSERT(read == aSrc.Length());
     MOZ_ASSERT(written <= aDest.Length());
-    Unused << hadErrors;
 
     return written;
   }
@@ -67,7 +63,6 @@ struct ScriptDecoding<Utf8Unit> {
     uint32_t result;
     size_t read;
     size_t written;
-    bool hadErrors;
     // Until C++ char8_t happens, our decoder APIs deal in |uint8_t| while
     // |Utf8Unit| internally deals with |char|, so there's inevitable impedance
     // mismatch between |aDest| as |Utf8Unit| and |AsWritableBytes(aDest)| as
@@ -77,12 +72,11 @@ struct ScriptDecoding<Utf8Unit> {
     // twos-complement is mandated, we have to play fast and loose and *hope*
     // interpreting memory storing |uint8_t| as |char| will pick up the desired
     // wrapped-around value.  ¯\_(ツ)_/¯
-    Tie(result, read, written, hadErrors) =
+    std::tie(result, read, written, std::ignore) =
         aDecoder->DecodeToUTF8(aSrc, AsWritableBytes(aDest), aEndOfSource);
     MOZ_ASSERT(result == kInputEmpty);
     MOZ_ASSERT(read == aSrc.Length());
     MOZ_ASSERT(written <= aDest.Length());
-    Unused << hadErrors;
 
     return written;
   }

@@ -7,6 +7,8 @@
 #ifndef mozilla_CheckedUnsafePtr_h
 #define mozilla_CheckedUnsafePtr_h
 
+#include "mozilla/Assertions.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/DataMutex.h"
 #include "nsTArray.h"
 
@@ -387,6 +389,17 @@ struct nsTArray_RelocationStrategy<mozilla::CheckedUnsafePtr<T>> {
       T::SupportsChecking::value == mozilla::CheckingSupport::Enabled,
       nsTArray_RelocateUsingMoveConstructor<mozilla::CheckedUnsafePtr<T>>,
       nsTArray_RelocateUsingMemutils>;
+};
+
+template <typename T>
+struct nsTArray_RelocationStrategy<
+    mozilla::NotNull<mozilla::CheckedUnsafePtr<T>>> {
+  using Type =
+      std::conditional_t<T::SupportsChecking::value ==
+                             mozilla::CheckingSupport::Enabled,
+                         nsTArray_RelocateUsingMoveConstructor<
+                             mozilla::NotNull<mozilla::CheckedUnsafePtr<T>>>,
+                         nsTArray_RelocateUsingMemutils>;
 };
 
 #endif  // mozilla_CheckedUnsafePtr_h

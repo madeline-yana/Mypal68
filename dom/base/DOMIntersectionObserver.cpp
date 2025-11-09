@@ -14,8 +14,7 @@
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/dom/DocumentInlines.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMIntersectionObserverEntry)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
@@ -556,5 +555,4 @@ void DOMIntersectionObserver::Notify() {
   callback->Call(this, entries, *this);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

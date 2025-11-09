@@ -15,6 +15,7 @@
 #include "mozilla/AbstractThread.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/dom/ContentParent.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/Logging.h"
 #include "mozilla/Preferences.h"
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)
@@ -196,7 +197,7 @@ nsresult GeckoMediaPluginServiceParent::InitStorage() {
     return rv;
   }
 
-  rv = mStorageBaseDir->AppendNative(NS_LITERAL_CSTRING("gmp"));
+  rv = mStorageBaseDir->AppendNative("gmp"_ns);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -225,7 +226,7 @@ GeckoMediaPluginServiceParent::Observe(nsISupports* aSubject,
     nsCOMPtr<nsIPrefBranch> branch(do_QueryInterface(aSubject));
     if (branch) {
       bool crashNow = false;
-      if (NS_LITERAL_STRING("media.gmp.plugin.crash").Equals(aSomeData)) {
+      if (u"media.gmp.plugin.crash"_ns.Equals(aSomeData)) {
         branch->GetBoolPref("media.gmp.plugin.crash", &crashNow);
       }
       if (crashNow) {
@@ -1022,18 +1023,13 @@ static nsresult ReadFromFile(nsIFile* aPath, const nsACString& aFileName,
 }
 
 nsresult ReadSalt(nsIFile* aPath, nsACString& aOutData) {
-  return ReadFromFile(aPath, NS_LITERAL_CSTRING("salt"), aOutData,
-                      NodeIdSaltLength);
+  return ReadFromFile(aPath, "salt"_ns, aOutData, NodeIdSaltLength);
 }
 
 already_AddRefed<GMPStorage> GeckoMediaPluginServiceParent::GetMemoryStorageFor(
     const nsACString& aNodeId) {
-  RefPtr<GMPStorage> s;
-  if (!mTempGMPStorage.Get(aNodeId, getter_AddRefs(s))) {
-    s = CreateGMPMemoryStorage();
-    mTempGMPStorage.Put(aNodeId, RefPtr{s});
-  }
-  return s.forget();
+  return do_AddRef(mTempGMPStorage.LookupOrInsertWith(
+      aNodeId, [] { return CreateGMPMemoryStorage(); }));
 }
 
 NS_IMETHODIMP
@@ -1072,7 +1068,7 @@ nsresult GeckoMediaPluginServiceParent::GetNodeId(
       return rv;
     }
     aOutId = salt;
-    mPersistentStorageAllowed.Put(salt, false);
+    mPersistentStorageAllowed.InsertOrUpdate(salt, false);
     return NS_OK;
   }
 
@@ -1084,20 +1080,24 @@ nsresult GeckoMediaPluginServiceParent::GetNodeId(
     // name, so that if the same origin pair is opened for the same GMP in this
     // session, it gets the same node id.
     const uint32_t pbHash = AddToHash(HashString(aGMPName), hash);
-    nsCString* salt = nullptr;
-    if (!(salt = mTempNodeIds.Get(pbHash))) {
-      // No salt stored, generate and temporarily store some for this id.
-      nsAutoCString newSalt;
-      rv = GenerateRandomPathName(newSalt, NodeIdSaltLength);
-      if (NS_WARN_IF(NS_FAILED(rv))) {
-        return rv;
+    return mTempNodeIds.WithEntryHandle(pbHash, [&](auto&& entry) {
+      if (!entry) {
+        // No salt stored, generate and temporarily store some for this id.
+        nsAutoCString newSalt;
+        rv = GenerateRandomPathName(newSalt, NodeIdSaltLength);
+        if (NS_WARN_IF(NS_FAILED(rv))) {
+          return rv;
+        }
+        auto salt = MakeUnique<nsCString>(newSalt);
+
+        mPersistentStorageAllowed.InsertOrUpdate(*salt, false);
+
+        entry.Insert(std::move(salt));
       }
-      salt = new nsCString(newSalt);
-      mTempNodeIds.Put(pbHash, salt);
-      mPersistentStorageAllowed.Put(*salt, false);
-    }
-    aOutId = *salt;
-    return NS_OK;
+
+      aOutId = *entry.Data();
+      return NS_OK;
+    });
   }
 
   // Otherwise, try to see if we've previously generated and stored salt
@@ -1115,7 +1115,7 @@ nsresult GeckoMediaPluginServiceParent::GetNodeId(
   }
 
   // $profileDir/gmp/$platform/$gmpName/id/
-  rv = path->AppendNative(NS_LITERAL_CSTRING("id"));
+  rv = path->AppendNative("id"_ns);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -1140,7 +1140,7 @@ nsresult GeckoMediaPluginServiceParent::GetNodeId(
     return rv;
   }
 
-  rv = saltFile->AppendNative(NS_LITERAL_CSTRING("salt"));
+  rv = saltFile->AppendNative("salt"_ns);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -1161,20 +1161,19 @@ nsresult GeckoMediaPluginServiceParent::GetNodeId(
     MOZ_ASSERT(salt.Length() == NodeIdSaltLength);
 
     // $profileDir/gmp/$platform/$gmpName/id/$hash/salt
-    rv = WriteToFile(path, NS_LITERAL_CSTRING("salt"), salt);
+    rv = WriteToFile(path, "salt"_ns, salt);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
 
     // $profileDir/gmp/$platform/$gmpName/id/$hash/origin
-    rv = WriteToFile(path, NS_LITERAL_CSTRING("origin"),
-                     NS_ConvertUTF16toUTF8(aOrigin));
+    rv = WriteToFile(path, "origin"_ns, NS_ConvertUTF16toUTF8(aOrigin));
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
 
     // $profileDir/gmp/$platform/$gmpName/id/$hash/topLevelOrigin
-    rv = WriteToFile(path, NS_LITERAL_CSTRING("topLevelOrigin"),
+    rv = WriteToFile(path, "topLevelOrigin"_ns,
                      NS_ConvertUTF16toUTF8(aTopLevelOrigin));
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
@@ -1188,7 +1187,7 @@ nsresult GeckoMediaPluginServiceParent::GetNodeId(
   }
 
   aOutId = salt;
-  mPersistentStorageAllowed.Put(salt, true);
+  mPersistentStorageAllowed.InsertOrUpdate(salt, true);
 
   return NS_OK;
 }
@@ -1233,7 +1232,7 @@ bool MatchOrigin(nsIFile* aPath, const nsACString& aSite,
   nsCString originNoSuffix;
   mozilla::OriginAttributes originAttributes;
 
-  rv = ReadFromFile(aPath, NS_LITERAL_CSTRING("origin"), str, MaxDomainLength);
+  rv = ReadFromFile(aPath, "origin"_ns, str, MaxDomainLength);
   if (!originAttributes.PopulateFromOrigin(str, originNoSuffix)) {
     // Fails on parsing the originAttributes, treat this as a non-match.
     return false;
@@ -1245,8 +1244,7 @@ bool MatchOrigin(nsIFile* aPath, const nsACString& aSite,
   }
 
   mozilla::OriginAttributes topLevelOriginAttributes;
-  rv = ReadFromFile(aPath, NS_LITERAL_CSTRING("topLevelOrigin"), str,
-                    MaxDomainLength);
+  rv = ReadFromFile(aPath, "topLevelOrigin"_ns, str, MaxDomainLength);
   if (!topLevelOriginAttributes.PopulateFromOrigin(str, originNoSuffix)) {
     // Fails on paring the originAttributes, treat this as a non-match.
     return false;
@@ -1314,8 +1312,7 @@ void GeckoMediaPluginServiceParent::ClearNodeIdAndPlugin(
 void GeckoMediaPluginServiceParent::ClearNodeIdAndPlugin(
     nsIFile* aPluginStorageDir, DirectoryFilter& aFilter) {
   // $profileDir/gmp/$platform/$gmpName/id/
-  nsCOMPtr<nsIFile> path =
-      CloneAndAppend(aPluginStorageDir, NS_LITERAL_STRING("id"));
+  nsCOMPtr<nsIFile> path = CloneAndAppend(aPluginStorageDir, u"id"_ns);
   if (!path) {
     return;
   }
@@ -1346,7 +1343,7 @@ void GeckoMediaPluginServiceParent::ClearNodeIdAndPlugin(
   KillPlugins(mPlugins, mMutex, NodeFilter(nodeIDsToClear));
 
   // Clear all storage in $profileDir/gmp/$platform/$gmpName/storage/$nodeId/
-  path = CloneAndAppend(aPluginStorageDir, NS_LITERAL_STRING("storage"));
+  path = CloneAndAppend(aPluginStorageDir, u"storage"_ns);
   if (!path) {
     return;
   }
@@ -1438,7 +1435,7 @@ void GeckoMediaPluginServiceParent::ClearRecentHistoryOnGMPThread(
       }
 
       // $profileDir/gmp/$platform/$gmpName/storage/
-      if (NS_WARN_IF(NS_FAILED(temp->Append(NS_LITERAL_STRING("storage"))))) {
+      if (NS_WARN_IF(NS_FAILED(temp->Append(u"storage"_ns)))) {
         return false;
       }
       // $profileDir/gmp/$platform/$gmpName/storage/$originSalt
@@ -1499,7 +1496,7 @@ static nsCOMPtr<nsIAsyncShutdownClient> GetShutdownBarrier() {
 
 NS_IMETHODIMP
 GeckoMediaPluginServiceParent::GetName(nsAString& aName) {
-  aName = NS_LITERAL_STRING("GeckoMediaPluginServiceParent: shutdown");
+  aName = u"GeckoMediaPluginServiceParent: shutdown"_ns;
   return NS_OK;
 }
 
@@ -1520,7 +1517,7 @@ void GeckoMediaPluginServiceParent::ServiceUserCreated(
   if (mServiceParents.Length() == 1) {
     nsresult rv = GetShutdownBarrier()->AddBlocker(
         this, NS_LITERAL_STRING(__FILE__), __LINE__,
-        NS_LITERAL_STRING("GeckoMediaPluginServiceParent shutdown"));
+        u"GeckoMediaPluginServiceParent shutdown"_ns);
     MOZ_RELEASE_ASSERT(NS_SUCCEEDED(rv));
   }
 }
@@ -1593,7 +1590,7 @@ mozilla::ipc::IPCResult GMPServiceParent::RecvLaunchGMP(
     nsresult* aOutRv, nsCString* aOutErrorDescription) {
   if (mService->IsShuttingDown()) {
     *aOutRv = NS_ERROR_ILLEGAL_DURING_SHUTDOWN;
-    *aOutErrorDescription = NS_LITERAL_CSTRING("Service is shutting down.");
+    *aOutErrorDescription = "Service is shutting down."_ns;
     return IPC_OK();
   }
 
@@ -1602,15 +1599,14 @@ mozilla::ipc::IPCResult GMPServiceParent::RecvLaunchGMP(
     *aOutPluginId = gmp->GetPluginId();
   } else {
     *aOutRv = NS_ERROR_FAILURE;
-    *aOutErrorDescription =
-        NS_LITERAL_CSTRING("SelectPluginForAPI returns nullptr.");
+    *aOutErrorDescription = "SelectPluginForAPI returns nullptr."_ns;
     *aOutPluginId = 0;
     return IPC_OK();
   }
 
   if (!gmp->EnsureProcessLoaded(aOutProcessId)) {
     *aOutRv = NS_ERROR_FAILURE;
-    *aOutErrorDescription = NS_LITERAL_CSTRING("Process has not loaded.");
+    *aOutErrorDescription = "Process has not loaded."_ns;
     return IPC_OK();
   }
 
@@ -1627,8 +1623,7 @@ mozilla::ipc::IPCResult GMPServiceParent::RecvLaunchGMP(
       PGMPContent::CreateEndpoints(OtherPid(), *aOutProcessId, &parent, &child);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     *aOutRv = rv;
-    *aOutErrorDescription =
-        NS_LITERAL_CSTRING("PGMPContent::CreateEndpoints failed.");
+    *aOutErrorDescription = "PGMPContent::CreateEndpoints failed."_ns;
     return IPC_OK();
   }
 
@@ -1636,8 +1631,7 @@ mozilla::ipc::IPCResult GMPServiceParent::RecvLaunchGMP(
 
   if (!gmp->SendInitGMPContentChild(std::move(child))) {
     *aOutRv = NS_ERROR_FAILURE;
-    *aOutErrorDescription =
-        NS_LITERAL_CSTRING("SendInitGMPContentChild failed.");
+    *aOutErrorDescription = "SendInitGMPContentChild failed."_ns;
     return IPC_OK();
   }
 
@@ -1658,7 +1652,7 @@ mozilla::ipc::IPCResult GMPServiceParent::RecvLaunchGMPForNodeId(
       aNodeId.mOrigin(), aNodeId.mTopLevelOrigin(), aNodeId.mGMPName(), nodeId);
   if (!NS_SUCCEEDED(rv)) {
     *aOutRv = rv;
-    *aOutErrorDescription = NS_LITERAL_CSTRING("GetNodeId failed.");
+    *aOutErrorDescription = "GetNodeId failed."_ns;
     return IPC_OK();
   }
   return RecvLaunchGMP(nodeId, aApi, std::move(aTags),

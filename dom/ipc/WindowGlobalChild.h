@@ -73,7 +73,7 @@ class WindowGlobalChild final : public WindowGlobalActor,
                          ipc::StructuredCloneData&& aData);
 
   // Get a JS actor object by name.
-  already_AddRefed<JSWindowActorChild> GetActor(const nsAString& aName,
+  already_AddRefed<JSWindowActorChild> GetActor(const nsACString& aName,
                                                 ErrorResult& aRv);
 
   // Create and initialize the WindowGlobalChild object.
@@ -86,7 +86,7 @@ class WindowGlobalChild final : public WindowGlobalActor,
   nsIURI* GetDocumentURI() override;
 
  protected:
-  const nsAString& GetRemoteType() override;
+  const nsACString& GetRemoteType() override;
   JSWindowActor::Type GetSide() override { return JSWindowActor::Type::Child; }
 
   // IPC messages
@@ -94,7 +94,7 @@ class WindowGlobalChild final : public WindowGlobalActor,
                                          const ClonedMessageData& aData);
 
   mozilla::ipc::IPCResult RecvChangeFrameRemoteness(
-      dom::BrowsingContext* aBc, const nsString& aRemoteType,
+      dom::BrowsingContext* aBc, const nsCString& aRemoteType,
       uint64_t aPendingSwitchId, ChangeFrameRemotenessResolver&& aResolver);
 
   mozilla::ipc::IPCResult RecvGetSecurityInfo(
@@ -108,7 +108,7 @@ class WindowGlobalChild final : public WindowGlobalActor,
 
   RefPtr<nsGlobalWindowInner> mWindowGlobal;
   RefPtr<dom::BrowsingContext> mBrowsingContext;
-  nsRefPtrHashtable<nsStringHashKey, JSWindowActorChild> mWindowActors;
+  nsRefPtrHashtable<nsCStringHashKey, JSWindowActorChild> mWindowActors;
   uint64_t mInnerWindowId;
   uint64_t mOuterWindowId;
   bool mIPCClosed;

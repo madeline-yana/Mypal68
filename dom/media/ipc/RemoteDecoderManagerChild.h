@@ -7,6 +7,9 @@
 #include "mozilla/layers/VideoBridgeUtils.h"
 
 namespace mozilla {
+namespace gfx {
+class SourceSurface; //MY
+}
 
 class RemoteDecoderManagerChild final : public PRemoteDecoderManagerChild,
                                         public mozilla::ipc::IShmemAllocator {

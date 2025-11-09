@@ -27,6 +27,7 @@
 #include "js/CompileOptions.h"
 #include "js/friend/PerformanceHint.h"
 #include "js/Id.h"
+#include "js/loader/LoadedScript.h"
 #include "js/PropertyAndElement.h"  // JS_DefineProperty, JS_GetProperty
 #include "js/PropertyDescriptor.h"
 #include "js/RealmOptions.h"
@@ -94,7 +95,6 @@
 #include "mozilla/dom/Console.h"
 #include "mozilla/dom/ContentFrameMessageManager.h"
 #include "mozilla/dom/CustomElementRegistry.h"
-#include "mozilla/dom/DOMJSProxyHandler.h"
 #include "mozilla/dom/DebuggerNotification.h"
 #include "mozilla/dom/DebuggerNotificationBinding.h"
 #include "mozilla/dom/DebuggerNotificationManager.h"
@@ -106,8 +106,10 @@
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/Fetch.h"
-#include "mozilla/dom/Gamepad.h"
-#include "mozilla/dom/GamepadManager.h"
+#ifdef MOZ_GAMEPAD
+#  include "mozilla/dom/Gamepad.h"
+#  include "mozilla/dom/GamepadManager.h"
+#endif
 #include "mozilla/dom/HashChangeEvent.h"
 #include "mozilla/dom/HashChangeEventBinding.h"
 #include "mozilla/dom/IDBFactory.h"
@@ -118,7 +120,6 @@
 #include "mozilla/dom/IntlUtils.h"
 #include "mozilla/dom/JSExecutionContext.h"
 #include "mozilla/dom/LSObject.h"
-#include "mozilla/dom/LoadedScript.h"
 #include "mozilla/dom/LocalStorage.h"
 #include "mozilla/dom/LocalStorageCommon.h"
 #include "mozilla/dom/Location.h"
@@ -131,10 +132,7 @@
 #include "mozilla/dom/PopupBlocker.h"
 #include "mozilla/dom/PrimitiveConversions.h"
 #include "mozilla/dom/Promise.h"
-#ifdef THE_REPORTING
-#include "mozilla/dom/Report.h"
-#include "mozilla/dom/ReportingObserver.h"
-#endif
+#include "mozilla/dom/ProxyHandlerUtils.h"
 #include "mozilla/dom/RootedDictionary.h"
 #include "mozilla/dom/ScriptLoader.h"
 #include "mozilla/dom/ScriptSettings.h"
@@ -397,9 +395,6 @@ static nsGlobalWindowOuter* GetOuterWindowForForwarding(
 // Maximum number of successive dialogs before we prompt users to disable
 // dialogs for this window.
 #define MAX_SUCCESSIVE_DIALOG_COUNT 5
-
-// Max number of Report objects
-#define MAX_REPORT_RECORDS 100
 
 static LazyLogModule gDOMLeakPRLogInner("DOMLeakInner");
 
@@ -902,13 +897,17 @@ nsGlobalWindowInner::nsGlobalWindowInner(nsGlobalWindowOuter* aOuterWindow)
       mHasFocus(false),
       mFocusByKeyOccurred(false),
       mDidFireDocElemInserted(false),
+#ifdef MOZ_GAMEPAD
       mHasGamepad(false),
+#endif
       mHintedWasLoading(false),
 #ifdef MOZ_VR
       mHasVREvents(false),
       mHasVRDisplayActivateEvents(false),
 #endif
+#ifdef MOZ_GAMEPAD
       mHasSeenGamepadInput(false),
+#endif
       mSuspendDepth(0),
       mFreezeDepth(0),
 #ifdef DEBUG
@@ -990,12 +989,12 @@ nsGlobalWindowInner::nsGlobalWindowInner(nsGlobalWindowOuter* aOuterWindow)
 
   // Add ourselves to the inner windows list.
   MOZ_ASSERT(sInnerWindowsById, "Inner Windows hash table must be created!");
-  MOZ_ASSERT(!sInnerWindowsById->Get(mWindowID),
+  MOZ_ASSERT(!sInnerWindowsById->Contains(mWindowID),
              "This window shouldn't be in the hash table yet!");
   // We seem to see crashes in release builds because of null
   // |sInnerWindowsById|.
   if (sInnerWindowsById) {
-    sInnerWindowsById->Put(mWindowID, this);
+    sInnerWindowsById->InsertOrUpdate(mWindowID, this);
   }
 }
 
@@ -1190,7 +1189,7 @@ void nsGlobalWindowInner::FreeInnerObjects() {
     mIndexedDB = nullptr;
   }
 
-  UnlinkHostObjectURIs();
+  nsIGlobalObject::UnlinkObjectsInGlobal();
 
   NotifyWindowIDDestroyed("inner-window-destroyed");
 
@@ -1199,9 +1198,11 @@ void nsGlobalWindowInner::FreeInnerObjects() {
   }
   mAudioContexts.Clear();
 
+#ifdef MOZ_GAMEPAD
   DisableGamepadUpdates();
   mHasGamepad = false;
   mGamepads.Clear();
+#endif
 #ifdef MOZ_VR
   DisableVRUpdates();
   mHasVREvents = false;
@@ -1392,9 +1393,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindowInner)
   }
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mClientSource)
-
+#ifdef MOZ_GAMEPAD
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGamepads)
-
+#endif
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCacheStorage)
 #ifdef MOZ_VR
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVRDisplays)
@@ -1420,13 +1421,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindowInner)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mExternal)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mInstallTrigger)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mIntlUtils)
-#ifdef THE_REPORTING
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mReportRecords)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mReportingObservers)
-#endif
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mVisualViewport)
 
-  tmp->TraverseHostObjectURIs(cb);
+  tmp->TraverseObjectsInGlobal(cb);
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChromeFields.mMessageManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChromeFields.mGroupMessageManagers)
@@ -1501,9 +1498,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindowInner)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocumentCsp)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mBrowserChild)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDoc)
-
+#ifdef MOZ_GAMEPAD
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mGamepads)
-
+#endif
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mCacheStorage)
 #ifdef MOZ_VR
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mVRDisplays)
@@ -1529,13 +1526,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindowInner)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mExternal)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mInstallTrigger)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mIntlUtils)
-#ifdef THE_REPORTING
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mReportRecords)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mReportingObservers)
-#endif
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mVisualViewport)
 
-  tmp->UnlinkHostObjectURIs();
+  tmp->UnlinkObjectsInGlobal();
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mIdleRequestExecutor)
 
@@ -2220,6 +2213,10 @@ CustomElementRegistry* nsGlobalWindowInner::CustomElements() {
   return mCustomElements;
 }
 
+CustomElementRegistry* nsGlobalWindowInner::GetExistingCustomElements() {
+  return mCustomElements;
+}
+
 Performance* nsPIDOMWindowInner::GetPerformance() {
   CreatePerformanceObjectIfNeeded();
   return mPerformance;
@@ -2603,9 +2600,9 @@ void nsGlobalWindowInner::HintIsLoading(bool aIsLoading) {
   // Hint to tell the JS GC to use modified triggers during pageload.
   if (mHintedWasLoading != aIsLoading) {
     using namespace js::gc;
-    SetPerformanceHint(
-        danger::GetJSContext(),
-        aIsLoading ? PerformanceHint::InPageLoad : PerformanceHint::Normal);
+    SetPerformanceHint(danger::GetJSContext(), aIsLoading
+                                                   ? PerformanceHint::InPageLoad
+                                                   : PerformanceHint::Normal);
     mHintedWasLoading = aIsLoading;
   }
 }
@@ -2862,7 +2859,7 @@ bool nsGlobalWindowInner::DoResolve(
   // Note: Keep this in sync with MayResolve.
 
   // Note: The infallibleInit call in GlobalResolve depends on this check.
-  if (!JSID_IS_STRING(aId)) {
+  if (!aId.isString()) {
     return true;
   }
 
@@ -2925,7 +2922,7 @@ bool nsGlobalWindowInner::DoResolve(
 bool nsGlobalWindowInner::MayResolve(jsid aId) {
   // Note: This function does not fail and may not have any side-effects.
   // Note: Keep this in sync with DoResolve.
-  if (!JSID_IS_STRING(aId)) {
+  if (!aId.isString()) {
     return false;
   }
 
@@ -3974,8 +3971,9 @@ bool nsGlobalWindowInner::DispatchEvent(Event& aEvent, CallerType aCallerType,
   RefPtr<nsPresContext> presContext = mDoc->GetPresContext();
 
   nsEventStatus status = nsEventStatus_eIgnore;
+  // TODO: Bug 1506441
   nsresult rv = EventDispatcher::DispatchDOMEvent(
-      ToSupports(this), nullptr, &aEvent, presContext, &status);
+      MOZ_KnownLive(ToSupports(this)), nullptr, &aEvent, presContext, &status);
   bool retval = !aEvent.DefaultPrevented(aCallerType);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
@@ -4044,6 +4042,7 @@ void nsGlobalWindowInner::MaybeUpdateTouchState() {
   }
 }
 
+#ifdef MOZ_GAMEPAD
 void nsGlobalWindowInner::EnableGamepadUpdates() {
   if (mHasGamepad) {
     RefPtr<GamepadManager> gamepadManager(GamepadManager::GetService());
@@ -4061,7 +4060,7 @@ void nsGlobalWindowInner::DisableGamepadUpdates() {
     }
   }
 }
-
+#endif
 #ifdef MOZ_VR
 void nsGlobalWindowInner::EnableVRUpdates() {
   if (mHasVREvents && !mVREventObserver) {
@@ -4097,8 +4096,7 @@ void nsGlobalWindowInner::StopVRActivity() {
 
 void nsGlobalWindowInner::SetFocusedElement(Element* aElement,
                                             uint32_t aFocusMethod,
-                                            bool aNeedsFocus,
-                                            bool aWillShowOutline) {
+                                            bool aNeedsFocus) {
   if (aElement && aElement->GetComposedDoc() != mDoc) {
     NS_WARNING("Trying to set focus to a node from a wrong document");
     return;
@@ -4108,7 +4106,6 @@ void nsGlobalWindowInner::SetFocusedElement(Element* aElement,
     NS_ASSERTION(!aElement, "Trying to focus cleaned up window!");
     aElement = nullptr;
     aNeedsFocus = false;
-    aWillShowOutline = false;
   }
   if (mFocusedElement != aElement) {
     UpdateCanvasFocus(false, aElement);
@@ -4117,13 +4114,20 @@ void nsGlobalWindowInner::SetFocusedElement(Element* aElement,
     mFocusMethod = aFocusMethod & FOCUSMETHOD_MASK;
   }
 
-  mFocusedElementShowedOutlines = aWillShowOutline;
-
   if (mFocusedElement) {
     // if a node was focused by a keypress, turn on focus rings for the
     // window.
     if (mFocusMethod & nsIFocusManager::FLAG_BYKEY) {
+      mUnknownFocusMethodShouldShowOutline = true;
       mFocusByKeyOccurred = true;
+    } else if (nsFocusManager::GetFocusMoveActionCause(mFocusMethod) !=
+               widget::InputContextAction::CAUSE_UNKNOWN) {
+      mUnknownFocusMethodShouldShowOutline = false;
+    } else if (aFocusMethod & nsIFocusManager::FLAG_NOSHOWRING) {
+      // If we get focused via script, and script has explicitly opted out of
+      // outlines via FLAG_NOSHOWRING, we don't want to make a refocus start
+      // showing outlines.
+      mUnknownFocusMethodShouldShowOutline = false;
     }
   }
 
@@ -4953,10 +4957,10 @@ nsresult nsGlobalWindowInner::Observe(nsISupports* aSubject, const char* aTopic,
   if (!nsCRT::strcmp(aTopic, MEMORY_PRESSURE_OBSERVER_TOPIC)) {
     if (mPerformance) {
       mPerformance->MemoryPressure();
-#ifdef THE_REPORTING
-      mReportRecords.Clear();
-#endif
     }
+#ifdef THE_REPORTING
+    RemoveReportRecords();
+#endif
     return NS_OK;
   }
 
@@ -5192,7 +5196,9 @@ void nsGlobalWindowInner::Suspend() {
     for (uint32_t i = 0; i < mEnabledSensors.Length(); i++)
       ac->RemoveWindowListener(mEnabledSensors[i], this);
   }
+#ifdef MOZ_GAMEPAD
   DisableGamepadUpdates();
+#endif
 #ifdef MOZ_VR
   DisableVRUpdates();
 #endif
@@ -5251,7 +5257,9 @@ void nsGlobalWindowInner::Resume() {
     for (uint32_t i = 0; i < mEnabledSensors.Length(); i++)
       ac->AddWindowListener(mEnabledSensors[i], this);
   }
+#ifdef MOZ_GAMEPAD
   EnableGamepadUpdates();
+#endif
 #ifdef MOZ_VR
   EnableVRUpdates();
 #endif
@@ -5574,6 +5582,10 @@ nsGlobalWindowInner::GetOrCreateServiceWorkerRegistration(
   return ref;
 }
 
+StorageAccess nsGlobalWindowInner::GetStorageAccess() {
+  return StorageAllowedForWindow(this);
+}
+
 nsresult nsGlobalWindowInner::FireDelayedDOMEvents() {
   if (mApplicationCache) {
     static_cast<nsDOMOfflineResourceList*>(mApplicationCache.get())
@@ -5707,7 +5719,7 @@ class WindowScriptTimeoutHandler final : public ScriptTimeoutHandler {
   virtual ~WindowScriptTimeoutHandler() = default;
 
   // Initiating script for use when evaluating mExpr on the main thread.
-  RefPtr<LoadedScript> mInitiatingScript;
+  RefPtr<JS::loader::LoadedScript> mInitiatingScript;
 };
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(WindowScriptTimeoutHandler,
@@ -6035,7 +6047,7 @@ void nsGlobalWindowInner::DisableOrientationChangeListener() {
   mOrientationChangeObserver = nullptr;
 }
 #endif
-
+#ifdef MOZ_GAMEPAD
 void nsGlobalWindowInner::SetHasGamepadEventListener(
     bool aHasGamepad /* = true*/) {
   mHasGamepad = aHasGamepad;
@@ -6043,7 +6055,7 @@ void nsGlobalWindowInner::SetHasGamepadEventListener(
     EnableGamepadUpdates();
   }
 }
-
+#endif
 void nsGlobalWindowInner::EventListenerAdded(nsAtom* aType) {
 #ifdef MOZ_VR
   if (aType == nsGkAtoms::onvrdisplayactivate ||
@@ -6178,7 +6190,7 @@ void nsGlobalWindowInner::AddSizeOfIncludingThis(
         mPerformance->SizeOfEventEntries(aWindowSizes.mState.mMallocSizeOf);
   }
 }
-
+#ifdef MOZ_GAMEPAD
 void nsGlobalWindowInner::AddGamepad(uint32_t aIndex, Gamepad* aGamepad) {
   // Create the index we will present to content based on which indices are
   // already taken, as required by the spec.
@@ -6189,7 +6201,7 @@ void nsGlobalWindowInner::AddGamepad(uint32_t aIndex, Gamepad* aGamepad) {
   }
   mGamepadIndexSet.Put(index);
   aGamepad->SetIndex(index);
-  mGamepads.Put(aIndex, RefPtr{aGamepad});
+  mGamepads.InsertOrUpdate(aIndex, RefPtr{aGamepad});
 }
 
 void nsGlobalWindowInner::RemoveGamepad(uint32_t aIndex) {
@@ -6213,8 +6225,8 @@ void nsGlobalWindowInner::GetGamepads(nsTArray<RefPtr<Gamepad>>& aGamepads) {
 
   // mGamepads.Count() may not be sufficient, but it's not harmful.
   aGamepads.SetCapacity(mGamepads.Count());
-  for (auto iter = mGamepads.Iter(); !iter.Done(); iter.Next()) {
-    Gamepad* gamepad = iter.UserData();
+  for (const auto& entry : mGamepads) {
+    Gamepad* gamepad = entry.GetWeak();
     aGamepads.EnsureLengthAtLeast(gamepad->Index() + 1);
     aGamepads[gamepad->Index()] = gamepad;
   }
@@ -6239,8 +6251,8 @@ bool nsGlobalWindowInner::HasSeenGamepadInput() { return mHasSeenGamepadInput; }
 void nsGlobalWindowInner::SyncGamepadState() {
   if (mHasSeenGamepadInput) {
     RefPtr<GamepadManager> gamepadManager(GamepadManager::GetService());
-    for (auto iter = mGamepads.Iter(); !iter.Done(); iter.Next()) {
-      gamepadManager->SyncGamepadState(iter.Key(), this, iter.UserData());
+    for (const auto& entry : mGamepads) {
+      gamepadManager->SyncGamepadState(entry.GetKey(), this, entry.GetWeak());
     }
   }
 }
@@ -6251,7 +6263,7 @@ void nsGlobalWindowInner::StopGamepadHaptics() {
     gamepadManager->StopHaptics();
   }
 }
-
+#endif  // MOZ_GAMEPAD
 #ifdef MOZ_VR
 bool nsGlobalWindowInner::UpdateVRDisplays(
     nsTArray<RefPtr<mozilla::dom::VRDisplay>>& aDevices) {
@@ -6720,10 +6732,13 @@ ChromeMessageBroadcaster* nsGlobalWindowInner::GetGroupMessageManager(
     const nsAString& aGroup) {
   MOZ_ASSERT(IsChromeWindow());
 
-  RefPtr<ChromeMessageBroadcaster> messageManager =
-      mChromeFields.mGroupMessageManagers.LookupForAdd(aGroup).OrInsert(
-          [this]() { return new ChromeMessageBroadcaster(MessageManager()); });
-  return messageManager;
+  return mChromeFields.mGroupMessageManagers
+      .LookupOrInsertWith(
+          aGroup,
+          [&] {
+            return MakeAndAddRef<ChromeMessageBroadcaster>(MessageManager());
+          })
+      .get();
 }
 
 void nsGlobalWindowInner::InitWasOffline() { mWasOffline = NS_IsOffline(); }
@@ -7156,6 +7171,21 @@ already_AddRefed<nsGlobalWindowInner> nsGlobalWindowInner::Create(
   return window.forget();
 }
 
+JS::loader::ModuleLoaderBase* nsGlobalWindowInner::GetModuleLoader(
+    JSContext* aCx) {
+  Document* document = GetDocument();
+  if (!document) {
+    return nullptr;
+  }
+
+  ScriptLoader* loader = document->ScriptLoader();
+  if (!loader) {
+    return nullptr;
+  }
+
+  return loader->GetModuleLoader();
+}
+
 nsIURI* nsPIDOMWindowInner::GetDocumentURI() const {
   return mDoc ? mDoc->GetDocumentURI() : mDocumentURI.get();
 }
@@ -7245,62 +7275,6 @@ nsPIDOMWindowInner::nsPIDOMWindowInner(nsPIDOMWindowOuter* aOuterWindow)
   MOZ_ASSERT(aOuterWindow);
   mBrowsingContext = aOuterWindow->GetBrowsingContext();
 }
-
-#ifdef THE_REPORTING
-void nsPIDOMWindowInner::RegisterReportingObserver(ReportingObserver* aObserver,
-                                                   bool aBuffered) {
-  MOZ_ASSERT(aObserver);
-
-  if (mReportingObservers.Contains(aObserver)) {
-    return;
-  }
-
-  if (NS_WARN_IF(!mReportingObservers.AppendElement(aObserver, fallible))) {
-    return;
-  }
-
-  if (!aBuffered) {
-    return;
-  }
-
-  for (Report* report : mReportRecords) {
-    aObserver->MaybeReport(report);
-  }
-}
-
-void nsPIDOMWindowInner::UnregisterReportingObserver(
-    ReportingObserver* aObserver) {
-  MOZ_ASSERT(aObserver);
-  mReportingObservers.RemoveElement(aObserver);
-}
-
-void nsPIDOMWindowInner::BroadcastReport(Report* aReport) {
-  MOZ_ASSERT(aReport);
-
-  for (ReportingObserver* observer : mReportingObservers) {
-    observer->MaybeReport(aReport);
-  }
-  if (NS_WARN_IF(!mReportRecords.AppendElement(aReport, fallible))) {
-    return;
-  }
-  while (mReportRecords.Length() > MAX_REPORT_RECORDS) {
-    mReportRecords.RemoveElementAt(0);
-  }
-}
-
-void nsPIDOMWindowInner::NotifyReportingObservers() {
-  const nsTArray<RefPtr<ReportingObserver>> reportingObservers(
-      mReportingObservers);
-  for (auto& observer : reportingObservers) {
-    // MOZ_KnownLive because 'reportingObservers' is guaranteed to
-    // keep it alive.
-    //
-    // This can go away once
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=1620312 is fixed.
-    MOZ_KnownLive(observer)->MaybeNotify();
-  }
-}
-#endif  //THE_REPORTING
 
 nsPIDOMWindowInner::~nsPIDOMWindowInner() = default;
 

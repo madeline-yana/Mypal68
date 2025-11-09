@@ -5,11 +5,9 @@
 #ifndef mozilla_dom_Animation_h
 #define mozilla_dom_Animation_h
 
-#include "nsWrapperCache.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/AnimationPerformanceWarning.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/CycleCollectedJSContext.h"
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/EffectCompositor.h"  // For EffectCompositor::CascadeLevel
 #include "mozilla/LinkedList.h"
@@ -19,9 +17,6 @@
 #include "mozilla/dom/AnimationBinding.h"  // for AnimationPlayState
 #include "mozilla/dom/AnimationEffect.h"
 #include "mozilla/dom/AnimationTimeline.h"
-#include "mozilla/dom/Promise.h"
-#include "nsCSSPropertyID.h"
-#include "nsIGlobalObject.h"
 
 // X11 has a #define for CurrentTime.
 #ifdef CurrentTime
@@ -31,10 +26,12 @@
 struct JSContext;
 class nsCSSPropertyIDSet;
 class nsIFrame;
+class nsIGlobalObject;
 
 namespace mozilla {
 
 struct AnimationRule;
+class MicroTaskRunnable;
 
 namespace dom {
 
@@ -42,15 +39,23 @@ class AsyncFinishNotification;
 class CSSAnimation;
 class CSSTransition;
 class Document;
+class Promise;
 
 class Animation : public DOMEventTargetHelper,
                   public LinkedListElement<Animation> {
  protected:
-  virtual ~Animation() = default;
+  virtual ~Animation();
 
  public:
-  explicit Animation(nsIGlobalObject* aGlobal)
-      : DOMEventTargetHelper(aGlobal), mAnimationIndex(sNextAnimationIndex++) {}
+  explicit Animation(nsIGlobalObject* aGlobal);
+
+  // Constructs a copy of |aOther| with a new effect and timeline.
+  // This is only intended to be used while making a static clone of a document
+  // during printing, and does not assume that |aOther| is in the same document
+  // as any of the other arguments.
+  static already_AddRefed<Animation> ClonePausedAnimation(
+      nsIGlobalObject* aGlobal, const Animation& aOther,
+      AnimationEffect& aEffect, AnimationTimeline& aTimeline);
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(Animation, DOMEventTargetHelper)
@@ -92,6 +97,7 @@ class Animation : public DOMEventTargetHelper,
   void SetEffectNoUpdate(AnimationEffect* aEffect);
 
   AnimationTimeline* GetTimeline() const { return mTimeline; }
+  // Animation.timeline setter is supported only on Nightly.
   void SetTimeline(AnimationTimeline* aTimeline);
   void SetTimelineNoUpdate(AnimationTimeline* aTimeline);
 

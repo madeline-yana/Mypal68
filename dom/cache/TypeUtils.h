@@ -25,6 +25,7 @@ class AutoIPCStream;
 namespace dom {
 
 struct CacheQueryOptions;
+struct MultiCacheQueryOptions;
 class InternalHeaders;
 class InternalRequest;
 class InternalResponse;
@@ -85,6 +86,9 @@ class TypeUtils {
       ErrorResult& aRv);
 
   void ToCacheQueryParams(CacheQueryParams& aOut, const CacheQueryOptions& aIn);
+
+  void ToCacheQueryParams(CacheQueryParams& aOut,
+                          const MultiCacheQueryOptions& aIn);
 
   already_AddRefed<Response> ToResponse(const CacheResponse& aIn);
 

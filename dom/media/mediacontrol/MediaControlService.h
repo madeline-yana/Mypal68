@@ -11,7 +11,6 @@
 #include "MediaController.h"
 #include "MediaControlKeysManager.h"
 #include "MediaEventSource.h"
-#include "nsDataHashtable.h"
 #include "nsIObserver.h"
 #include "nsTArray.h"
 

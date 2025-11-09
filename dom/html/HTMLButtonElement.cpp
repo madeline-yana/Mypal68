@@ -35,8 +35,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Button)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 static const nsAttrValue::EnumTable kButtonTypeTable[] = {
     {"button", NS_FORM_BUTTON_BUTTON},
@@ -430,5 +429,4 @@ JSObject* HTMLButtonElement::WrapNode(JSContext* aCx,
   return HTMLButtonElement_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

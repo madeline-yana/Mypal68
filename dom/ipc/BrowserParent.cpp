@@ -35,6 +35,7 @@
 #include "mozilla/gfx/GPUProcessManager.h"
 #include "mozilla/Hal.h"
 #include "mozilla/IMEStateManager.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/layers/AsyncDragMetrics.h"
 #include "mozilla/layers/InputAPZContext.h"
 #include "mozilla/layout/RemoteLayerTreeOwner.h"
@@ -114,6 +115,7 @@
 #include "mozilla/dom/CanonicalBrowsingContext.h"
 #include "MMPrinter.h"
 #include "SessionStoreFunctions.h"
+#include "TabMessageTypes.h" //MY
 
 #ifdef XP_WIN
 #  include "mozilla/plugins/PluginWidgetParent.h"
@@ -153,8 +155,7 @@ StaticAutoPtr<nsTArray<BrowserParent*>> BrowserParent::sFocusStack;
 // from the ones registered by webProgressListeners.
 #define NOTIFY_FLAG_SHIFT 16
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 BrowserParent::LayerToBrowserParentTable*
     BrowserParent::sLayerToBrowserParentTable = nullptr;
@@ -303,7 +304,8 @@ void BrowserParent::AddBrowserParentToTable(layers::LayersId aLayersId,
   if (!sLayerToBrowserParentTable) {
     sLayerToBrowserParentTable = new LayerToBrowserParentTable();
   }
-  sLayerToBrowserParentTable->Put(uint64_t(aLayersId), aBrowserParent);
+  sLayerToBrowserParentTable->InsertOrUpdate(uint64_t(aLayersId),
+                                             aBrowserParent);
 }
 
 void BrowserParent::RemoveBrowserParentFromTable(layers::LayersId aLayersId) {
@@ -430,14 +432,27 @@ nsIXULBrowserWindow* BrowserParent::GetXULBrowserWindow() {
   return xulBrowserWindow;
 }
 
+uint32_t BrowserParent::GetMaxTouchPoints(Element* aElement) {
+  if (!aElement) {
+    return 0;
+  }
+
+  if (StaticPrefs::dom_maxtouchpoints_testing_value() >= 0) {
+    return StaticPrefs::dom_maxtouchpoints_testing_value();
+  }
+
+  nsIWidget* widget = nsContentUtils::WidgetForDocument(aElement->OwnerDoc());
+  return widget ? widget->GetMaxTouchPoints() : 0;
+}
+
 a11y::DocAccessibleParent* BrowserParent::GetTopLevelDocAccessible() const {
 #ifdef ACCESSIBILITY
   // XXX Consider managing non top level PDocAccessibles with their parent
   // document accessible.
   const ManagedContainer<PDocAccessibleParent>& docs =
       ManagedPDocAccessibleParent();
-  for (auto iter = docs.ConstIter(); !iter.Done(); iter.Next()) {
-    auto doc = static_cast<a11y::DocAccessibleParent*>(iter.Get()->GetKey());
+  for (auto* key : docs) {
+    auto* doc = static_cast<a11y::DocAccessibleParent*>(key);
     if (doc->IsTopLevel()) {
       return doc;
     }
@@ -620,9 +635,8 @@ void BrowserParent::DestroyInternal() {
   // is shut down.
   const ManagedContainer<PPluginWidgetParent>& kids =
       ManagedPPluginWidgetParent();
-  for (auto iter = kids.ConstIter(); !iter.Done(); iter.Next()) {
-    static_cast<mozilla::plugins::PluginWidgetParent*>(iter.Get()->GetKey())
-        ->ParentDestroy();
+  for (const auto& key : kids) {
+    static_cast<mozilla::plugins::PluginWidgetParent*>(key)->ParentDestroy();
   }
 #endif
 }
@@ -1250,14 +1264,14 @@ IPCResult BrowserParent::RecvIndexedDBPermissionRequest(
       new indexedDB::PermissionRequestHelper(mFrameElement, principal,
                                              aResolve);
 
-  indexedDB::PermissionRequestBase::PermissionValue permission;
-  nsresult rv = actor->PromptIfNeeded(&permission);
-  if (NS_FAILED(rv)) {
+  mozilla::Result permissionOrErr = actor->PromptIfNeeded();
+  if (permissionOrErr.isErr()) {
     return IPC_FAIL_NO_REASON(this);
   }
 
-  if (permission != indexedDB::PermissionRequestBase::kPermissionPrompt) {
-    aResolve(permission);
+  if (permissionOrErr.inspect() !=
+      indexedDB::PermissionRequestBase::kPermissionPrompt) {
+    aResolve(permissionOrErr.inspect());
   }
 
   return IPC_OK();
@@ -1283,7 +1297,7 @@ bool BrowserParent::DeallocPWindowGlobalParent(PWindowGlobalParent* aActor) {
 
 IPCResult BrowserParent::RecvPBrowserBridgeConstructor(
     PBrowserBridgeParent* aActor, const nsString& aName,
-    const nsString& aRemoteType, BrowsingContext* aBrowsingContext,
+    const nsCString& aRemoteType, BrowsingContext* aBrowsingContext,
     const uint32_t& aChromeFlags) {
   static_cast<BrowserBridgeParent*>(aActor)->Init(
       aName, aRemoteType, CanonicalBrowsingContext::Cast(aBrowsingContext),
@@ -1292,7 +1306,7 @@ IPCResult BrowserParent::RecvPBrowserBridgeConstructor(
 }
 
 already_AddRefed<PBrowserBridgeParent> BrowserParent::AllocPBrowserBridgeParent(
-    const nsString& aName, const nsString& aRemoteType,
+    const nsString& aName, const nsCString& aRemoteType,
     BrowsingContext* aBrowsingContext, const uint32_t& aChromeFlags) {
   return do_AddRef(new BrowserBridgeParent());
 }
@@ -1829,12 +1843,9 @@ bool BrowserParent::SendHandleTap(TapType aType,
     return false;
   }
   if ((aType == TapType::eSingleTap || aType == TapType::eSecondTap)) {
-    nsFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm) {
-      RefPtr<nsFrameLoader> frameLoader = GetFrameLoader();
-      if (frameLoader) {
-        RefPtr<Element> element = frameLoader->GetOwnerContent();
-        if (element) {
+    if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
+      if (RefPtr<nsFrameLoader> frameLoader = GetFrameLoader()) {
+        if (RefPtr<Element> element = frameLoader->GetOwnerContent()) {
           fm->SetFocus(element, nsIFocusManager::FLAG_BYMOUSE |
                                     nsIFocusManager::FLAG_BYTOUCH |
                                     nsIFocusManager::FLAG_NOSCROLL);
@@ -3158,9 +3169,10 @@ mozilla::ipc::IPCResult BrowserParent::RecvBrowserFrameOpenWindow(
                                           aURL, aName, aForceNoReferrer,
                                           aFeatures);
   cwi.windowOpened() = (opened == BrowserElementParent::OPEN_WINDOW_ADDED);
+  cwi.maxTouchPoints() = GetMaxTouchPoints();
+
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget) {
-    cwi.maxTouchPoints() = widget->GetMaxTouchPoints();
     cwi.dimensions() = GetDimensionInfo();
   }
 
@@ -3414,10 +3426,9 @@ BrowserParent::GetWindowGlobalParents(
     nsTArray<RefPtr<WindowGlobalParent>>& aWindowGlobalParents) {
   VisitAll([&aWindowGlobalParents](BrowserParent* aBrowser) {
     const auto& windowGlobalParents = aBrowser->ManagedPWindowGlobalParent();
-    for (auto iter = windowGlobalParents.ConstIter(); !iter.Done();
-         iter.Next()) {
+    for (const auto& key : windowGlobalParents) {
       WindowGlobalParent* windowGlobalParent =
-          static_cast<WindowGlobalParent*>(iter.Get()->GetKey());
+          static_cast<WindowGlobalParent*>(key);
       aWindowGlobalParents.AppendElement(windowGlobalParent);
     }
   });
@@ -4020,5 +4031,4 @@ FakeChannel::OnAuthCancelled(nsISupports* aContext, bool userCancel) {
   return NS_OK;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

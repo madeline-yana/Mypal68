@@ -34,7 +34,8 @@ class ReportFetchHandler final : public PromiseNativeHandler {
   explicit ReportFetchHandler(const ReportDeliver::ReportData& aReportData)
       : mReportData(aReportData) {}
 
-  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     if (!gReportDeliver) {
       return;
     }
@@ -69,7 +70,8 @@ class ReportFetchHandler final : public PromiseNativeHandler {
     }
   }
 
-  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     if (gReportDeliver) {
       ++mReportData.mFailures;
       gReportDeliver->AppendReportData(mReportData);

@@ -12,6 +12,7 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/BasePrincipal.h"
 #include "mozilla/ClearOnShutdown.h"
+#include "mozilla/ContentBlockingAllowList.h"
 #include "mozilla/Logging.h"
 #include "mozilla/MacroForEach.h"
 #include "mozilla/Services.h"
@@ -178,8 +179,8 @@ ThirdPartyUtil::GetContentBlockingAllowListPrincipalFromWindow(
     mozilla::OriginAttributes attrs =
         docShell ? nsDocShell::Cast(docShell)->GetOriginAttributes()
                  : mozilla::OriginAttributes();
-    principal =
-        doc->RecomputeContentBlockingAllowListPrincipal(aURIBeingLoaded, attrs);
+    ContentBlockingAllowList::RecomputePrincipal(aURIBeingLoaded, attrs,
+                                                 getter_AddRefs(principal));
   }
 
   if (!principal || !principal->GetIsCodebasePrincipal()) {

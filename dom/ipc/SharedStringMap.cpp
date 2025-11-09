@@ -16,8 +16,7 @@ namespace mozilla {
 
 using namespace ipc;
 
-namespace dom {
-namespace ipc {
+namespace dom::ipc {
 
 static constexpr uint32_t kSharedStringMapMagic = 0x9e3779b9;
 
@@ -79,7 +78,8 @@ bool SharedStringMap::Find(const nsCString& aKey, size_t* aIndex) {
 
 void SharedStringMapBuilder::Add(const nsCString& aKey,
                                  const nsString& aValue) {
-  mEntries.Put(aKey, {mKeyTable.Add(aKey), mValueTable.Add(aValue)});
+  mEntries.InsertOrUpdate(aKey,
+                          Entry{mKeyTable.Add(aKey), mValueTable.Add(aValue)});
 }
 
 Result<Ok, nsresult> SharedStringMapBuilder::Finalize(
@@ -138,6 +138,5 @@ Result<Ok, nsresult> SharedStringMapBuilder::Finalize(
   return mem.Finalize(aMap);
 }
 
-}  // namespace ipc
-}  // namespace dom
+}  // namespace dom::ipc
 }  // namespace mozilla

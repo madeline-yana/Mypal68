@@ -5,6 +5,7 @@
 #include "nsDOMMutationObserver.h"
 
 #include "mozilla/AnimationTarget.h"
+#include "mozilla/CycleCollectedJSContext.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/OwningNonNull.h"
 
@@ -316,12 +317,16 @@ void nsMutationReceiver::ContentRemoved(nsIContent* aChild,
     if (Observer()->GetReceiverFor(aChild, false, false) != orig) {
       bool transientExists = false;
       bool isNewEntry = false;
-      const auto& transientReceivers =
-          Observer()->mTransientReceivers.LookupForAdd(aChild).OrInsert(
-              [&isNewEntry]() {
-                isNewEntry = true;
-                return new nsCOMArray<nsMutationReceiver>();
-              });
+      auto* const transientReceivers =
+          Observer()
+              ->mTransientReceivers
+              .LookupOrInsertWith(
+                  aChild,
+                  [&isNewEntry] {
+                    isNewEntry = true;
+                    return MakeUnique<nsCOMArray<nsMutationReceiver>>();
+                  })
+              .get();
       if (!isNewEntry) {
         for (int32_t i = 0; i < transientReceivers->Count(); ++i) {
           nsMutationReceiver* r = transientReceivers->ObjectAt(i);
@@ -1021,9 +1026,8 @@ void nsAutoMutationBatch::Done() {
       }
 
       if (allObservers.Length()) {
-        const auto& transientReceivers =
-            ob->mTransientReceivers.LookupForAdd(removed).OrInsert(
-                []() { return new nsCOMArray<nsMutationReceiver>(); });
+        auto* const transientReceivers =
+            ob->mTransientReceivers.GetOrInsertNew(removed);
         for (uint32_t k = 0; k < allObservers.Length(); ++k) {
           nsMutationReceiver* r = allObservers[k];
           nsMutationReceiver* orig = r->GetParent() ? r->GetParent() : r;

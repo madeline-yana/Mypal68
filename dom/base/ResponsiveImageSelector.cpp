@@ -19,8 +19,7 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_CYCLE_COLLECTION(ResponsiveImageSelector, mOwnerNode)
 
@@ -723,5 +722,4 @@ bool ResponsiveImageCandidate::IsComputedFromWidth() const {
   return false;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

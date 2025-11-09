@@ -11,6 +11,7 @@
 namespace mozilla {
 namespace dom {
 
+class BlobImpl;
 class MutableBlobStorage;
 
 class TemporaryIPCBlobChildCallback {

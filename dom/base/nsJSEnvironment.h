@@ -100,17 +100,8 @@ class nsJSContext : public nsIScriptContext {
 
   // The GC should probably run soon, in the zone of object aObj (if given).
   static void PokeGC(JS::GCReason aReason, JSObject* aObj, uint32_t aDelay = 0);
-  static void KillGCTimer();
-
-  static void PokeShrinkingGC();
-  static void KillShrinkingGCTimer();
 
   static void MaybePokeCC();
-  static void EnsureCCRunner(mozilla::TimeDuration aDelay,
-                             mozilla::TimeDuration aBudget);
-  static void KillCCRunner();
-  static void KillFullGCTimer();
-  static void KillGCRunner();
 
   // Calling LikelyShortLivingObjectCreated() makes a GC more likely.
   static void LikelyShortLivingObjectCreated();
@@ -175,7 +166,7 @@ class AsyncErrorReporter final : public mozilla::Runnable {
   NS_IMETHOD Run() override;
 
   // This is only used on main thread!
-  JS::PersistentRootedValue mException;
+  JS::PersistentRooted<JS::Value> mException;
   bool mHasException = false;
 
   RefPtr<xpc::ErrorReport> mReport;

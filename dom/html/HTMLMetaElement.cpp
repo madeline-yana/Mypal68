@@ -21,8 +21,7 @@ static mozilla::LazyLogModule gMetaElementLog("nsMetaElement");
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Meta)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 HTMLMetaElement::HTMLMetaElement(
     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo)
@@ -160,5 +159,4 @@ void HTMLMetaElement::DiscardViewportContent(Document* aDocument) {
   aDocument->RemoveMetaViewportElement(this);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

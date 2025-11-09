@@ -16,6 +16,8 @@
 #include "mozilla/MemoryReporting.h"
 #include "AudioNodeEngine.h"
 #include "nsPrintfCString.h"
+#include "nsTHashSet.h"
+#include <numeric>
 
 namespace mozilla::dom {
 
@@ -70,7 +72,7 @@ class AudioBufferMemoryTracker : public nsIMemoryReporter {
   /* This protects all members of this class. */
   static StaticMutex sMutex;
   static StaticRefPtr<AudioBufferMemoryTracker> sSingleton;
-  nsTHashtable<nsPtrHashKey<const AudioBuffer>> mBuffers;
+  nsTHashSet<const AudioBuffer*> mBuffers;
 };
 
 StaticRefPtr<AudioBufferMemoryTracker> AudioBufferMemoryTracker::sSingleton;
@@ -116,13 +118,13 @@ void AudioBufferMemoryTracker::UnregisterAudioBuffer(
 void AudioBufferMemoryTracker::RegisterAudioBufferInternal(
     const AudioBuffer* aAudioBuffer) {
   sMutex.AssertCurrentThreadOwns();
-  mBuffers.PutEntry(aAudioBuffer);
+  mBuffers.Insert(aAudioBuffer);
 }
 
 uint32_t AudioBufferMemoryTracker::UnregisterAudioBufferInternal(
     const AudioBuffer* aAudioBuffer) {
   sMutex.AssertCurrentThreadOwns();
-  mBuffers.RemoveEntry(aAudioBuffer);
+  mBuffers.Remove(aAudioBuffer);
   return mBuffers.Count();
 }
 
@@ -131,12 +133,12 @@ MOZ_DEFINE_MALLOC_SIZE_OF(AudioBufferMemoryTrackerMallocSizeOf)
 NS_IMETHODIMP
 AudioBufferMemoryTracker::CollectReports(nsIHandleReportCallback* aHandleReport,
                                          nsISupports* aData, bool) {
-  size_t amount = 0;
-
-  for (auto iter = mBuffers.Iter(); !iter.Done(); iter.Next()) {
-    amount += iter.Get()->GetKey()->SizeOfIncludingThis(
-        AudioBufferMemoryTrackerMallocSizeOf);
-  }
+  const size_t amount =
+      std::accumulate(mBuffers.cbegin(), mBuffers.cend(), size_t(0),
+                      [](size_t val, const AudioBuffer* buffer) {
+                        return val + buffer->SizeOfIncludingThis(
+                                         AudioBufferMemoryTrackerMallocSizeOf);
+                      });
 
   MOZ_COLLECT_REPORT("explicit/webaudio/audiobuffer", KIND_HEAP, UNITS_BYTES,
                      amount, "Memory used by AudioBuffer objects (Web Audio).");

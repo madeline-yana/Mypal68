@@ -6,7 +6,7 @@
 #define mozilla_dom_permission_message_utils_h__
 
 #include "mozilla/ipc/IPDLParamTraits.h"
-#include "ipc/IPCMessageUtils.h"
+#include "ipc/IPCMessageUtilsSpecializations.h"
 #include "nsCOMPtr.h"
 #include "nsIPrincipal.h"
 

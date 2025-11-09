@@ -60,7 +60,7 @@ class WebGLFBAttachPoint final {
   void Unlink() { Clear(); }
 
   bool HasAttachment() const {
-    return bool(mTexturePtr) | bool(mRenderbufferPtr);
+    return bool(mTexturePtr) || bool(mRenderbufferPtr);
   }
   bool IsDeleteRequested() const;
 
@@ -89,7 +89,7 @@ class WebGLFBAttachPoint final {
                          ErrorResult* const out_error) const;
 
   bool IsEquivalentForFeedback(const WebGLFBAttachPoint& other) const {
-    if (!HasAttachment() | !other.HasAttachment()) return false;
+    if (!HasAttachment() || !other.HasAttachment()) return false;
 
 #define _(X) (X == other.X)
     return (_(mRenderbufferPtr) & _(mTexturePtr) & _(mTexImageTarget.get()) &

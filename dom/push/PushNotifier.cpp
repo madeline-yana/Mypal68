@@ -99,8 +99,7 @@ nsresult PushNotifier::Dispatch(PushDispatcher& aDispatcher) {
       for (uint32_t i = 0; i < contentActors.Length(); ++i) {
         // We need to filter based on process type, only "web" AKA the default
         // remote type is acceptable.
-        if (!contentActors[i]->GetRemoteType().EqualsLiteral(
-                DEFAULT_REMOTE_TYPE)) {
+        if (contentActors[i]->GetRemoteType() != DEFAULT_REMOTE_TYPE) {
           continue;
         }
 

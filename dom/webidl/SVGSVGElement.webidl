@@ -67,5 +67,5 @@ interface SVGSVGElement : SVGGraphicsElement {
 };
 
 SVGSVGElement includes SVGFitToViewBox;
-SVGSVGElement includes SVGZoomAndPanValues;
+SVGSVGElement includes SVGZoomAndPan;
 

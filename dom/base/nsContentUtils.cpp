@@ -201,8 +201,6 @@
 #include "mozilla/gfx/Point.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/gfx/Types.h"
-#include "mozilla/intl/LineBreaker.h"
-#include "mozilla/intl/WordBreaker.h"
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "mozilla/ipc/SharedMemory.h"
 #include "mozilla/ipc/Shmem.h"
@@ -236,7 +234,7 @@
 #include "nsCycleCollectionNoteChild.h"
 #include "nsDOMMutationObserver.h"
 #include "nsDOMString.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsDebug.h"
 #include "nsDocShell.h"
 #include "nsDocShellCID.h"
@@ -422,17 +420,15 @@ nsNameSpaceManager* nsContentUtils::sNameSpaceManager;
 nsIIOService* nsContentUtils::sIOService;
 nsIUUIDGenerator* nsContentUtils::sUUIDGenerator;
 nsIConsoleService* nsContentUtils::sConsoleService;
-nsDataHashtable<nsRefPtrHashKey<nsAtom>, EventNameMapping>*
+nsTHashMap<nsRefPtrHashKey<nsAtom>, EventNameMapping>*
     nsContentUtils::sAtomEventTable = nullptr;
-nsDataHashtable<nsStringHashKey, EventNameMapping>*
+nsTHashMap<nsStringHashKey, EventNameMapping>*
     nsContentUtils::sStringEventTable = nullptr;
 nsTArray<RefPtr<nsAtom>>* nsContentUtils::sUserDefinedEvents = nullptr;
 nsIStringBundleService* nsContentUtils::sStringBundleService;
 nsIStringBundle* nsContentUtils::sStringBundles[PropertiesFile_COUNT];
 nsIContentPolicy* nsContentUtils::sContentPolicyService;
 bool nsContentUtils::sTriedToGetContentPolicy = false;
-RefPtr<mozilla::intl::LineBreaker> nsContentUtils::sLineBreaker;
-RefPtr<mozilla::intl::WordBreaker> nsContentUtils::sWordBreaker;
 StaticRefPtr<nsIBidiKeyboard> nsContentUtils::sBidiKeyboard;
 uint32_t nsContentUtils::sScriptBlockerCount = 0;
 uint32_t nsContentUtils::sDOMNodeRemovedSuppressCount = 0;
@@ -455,7 +451,8 @@ bool nsContentUtils::sInitialized = false;
 bool nsContentUtils::sBypassCSSOMOriginCheck = false;
 #endif
 
-nsCString* nsContentUtils::sJSBytecodeMimeType = nullptr;
+nsCString* nsContentUtils::sJSScriptBytecodeMimeType = nullptr;
+nsCString* nsContentUtils::sJSModuleBytecodeMimeType = nullptr;
 
 nsContentUtils::UserInteractionObserver*
     nsContentUtils::sUserInteractionObserver = nullptr;
@@ -465,6 +462,8 @@ nsIParser* nsContentUtils::sXMLFragmentParser = nullptr;
 nsIFragmentContentSink* nsContentUtils::sXMLFragmentSink = nullptr;
 bool nsContentUtils::sFragmentParsingActive = false;
 
+mozilla::LazyLogModule nsContentUtils::gResistFingerprintingLog(
+    "nsResistFingerprinting");
 mozilla::LazyLogModule nsContentUtils::sDOMDumpLog("Dump");
 
 int32_t nsContentUtils::sInnerOrOuterWindowCount = 0;
@@ -752,10 +751,6 @@ nsresult nsContentUtils::Init() {
     sIOService = nullptr;
   }
 
-  sLineBreaker = mozilla::intl::LineBreaker::Create();
-
-  sWordBreaker = mozilla::intl::WordBreaker::Create();
-
   if (!InitializeEventTable()) return NS_ERROR_FAILURE;
 
   if (!sEventListenerManagersHash) {
@@ -802,7 +797,8 @@ nsresult nsContentUtils::Init() {
 
 bool nsContentUtils::InitJSBytecodeMimeType() {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(!sJSBytecodeMimeType);
+  MOZ_ASSERT(!sJSScriptBytecodeMimeType);
+  MOZ_ASSERT(!sJSModuleBytecodeMimeType);
 
   JS::BuildIdCharVector jsBuildId;
   if (!JS::GetScriptTranscodingBuildId(&jsBuildId)) {
@@ -810,8 +806,10 @@ bool nsContentUtils::InitJSBytecodeMimeType() {
   }
 
   nsDependentCSubstring jsBuildIdStr(jsBuildId.begin(), jsBuildId.length());
-  sJSBytecodeMimeType =
-      new nsCString(NS_LITERAL_CSTRING("javascript/moz-bytecode-") + jsBuildIdStr);
+  sJSScriptBytecodeMimeType =
+      new nsCString("javascript/moz-script-bytecode-"_ns + jsBuildIdStr);
+  sJSModuleBytecodeMimeType =
+      new nsCString("javascript/moz-module-bytecode-"_ns + jsBuildIdStr);
   return true;
 }
 
@@ -936,20 +934,19 @@ bool nsContentUtils::InitializeEventTable() {
 #undef EVENT
       {nullptr}};
 
-  sAtomEventTable =
-      new nsDataHashtable<nsRefPtrHashKey<nsAtom>, EventNameMapping>(
-          ArrayLength(eventArray));
-  sStringEventTable = new nsDataHashtable<nsStringHashKey, EventNameMapping>(
+  sAtomEventTable = new nsTHashMap<nsRefPtrHashKey<nsAtom>, EventNameMapping>(
+      ArrayLength(eventArray));
+  sStringEventTable = new nsTHashMap<nsStringHashKey, EventNameMapping>(
       ArrayLength(eventArray));
   sUserDefinedEvents = new nsTArray<RefPtr<nsAtom>>(64);
 
   // Subtract one from the length because of the trailing null
   for (uint32_t i = 0; i < ArrayLength(eventArray) - 1; ++i) {
-    MOZ_ASSERT(!sAtomEventTable->Lookup(eventArray[i].mAtom),
+    MOZ_ASSERT(!sAtomEventTable->Contains(eventArray[i].mAtom),
                "Double-defining event name; fix your EventNameList.h");
-    sAtomEventTable->Put(eventArray[i].mAtom, eventArray[i]);
+    sAtomEventTable->InsertOrUpdate(eventArray[i].mAtom, eventArray[i]);
     if (ShouldAddEventToStringEventTable(eventArray[i])) {
-      sStringEventTable->Put(
+      sStringEventTable->InsertOrUpdate(
           Substring(nsDependentAtomString(eventArray[i].mAtom), 2),
           eventArray[i]);
     }
@@ -972,8 +969,9 @@ void nsContentUtils::InitializeTouchEventTable() {
         {nullptr}};
     // Subtract one from the length because of the trailing null
     for (uint32_t i = 0; i < ArrayLength(touchEventArray) - 1; ++i) {
-      sAtomEventTable->Put(touchEventArray[i].mAtom, touchEventArray[i]);
-      sStringEventTable->Put(
+      sAtomEventTable->InsertOrUpdate(touchEventArray[i].mAtom,
+                                      touchEventArray[i]);
+      sStringEventTable->InsertOrUpdate(
           Substring(nsDependentAtomString(touchEventArray[i].mAtom), 2),
           touchEventArray[i]);
     }
@@ -1641,19 +1639,11 @@ bool nsContentUtils::IsAlphanumeric(uint32_t aChar) {
 }
 
 // static
-bool nsContentUtils::IsAlphanumericAt(const nsTextFragment* aFrag,
-                                      uint32_t aOffset) {
-  char16_t h = aFrag->CharAt(aOffset);
-  if (!IS_SURROGATE(h)) {
-    return IsAlphanumeric(h);
-  }
-  if (NS_IS_HIGH_SURROGATE(h) && aOffset + 1 < aFrag->GetLength()) {
-    char16_t l = aFrag->CharAt(aOffset + 1);
-    if (NS_IS_LOW_SURROGATE(l)) {
-      return IsAlphanumeric(SURROGATE_TO_UCS4(h, l));
-    }
-  }
-  return false;
+bool nsContentUtils::IsAlphanumericOrSymbol(uint32_t aChar) {
+  nsUGenCategory cat = mozilla::unicode::GetGenCategory(aChar);
+
+  return cat == nsUGenCategory::kLetter || cat == nsUGenCategory::kNumber ||
+         cat == nsUGenCategory::kSymbol;
 }
 
 /* static */
@@ -1868,8 +1858,6 @@ void nsContentUtils::Shutdown() {
   NS_IF_RELEASE(sNullSubjectPrincipal);
   NS_IF_RELEASE(sIOService);
   NS_IF_RELEASE(sUUIDGenerator);
-  sLineBreaker = nullptr;
-  sWordBreaker = nullptr;
   sBidiKeyboard = nullptr;
 
   delete sAtomEventTable;
@@ -1923,8 +1911,11 @@ void nsContentUtils::Shutdown() {
   delete sModifierSeparator;
   sModifierSeparator = nullptr;
 
-  delete sJSBytecodeMimeType;
-  sJSBytecodeMimeType = nullptr;
+  delete sJSScriptBytecodeMimeType;
+  sJSScriptBytecodeMimeType = nullptr;
+
+  delete sJSModuleBytecodeMimeType;
+  sJSModuleBytecodeMimeType = nullptr;
 
   NS_IF_RELEASE(sSameOriginChecker);
 
@@ -2103,13 +2094,28 @@ bool nsContentUtils::IsFuzzingEnabled() {
 #endif
 
 /* static */
+bool nsContentUtils::IsCallerChromeOrErrorPage(JSContext* aCx,
+                                               JSObject* aObject) {
+  if (ThreadsafeIsSystemCaller(aCx)) {
+    return true;
+  }
+  nsGlobalWindowInner* win =
+      xpc::WindowGlobalOrNull(js::UncheckedUnwrap(aObject));
+  if (!win) {
+    return false;
+  }
+  Document* doc = win->GetExtantDoc();
+  return doc && IsErrorPage(doc->GetDocumentURI());
+}
+
+/* static */
 bool nsContentUtils::ShouldResistFingerprinting() {
   return StaticPrefs::privacy_resistFingerprinting();
 }
 
 bool nsContentUtils::ShouldResistFingerprinting(nsIDocShell* aDocShell) {
   if (!aDocShell) {
-    return false;
+    return ShouldResistFingerprinting();
   }
   return ShouldResistFingerprinting(aDocShell->GetDocument());
 }
@@ -2117,16 +2123,22 @@ bool nsContentUtils::ShouldResistFingerprinting(nsIDocShell* aDocShell) {
 /* static */
 bool nsContentUtils::ShouldResistFingerprinting(const Document* aDoc) {
   if (!aDoc) {
-    return false;
+    MOZ_LOG(nsContentUtils::ResistFingerprintingLog(), LogLevel::Info,
+            ("Called nsContentUtils::ShouldResistFingerprinting(const "
+             "Document* aDoc) with NULL document"));
+    return ShouldResistFingerprinting();
   }
   bool isChrome = nsContentUtils::IsChromeDoc(aDoc);
-  return !isChrome && ShouldResistFingerprinting();
+  if (isChrome) {
+    return false;
+  }
+  return ShouldResistFingerprinting(aDoc->GetChannel());
 }
 
 /* static */
 bool nsContentUtils::ShouldResistFingerprinting(nsIPrincipal* aPrincipal) {
   if (!aPrincipal) {
-    return false;
+    return ShouldResistFingerprinting();
   }
   bool isChrome = aPrincipal->IsSystemPrincipal();
   return !isChrome && ShouldResistFingerprinting();
@@ -2139,7 +2151,136 @@ bool nsContentUtils::ShouldResistFingerprinting(WorkerPrivate* aWorkerPrivate) {
     return ShouldResistFingerprinting();
   }
   bool isChrome = aWorkerPrivate->UsesSystemPrincipal();
-  return !isChrome && ShouldResistFingerprinting();
+  if (isChrome) {
+    return false;
+  }
+  return ShouldResistFingerprinting(aWorkerPrivate->GetDocument());
+}
+
+inline void LogDomainAndPrefList(const char* exemptedDomainsPrefName,
+                                 nsAutoCString& url, bool isExemptDomain) {
+  nsAutoCString list;
+  Preferences::GetCString(exemptedDomainsPrefName, list);
+  MOZ_LOG(nsContentUtils::ResistFingerprintingLog(), LogLevel::Debug,
+          ("Domain \"%s\" is %s the exempt list \"%s\"",
+           PromiseFlatCString(url).get(), isExemptDomain ? "in" : "NOT in",
+           PromiseFlatCString(list).get()));
+}
+
+/* static */
+bool nsContentUtils::ShouldResistFingerprinting(nsIChannel* aChannel) {
+  const unsigned int webExtensionExemptMask = 0x01;
+  const unsigned int nonPBMExemptMask = 0x02;
+  const unsigned int specificDomainsExemptMask = 0x04;
+
+  if (!ShouldResistFingerprinting()) {
+    return false;
+  }
+
+  if (!aChannel) {
+    MOZ_LOG(nsContentUtils::ResistFingerprintingLog(), LogLevel::Info,
+            ("Called nsContentUtils::ShouldResistFingerprinting(nsIChannel* "
+             "aChannel) with NULL channel"));
+    return true;
+  }
+
+  nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
+
+  if (StaticPrefs::privacy_resistFingerprinting_testGranularityMask() &
+      nonPBMExemptMask) {
+    // if non-PBM exempt mask is true, exempt non-PBM channels.
+    if (loadInfo->GetOriginAttributes().mPrivateBrowsingId == 0) {
+      return false;
+    }
+  }
+
+  bool isExemptDomain = false;
+  const char* exemptedDomainsPrefName =
+      "privacy.resistFingerprinting.exemptedDomains";
+
+  if (loadInfo->GetExternalContentPolicyType() ==
+      ExtContentPolicy::TYPE_DOCUMENT) {
+    // Case 1: Top Level Load
+
+    nsCOMPtr<nsIURI> channelURI;
+    nsresult rv = NS_GetFinalChannelURI(aChannel, getter_AddRefs(channelURI));
+    MOZ_ASSERT(
+        NS_SUCCEEDED(rv),
+        "Failed to get URI in "
+        "nsContentUtils::ShouldResistFingerprinting(nsIChannel* aChannel)");
+    // this check is to ensure that we do not crash in non-debug builds.
+    if (NS_FAILED(rv)) {
+      return true;
+    }
+
+    // Exclude internal schemes
+    if (channelURI->SchemeIs("about") || channelURI->SchemeIs("chrome") ||
+        channelURI->SchemeIs("resource") ||
+        channelURI->SchemeIs("view-source")) {
+      return false;
+    }
+
+    if (StaticPrefs::privacy_resistFingerprinting_testGranularityMask() &
+        webExtensionExemptMask) {
+      if (channelURI->SchemeIs("web-extension")) {
+        return false;
+      }
+    }
+
+    if (StaticPrefs::privacy_resistFingerprinting_testGranularityMask() &
+        specificDomainsExemptMask) {
+      nsAutoCString list;
+      Preferences::GetCString(exemptedDomainsPrefName, list);
+      ToLowerCase(list);
+      isExemptDomain = IsURIInList(channelURI, list);
+
+      if (MOZ_LOG_TEST(nsContentUtils::ResistFingerprintingLog(),
+                       mozilla::LogLevel::Debug)) {
+        nsAutoCString url;
+        channelURI->GetHost(url);
+        LogDomainAndPrefList(exemptedDomainsPrefName, url, isExemptDomain);
+      }
+    }
+
+    return !isExemptDomain;
+  }
+  // Case 2: Subresource Load
+
+  nsIPrincipal* loadingPrincipal = loadInfo->GetLoadingPrincipal();
+  // If it is not a document load then we are promised that the
+  // loadingPrincipal is not null.
+  MOZ_RELEASE_ASSERT(
+      loadingPrincipal,
+      "Got NULL loadingPrincipal in "
+      "nsContentUtils::ShouldResistFingerprinting(nsIChannel* aChannel)");
+
+  if (loadingPrincipal->IsSystemPrincipal()) {
+    MOZ_LOG(nsContentUtils::ResistFingerprintingLog(), LogLevel::Info,
+            ("Called nsContentUtils::ShouldResistFingerprinting(nsIChannel* "
+             "aChannel) with a system loadingPrincipal"));
+    return false;
+  }
+
+  if (StaticPrefs::privacy_resistFingerprinting_testGranularityMask() &
+      webExtensionExemptMask) {
+    if (BasePrincipal::Cast(loadingPrincipal)->AddonPolicy()) {
+      return false;
+    }
+  }
+
+  if (StaticPrefs::privacy_resistFingerprinting_testGranularityMask() &
+      specificDomainsExemptMask) {
+    loadingPrincipal->IsURIInPrefList(exemptedDomainsPrefName, &isExemptDomain);
+
+    if (MOZ_LOG_TEST(nsContentUtils::ResistFingerprintingLog(),
+                     mozilla::LogLevel::Debug)) {
+      nsAutoCString origin;
+      loadingPrincipal->GetAsciiOrigin(origin);
+      LogDomainAndPrefList(exemptedDomainsPrefName, origin, isExemptDomain);
+    }
+  }
+
+  return !isExemptDomain;
 }
 
 /* static */
@@ -4025,7 +4166,7 @@ nsAtom* nsContentUtils::GetEventMessageAndAtom(
   // sAtomEventTable instead.
   mapping.mMaybeSpecialSVGorSMILEvent =
       GetEventMessage(atom) != eUnidentifiedEvent;
-  sStringEventTable->Put(aName, mapping);
+  sStringEventTable->InsertOrUpdate(aName, mapping);
   return mapping.mAtom;
 }
 
@@ -4216,6 +4357,7 @@ nsresult nsContentUtils::DispatchInputEvent(
   if (!useInputEvent) {
     MOZ_ASSERT(aEventMessage == eEditorInput);
     MOZ_ASSERT(aEditorInputType == EditorInputType::eUnknown);
+    MOZ_ASSERT(!aOptions.mNeverCancelable);
     // Dispatch "input" event with Event instance.
     WidgetEvent widgetEvent(true, eUnidentifiedEvent);
     widgetEvent.mSpecifiedEventType = nsGkAtoms::oninput;
@@ -4228,6 +4370,12 @@ nsresult nsContentUtils::DispatchInputEvent(
         ->RunDOMEventWhenSafe();
     return NS_OK;
   }
+
+  MOZ_ASSERT_IF(aEventMessage != eEditorBeforeInput,
+                !aOptions.mNeverCancelable);
+  MOZ_ASSERT_IF(
+      aEventMessage == eEditorBeforeInput && aOptions.mNeverCancelable,
+      aEditorInputType == EditorInputType::eInsertReplacementText);
 
   nsCOMPtr<nsIWidget> widget;
   if (aTextEditor) {
@@ -4259,7 +4407,7 @@ nsresult nsContentUtils::DispatchInputEvent(
   InternalEditorInputEvent inputEvent(true, aEventMessage, widget);
 
   inputEvent.mFlags.mCancelable =
-      aEventMessage == eEditorBeforeInput &&
+      !aOptions.mNeverCancelable && aEventMessage == eEditorBeforeInput &&
       IsCancelableBeforeInputEvent(aEditorInputType);
   MOZ_ASSERT(!inputEvent.mFlags.mCancelable || aEventStatus);
 
@@ -4669,7 +4817,7 @@ void nsContentUtils::AddEntryToDOMArenaTable(nsINode* aNode,
         new nsRefPtrHashtable<nsPtrHashKey<const nsINode>, dom::DOMArena>();
   }
   aNode->SetFlags(NODE_KEEPS_DOMARENA);
-  sDOMArenaHashtable->Put(aNode, RefPtr<DOMArena>(aDOMArena));
+  sDOMArenaHashtable->InsertOrUpdate(aNode, RefPtr<DOMArena>(aDOMArena));
 }
 
 already_AddRefed<DOMArena> nsContentUtils::TakeEntryFromDOMArenaTable(
@@ -7133,6 +7281,9 @@ bool nsContentUtils::IsCORSSafelistedRequestHeader(const nsACString& aName,
           nsContentUtils::IsAllowedNonCorsContentType(aValue));
 }
 
+mozilla::LogModule* nsContentUtils::ResistFingerprintingLog() {
+  return gResistFingerprintingLog;
+}
 mozilla::LogModule* nsContentUtils::DOMDumpLog() { return sDOMDumpLog; }
 
 bool nsContentUtils::GetNodeTextContent(nsINode* aNode, bool aDeep,
@@ -8980,31 +9131,6 @@ void nsContentUtils::GetPresentationURL(nsIDocShell* aDocShell,
                                         nsAString& aPresentationUrl) {
   MOZ_ASSERT(aDocShell);
 
-  // Simulate receiver context for web platform test
-  if (StaticPrefs::dom_presentation_testing_simulate_receiver()) {
-    RefPtr<Document> doc;
-
-    nsCOMPtr<nsPIDOMWindowOuter> docShellWin =
-        do_QueryInterface(aDocShell->GetScriptGlobalObject());
-    if (docShellWin) {
-      doc = docShellWin->GetExtantDoc();
-    }
-
-    if (NS_WARN_IF(!doc)) {
-      return;
-    }
-
-    nsCOMPtr<nsIURI> uri = doc->GetDocumentURI();
-    if (NS_WARN_IF(!uri)) {
-      return;
-    }
-
-    nsAutoCString uriStr;
-    uri->GetSpec(uriStr);
-    CopyUTF8toUTF16(uriStr, aPresentationUrl);
-    return;
-  }
-
   if (XRE_IsContentProcess()) {
     nsCOMPtr<nsIDocShellTreeItem> sameTypeRoot;
     aDocShell->GetInProcessSameTypeRootTreeItem(getter_AddRefs(sameTypeRoot));
@@ -9318,7 +9444,7 @@ nsresult nsContentUtils::NewXULOrHTMLElement(
       } else {
         NS_IF_ADDREF(*aResult = nsXULElement::Construct(nodeInfo.forget()));
       }
-      (*aResult)->SetCustomElementData(new CustomElementData(typeAtom));
+      (*aResult)->SetCustomElementData(MakeUnique<CustomElementData>(typeAtom));
       if (synchronousCustomElements) {
         CustomElementRegistry::Upgrade(*aResult, definition, rv);
         if (rv.MaybeSetPendingException(cx)) {
@@ -9357,7 +9483,8 @@ nsresult nsContentUtils::NewXULOrHTMLElement(
     } else {
       NS_IF_ADDREF(*aResult = nsXULElement::Construct(nodeInfo.forget()));
     }
-    (*aResult)->SetCustomElementData(new CustomElementData(definition->mType));
+    (*aResult)->SetCustomElementData(
+        MakeUnique<CustomElementData>(definition->mType));
     nsContentUtils::EnqueueUpgradeReaction(*aResult, definition);
     return NS_OK;
   }
@@ -9380,7 +9507,7 @@ nsresult nsContentUtils::NewXULOrHTMLElement(
   }
 
   if (isCustomElement) {
-    (*aResult)->SetCustomElementData(new CustomElementData(typeAtom));
+    (*aResult)->SetCustomElementData(MakeUnique<CustomElementData>(typeAtom));
     nsContentUtils::RegisterCallbackUpgradeElement(*aResult, typeAtom);
   }
 

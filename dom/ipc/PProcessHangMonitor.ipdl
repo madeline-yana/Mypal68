@@ -4,6 +4,7 @@
 
 // ParamTraits stuff for nsIRemoteTab::NavigationType
 include "mozilla/dom/TabMessageUtils.h";
+include "mozilla/layers/LayersMessageUtils.h";
 using nsIRemoteTab::NavigationType from "nsIRemoteTab.h";
 
 using base::ProcessId from "base/process.h";

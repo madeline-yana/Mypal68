@@ -174,6 +174,10 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
   void SetInputMode(const nsAString& aValue, ErrorResult& aRv) {
     SetHTMLAttr(nsGkAtoms::inputmode, aValue, aRv);
   }
+  virtual void GetAutocapitalize(nsAString& aValue);
+  void SetAutocapitalize(const nsAString& aValue, ErrorResult& aRv) {
+    SetHTMLAttr(nsGkAtoms::autocapitalize, aValue, aRv);
+  }
 
   void GetEnterKeyHint(nsAString& aValue) {
     GetEnumAttr(nsGkAtoms::enterkeyhint, nullptr, aValue);
@@ -273,8 +277,8 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
    */
   virtual bool IsHTMLFocusable(bool aWithMouse, bool* aIsFocusable,
                                int32_t* aTabIndex);
-  virtual bool PerformAccesskey(bool aKeyCausesActivation,
-                                bool aIsTrustedEvent) override;
+  MOZ_CAN_RUN_SCRIPT virtual bool PerformAccesskey(
+      bool aKeyCausesActivation, bool aIsTrustedEvent) override;
 
   /**
    * Check if an event for an anchor can be handled
@@ -617,13 +621,6 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
    */
   bool GetURIAttr(nsAtom* aAttr, nsAtom* aBaseAttr, nsIURI** aURI) const;
 
-  /**
-   * Returns the current disabled state of the element.
-   *
-   * TODO(emilio): Consider moving to Element?
-   */
-  bool IsDisabled() const { return State().HasState(NS_EVENT_STATE_DISABLED); }
-
   bool IsHidden() const {
     return HasAttr(kNameSpaceID_None, nsGkAtoms::hidden);
   }
@@ -743,7 +740,7 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
   void SetHTMLBoolAttr(nsAtom* aName, bool aValue,
                        mozilla::ErrorResult& aError) {
     if (aValue) {
-      SetHTMLAttr(aName, EmptyString(), aError);
+      SetHTMLAttr(aName, u""_ns, aError);
     } else {
       UnsetHTMLAttr(aName, aError);
     }
@@ -1022,6 +1019,10 @@ class nsGenericHTMLFormElement : public nsGenericHTMLElement,
   virtual bool IsLabelable() const override;
 
   void GetFormAction(nsString& aValue);
+
+  // autocapitalize attribute support
+  virtual void GetAutocapitalize(nsAString& aValue) override;
+  bool IsAutocapitalizeInheriting() const;
 
  protected:
   virtual ~nsGenericHTMLFormElement();

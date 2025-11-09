@@ -28,7 +28,7 @@ dictionary LocaleInfo {
 /**
  * The IntlUtils interface provides helper functions for localization.
  */
-[NoInterfaceObject,
+[LegacyNoInterfaceObject,
  Exposed=Window]
 interface IntlUtils {
   /**

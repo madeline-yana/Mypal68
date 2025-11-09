@@ -3,7 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[NoInterfaceObject, JSImplementation="@mozilla.org/sidebar;1",
+[LegacyNoInterfaceObject, JSImplementation="@mozilla.org/sidebar;1",
  Exposed=Window]
 interface External
 {

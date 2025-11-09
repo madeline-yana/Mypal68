@@ -4,8 +4,7 @@
 #include "GamepadEventChannelChild.h"
 #include "mozilla/dom/GamepadManager.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 namespace {
 
@@ -37,8 +36,8 @@ mozilla::ipc::IPCResult GamepadEventChannelChild::RecvGamepadUpdate(
 
 void GamepadEventChannelChild::AddPromise(const uint32_t& aID,
                                           dom::Promise* aPromise) {
-  MOZ_ASSERT(!mPromiseList.Get(aID, nullptr));
-  mPromiseList.Put(aID, RefPtr{aPromise});
+  MOZ_ASSERT(!mPromiseList.Contains(aID));
+  mPromiseList.InsertOrUpdate(aID, RefPtr{aPromise});
 }
 
 mozilla::ipc::IPCResult GamepadEventChannelChild::RecvReplyGamepadVibrateHaptic(
@@ -53,5 +52,4 @@ mozilla::ipc::IPCResult GamepadEventChannelChild::RecvReplyGamepadVibrateHaptic(
   return IPC_OK();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

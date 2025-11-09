@@ -6,7 +6,6 @@
 #define mozilla_dom_FileSystem_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/ErrorResult.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"

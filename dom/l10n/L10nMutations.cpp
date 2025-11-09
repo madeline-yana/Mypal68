@@ -105,7 +105,7 @@ void L10nMutations::ContentInserted(nsIContent* aChild) {
 void L10nMutations::L10nElementChanged(Element* aElement) {
   if (!mPendingElementsHash.Contains(aElement)) {
     mPendingElements.AppendElement(aElement);
-    mPendingElementsHash.PutEntry(aElement);
+    mPendingElementsHash.Insert(aElement);
   }
 
   if (!mRefreshObserver) {

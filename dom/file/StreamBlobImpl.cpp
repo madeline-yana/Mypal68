@@ -10,8 +10,7 @@
 #include "nsStringStream.h"
 #include "nsICloneableInputStream.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_ISUPPORTS_INHERITED(StreamBlobImpl, BlobImpl, nsIMemoryReporter)
 
@@ -45,8 +44,9 @@ already_AddRefed<StreamBlobImpl> StreamBlobImpl::Create(
 StreamBlobImpl::StreamBlobImpl(already_AddRefed<nsIInputStream> aInputStream,
                                const nsAString& aContentType, uint64_t aLength,
                                const nsAString& aBlobImplType)
-    : BaseBlobImpl(aBlobImplType, aContentType, aLength),
+    : BaseBlobImpl(aContentType, aLength),
       mInputStream(std::move(aInputStream)),
+      mBlobImplType(aBlobImplType),
       mIsDirectory(false),
       mFileId(-1) {}
 
@@ -55,9 +55,9 @@ StreamBlobImpl::StreamBlobImpl(already_AddRefed<nsIInputStream> aInputStream,
                                const nsAString& aContentType,
                                int64_t aLastModifiedDate, uint64_t aLength,
                                const nsAString& aBlobImplType)
-    : BaseBlobImpl(aBlobImplType, aName, aContentType, aLength,
-                   aLastModifiedDate),
+    : BaseBlobImpl(aName, aContentType, aLength, aLastModifiedDate),
       mInputStream(std::move(aInputStream)),
+      mBlobImplType(aBlobImplType),
       mIsDirectory(false),
       mFileId(-1) {}
 
@@ -162,5 +162,4 @@ void StreamBlobImpl::GetBlobImplType(nsAString& aBlobImplType) const {
   aBlobImplType.AppendLiteral("]");
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

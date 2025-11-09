@@ -4,10 +4,10 @@
 
 #include "mozilla/dom/ElementInternals.h"
 #include "mozilla/dom/ElementInternalsBinding.h"
+#include "mozilla/dom/ShadowRoot.h"
 #include "nsGenericHTMLElement.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(ElementInternals, mTarget)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(ElementInternals)
@@ -27,5 +27,16 @@ JSObject* ElementInternals::WrapObject(JSContext* aCx,
   return ElementInternals_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+// https://html.spec.whatwg.org/#dom-elementinternals-shadowroot
+ShadowRoot* ElementInternals::GetShadowRoot() const {
+  MOZ_ASSERT(mTarget);
+
+  ShadowRoot* shadowRoot = mTarget->GetShadowRoot();
+  if (shadowRoot && !shadowRoot->IsAvailableToElementInternals()) {
+    return nullptr;
+  }
+
+  return shadowRoot;
+}
+
+}  // namespace mozilla::dom

@@ -8,14 +8,15 @@
 #include "js/Array.h"               // JS::NewArrayObject
 #include "js/PropertyAndElement.h"  // JS_GetElement
 #include "mozilla/dom/FileBinding.h"
+#include "mozilla/dom/FileSystem.h"
+#include "mozilla/dom/FileSystemDirectoryReaderBinding.h"
 #include "mozilla/dom/FileSystemUtils.h"
 #include "mozilla/dom/Directory.h"
 #include "mozilla/dom/DirectoryBinding.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/PromiseNativeHandler.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 namespace {
 
@@ -37,8 +38,8 @@ class PromiseHandler final : public PromiseNativeHandler {
   }
 
   MOZ_CAN_RUN_SCRIPT
-  virtual void ResolvedCallback(JSContext* aCx,
-                                JS::Handle<JS::Value> aValue) override {
+  virtual void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                                ErrorResult& aRv) override {
     if (NS_WARN_IF(!aValue.isObject())) {
       return;
     }
@@ -90,8 +91,8 @@ class PromiseHandler final : public PromiseNativeHandler {
     mSuccessCallback->Call(sequence);
   }
 
-  virtual void RejectedCallback(JSContext* aCx,
-                                JS::Handle<JS::Value> aValue) override {
+  virtual void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                                ErrorResult& aRv) override {
     if (mErrorCallback) {
       RefPtr<ErrorCallbackRunnable> runnable = new ErrorCallbackRunnable(
           mParentEntry->GetParentObject(), mErrorCallback,
@@ -175,5 +176,4 @@ void FileSystemDirectoryReader::ReadEntries(
   promise->AppendNativeHandler(handler);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

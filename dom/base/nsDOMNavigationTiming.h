@@ -156,6 +156,14 @@ class nsDOMNavigationTiming final : public mozilla::RelativeTimeline {
     return duration.ToMilliseconds();
   }
 
+  inline already_AddRefed<nsDOMNavigationTiming> CloneNavigationTime(
+      nsDocShell* aDocShell) const {
+    RefPtr<nsDOMNavigationTiming> timing = new nsDOMNavigationTiming(aDocShell);
+    timing->mNavigationStartHighRes = mNavigationStartHighRes;
+    timing->mNavigationStart = mNavigationStart;
+    return timing.forget();
+  }
+
  private:
   nsDOMNavigationTiming(const nsDOMNavigationTiming&) = delete;
   ~nsDOMNavigationTiming();

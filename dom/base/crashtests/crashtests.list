@@ -247,3 +247,9 @@ pref(layout.css.resizeobserver.enabled,true) load 1555786.html
 load 1577191.html
 load 1291535.html
 skip-if(!isDebugBuild||xulRuntime.OS!="Linux") load 1611853.html
+asserts(0-1) load 1623918.html # May hit an assertion if the <input> element's anonymous tree hasn't been flushed when IMEContentObserver handles focus
+load 1712198.html
+load 1811939.html
+load 1822717.html
+skip-if(Android) load 1838484.html
+load 1835886.html

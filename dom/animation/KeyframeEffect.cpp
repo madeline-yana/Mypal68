@@ -91,8 +91,18 @@ KeyframeEffect::KeyframeEffect(Document* aDocument,
                                const KeyframeEffectParams& aOptions)
     : AnimationEffect(aDocument, std::move(aTiming)),
       mTarget(std::move(aTarget)),
-      mEffectOptions(aOptions),
-      mCumulativeChangeHint(nsChangeHint(0)) {}
+      mEffectOptions(aOptions) {}
+
+KeyframeEffect::KeyframeEffect(Document* aDocument,
+                               OwningAnimationTarget&& aTarget,
+                               const KeyframeEffect& aOther)
+    : AnimationEffect(aDocument, TimingParams{aOther.SpecifiedTiming()}),
+      mTarget(std::move(aTarget)),
+      mEffectOptions{aOther.IterationComposite(), aOther.Composite(),
+                     mTarget.mPseudoType},
+      mKeyframes(aOther.mKeyframes),
+      mProperties(aOther.mProperties),
+      mBaseValues(aOther.mBaseValues.Clone()) {}
 
 JSObject* KeyframeEffect::WrapObject(JSContext* aCx,
                                      JS::Handle<JSObject*> aGivenProto) {
@@ -518,14 +528,13 @@ void KeyframeEffect::EnsureBaseStyles(
     EnsureBaseStyle(property, presContext, aComputedValues, baseComputedStyle);
   }
 
-  if (aBaseStylesChanged != nullptr) {
-    for (auto iter = mBaseValues.Iter(); !iter.Done(); iter.Next()) {
-      if (AnimationValue(iter.Data()) !=
-          AnimationValue(previousBaseStyles.Get(iter.Key()))) {
-        *aBaseStylesChanged = true;
-        break;
-      }
-    }
+  if (aBaseStylesChanged != nullptr &&
+      std::any_of(
+          mBaseValues.cbegin(), mBaseValues.cend(), [&](const auto& entry) {
+            return AnimationValue(entry.GetData()) !=
+                   AnimationValue(previousBaseStyles.Get(entry.GetKey()));
+          })) {
+    *aBaseStylesChanged = true;
   }
 }
 
@@ -561,7 +570,7 @@ void KeyframeEffect::EnsureBaseStyle(
       Servo_ComputedValues_ExtractAnimationValue(aBaseComputedStyle,
                                                  aProperty.mProperty)
           .Consume();
-  mBaseValues.Put(aProperty.mProperty, std::move(baseValue));
+  mBaseValues.InsertOrUpdate(aProperty.mProperty, std::move(baseValue));
 }
 
 void KeyframeEffect::WillComposeStyle() {
@@ -1031,23 +1040,12 @@ already_AddRefed<KeyframeEffect> KeyframeEffect::Constructor(
   // aSource's TimingParams.
   // Note: we don't need to re-throw exceptions since the value specified on
   //       aSource's timing object can be assumed valid.
-  RefPtr<KeyframeEffect> effect = new KeyframeEffect(
-      doc, OwningAnimationTarget(aSource.mTarget),
-      TimingParams(aSource.SpecifiedTiming()), aSource.mEffectOptions);
+  RefPtr<KeyframeEffect> effect =
+      new KeyframeEffect(doc, OwningAnimationTarget{aSource.mTarget}, aSource);
   // Copy cumulative change hint. mCumulativeChangeHint should be the same as
   // the source one because both of targets are the same.
   effect->mCumulativeChangeHint = aSource.mCumulativeChangeHint;
 
-  // Copy aSource's keyframes and animation properties.
-  // Note: We don't call SetKeyframes directly, which might revise the
-  //       computed offsets and rebuild the animation properties.
-  effect->mKeyframes = aSource.mKeyframes;
-  effect->mProperties = aSource.mProperties;
-  for (auto iter = aSource.mBaseValues.ConstIter(); !iter.Done(); iter.Next()) {
-    // XXX Should this use non-const Iter() and then pass
-    // std::move(iter.Data())? Otherwise aSource might be a const&...
-    effect->mBaseValues.Put(iter.Key(), RefPtr{iter.Data()});
-  }
   return effect.forget();
 }
 
@@ -1413,7 +1411,7 @@ bool KeyframeEffect::CanThrottle() const {
     return false;
   }
 
-  nsIFrame* frame = GetStyleFrame();
+  nsIFrame* const frame = GetStyleFrame();
   if (!frame) {
     // There are two possible cases here.
     // a) No target element
@@ -1422,6 +1420,11 @@ bool KeyframeEffect::CanThrottle() const {
     // In either case we can throttle the animation because there is no
     // need to update on the main thread.
     return true;
+  }
+
+  // Do not throttle any animations during print preview.
+  if (frame->PresContext()->IsPrintingOrPrintPreview()) {
+    return false;
   }
 
   if (CanThrottleIfNotVisible(*frame)) {

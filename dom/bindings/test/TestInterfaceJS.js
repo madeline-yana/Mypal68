@@ -5,8 +5,8 @@
 
 "use strict";
 
-const { XPCOMUtils } = ChromeUtils.import(
-  "resource://gre/modules/XPCOMUtils.jsm"
+const { ComponentUtils } = ChromeUtils.import(
+  "resource://gre/modules/ComponentUtils.jsm"
 );
 const { Services } = ChromeUtils.import("resource://gre/modules/Services.jsm");
 
@@ -16,8 +16,8 @@ TestInterfaceJS.prototype = {
   classID: Components.ID("{2ac4e026-cf25-47d5-b067-78d553c3cad8}"),
   contractID: "@mozilla.org/dom/test-interface-js;1",
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIDOMGlobalPropertyInitializer,
-    Ci.mozITestInterfaceJS,
+    "nsIDOMGlobalPropertyInitializer",
+    "mozITestInterfaceJS",
   ]),
 
   init(win) {
@@ -225,4 +225,4 @@ TestInterfaceJS.prototype = {
   },
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([TestInterfaceJS]);
+this.NSGetFactory = ComponentUtils.generateNSGetFactory([TestInterfaceJS]);

@@ -16,6 +16,7 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/WindowGlobalActorsBinding.h"
 #include "mozilla/dom/WindowGlobalParent.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/InProcessChild.h"
 #include "nsDocShell.h"
 #include "nsFrameLoaderOwner.h"
@@ -107,9 +108,10 @@ already_AddRefed<WindowGlobalChild> WindowGlobalChild::Create(
     gWindowGlobalChildById = new WGCByIdMap();
     ClearOnShutdown(&gWindowGlobalChildById);
   }
-  auto entry = gWindowGlobalChildById->LookupForAdd(wgc->mInnerWindowId);
-  MOZ_RELEASE_ASSERT(!entry, "Duplicate WindowGlobalChild entry for ID!");
-  entry.OrInsert([&] { return wgc; });
+  gWindowGlobalChildById->WithEntryHandle(wgc->mInnerWindowId, [&](auto&& entry) {
+    MOZ_RELEASE_ASSERT(!entry, "Duplicate WindowGlobalChild entry for ID!");
+    entry.Insert(wgc);
+  });
 
   return wgc.forget();
 }
@@ -166,7 +168,7 @@ void WindowGlobalChild::Destroy() {
 
 static nsresult ChangeFrameRemoteness(WindowGlobalChild* aWgc,
                                       BrowsingContext* aBc,
-                                      const nsString& aRemoteType,
+                                      const nsCString& aRemoteType,
                                       uint64_t aPendingSwitchId,
                                       BrowserBridgeChild** aBridge) {
   MOZ_ASSERT(XRE_IsContentProcess(), "This doesn't make sense in the parent");
@@ -227,7 +229,7 @@ static nsresult ChangeFrameRemoteness(WindowGlobalChild* aWgc,
 }
 
 IPCResult WindowGlobalChild::RecvChangeFrameRemoteness(
-    dom::BrowsingContext* aBc, const nsString& aRemoteType,
+    dom::BrowsingContext* aBc, const nsCString& aRemoteType,
     uint64_t aPendingSwitchId, ChangeFrameRemotenessResolver&& aResolver) {
   MOZ_ASSERT(XRE_IsContentProcess(), "This doesn't make sense in the parent");
 
@@ -300,16 +302,16 @@ nsIURI* WindowGlobalChild::GetDocumentURI() {
   return mWindowGlobal->GetDocumentURI();
 }
 
-const nsAString& WindowGlobalChild::GetRemoteType() {
+const nsACString& WindowGlobalChild::GetRemoteType() {
   if (XRE_IsContentProcess()) {
     return ContentChild::GetSingleton()->GetRemoteType();
   }
 
-  return VoidString();
+  return VoidCString();
 }
 
 already_AddRefed<JSWindowActorChild> WindowGlobalChild::GetActor(
-    const nsAString& aName, ErrorResult& aRv) {
+    const nsACString& aName, ErrorResult& aRv) {
   if (mIPCClosed) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return nullptr;
@@ -336,7 +338,7 @@ already_AddRefed<JSWindowActorChild> WindowGlobalChild::GetActor(
   MOZ_RELEASE_ASSERT(!actor->GetManager(),
                      "mManager was already initialized once!");
   actor->Init(aName, this);
-  mWindowActors.Put(aName, RefPtr{actor});
+  mWindowActors.InsertOrUpdate(aName, RefPtr{actor});
   return actor.forget();
 }
 
@@ -349,7 +351,7 @@ void WindowGlobalChild::ActorDestroy(ActorDestroyReason aWhy) {
 #endif
 
   // Destroy our JSWindowActors, and reject any pending queries.
-  nsRefPtrHashtable<nsStringHashKey, JSWindowActorChild> windowActors;
+  nsRefPtrHashtable<nsCStringHashKey, JSWindowActorChild> windowActors;
   mWindowActors.SwapElements(windowActors);
   for (auto iter = windowActors.Iter(); !iter.Done(); iter.Next()) {
     iter.Data()->RejectPendingQueries();

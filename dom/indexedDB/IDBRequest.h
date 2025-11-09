@@ -9,7 +9,9 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/dom/IDBRequestBinding.h"
+#include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/DOMEventTargetHelper.h"
+#include "mozilla/HoldDropJSObjects.h"
 #include "nsCycleCollectionParticipant.h"
 #include "ReportInternalError.h"
 #include "SafeRefPtr.h"
@@ -62,15 +64,15 @@ class IDBRequest : public DOMEventTargetHelper {
   bool mHaveResultOrErrorCode;
 
  public:
-  [[nodiscard]] static RefPtr<IDBRequest> Create(
+  [[nodiscard]] static MovingNotNull<RefPtr<IDBRequest>> Create(
       JSContext* aCx, IDBDatabase* aDatabase,
       SafeRefPtr<IDBTransaction> aTransaction);
 
-  [[nodiscard]] static RefPtr<IDBRequest> Create(
+  [[nodiscard]] static MovingNotNull<RefPtr<IDBRequest>> Create(
       JSContext* aCx, IDBObjectStore* aSource, IDBDatabase* aDatabase,
       SafeRefPtr<IDBTransaction> aTransaction);
 
-  [[nodiscard]] static RefPtr<IDBRequest> Create(
+  [[nodiscard]] static MovingNotNull<RefPtr<IDBRequest>> Create(
       JSContext* aCx, IDBIndex* aSource, IDBDatabase* aDatabase,
       SafeRefPtr<IDBTransaction> aTransaction);
 

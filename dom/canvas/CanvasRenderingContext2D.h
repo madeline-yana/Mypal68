@@ -12,11 +12,11 @@
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "mozilla/dom/HTMLVideoElement.h"
+#include "mozilla/intl/Bidi.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/EnumeratedArray.h"
-#include "mozilla/ErrorResult.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/SurfaceFromElementResult.h"
 #include "mozilla/SVGObserverUtils.h"
@@ -25,14 +25,15 @@
 #include "gfx2DGlue.h"
 #include "Layers.h"
 #include "nsICanvasRenderingContextInternal.h"
-#include "nsBidi.h"
 #include "nsColor.h"
+#include "nsIFrame.h"
 
 class gfxFontGroup;
 class nsGlobalWindowInner;
 class nsXULElement;
 
 namespace mozilla {
+class ErrorResult;
 class PresShell;
 
 namespace gl {
@@ -806,7 +807,7 @@ class CanvasRenderingContext2D final : public nsICanvasRenderingContextInternal,
 
   nsTArray<RegionInfo> mHitRegionsOptions;
 
-  nsBidi mBidiEngine;
+  mozilla::intl::Bidi mBidiEngine;
 
   /**
    * Returns true if a shadow should be drawn along with a

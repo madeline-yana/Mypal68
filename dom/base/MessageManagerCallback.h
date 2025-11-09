@@ -42,7 +42,7 @@ class MessageManagerCallback {
     return nullptr;
   }
 
-  virtual void DoGetRemoteType(nsAString& aRemoteType,
+  virtual void DoGetRemoteType(nsACString& aRemoteType,
                                ErrorResult& aError) const;
 
  protected:

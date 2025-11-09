@@ -8,8 +8,7 @@
 
 interface WindowProxy;
 
-[Pref="dom.w3c_pointer_events.enabled",
- Exposed=Window]
+[Exposed=Window]
 interface PointerEvent : MouseEvent
 {
   constructor(DOMString type, optional PointerEventInit eventInitDict = {});

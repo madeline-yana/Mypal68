@@ -6,6 +6,7 @@
 #define nsIndexedDBProtocolHandler_h
 
 #include "nsIProtocolHandler.h"
+#include "nsISupports.h"
 #include "nsWeakReference.h"
 
 class nsIndexedDBProtocolHandler final : public nsIProtocolHandler,

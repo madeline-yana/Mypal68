@@ -29,13 +29,13 @@ typedef OfflineResourceList ApplicationCache;
  Exposed=Window]
 /*sealed*/ interface Window : EventTarget {
   // the current browsing context
-  [Unforgeable, Constant, StoreInSlot,
+  [LegacyUnforgeable, Constant, StoreInSlot,
    CrossOriginReadable] readonly attribute WindowProxy window;
   [Replaceable, Constant, StoreInSlot,
    CrossOriginReadable] readonly attribute WindowProxy self;
-  [Unforgeable, StoreInSlot, Pure] readonly attribute Document? document;
+  [LegacyUnforgeable, StoreInSlot, Pure] readonly attribute Document? document;
   [Throws] attribute DOMString name;
-  [PutForwards=href, Unforgeable, CrossOriginReadable,
+  [PutForwards=href, LegacyUnforgeable, CrossOriginReadable,
    CrossOriginWritable] readonly attribute Location location;
   [Throws] readonly attribute History history;
   readonly attribute CustomElementRegistry customElements;
@@ -57,13 +57,13 @@ typedef OfflineResourceList ApplicationCache;
   [Replaceable, Throws, CrossOriginReadable] readonly attribute WindowProxy frames;
   [Replaceable, CrossOriginReadable] readonly attribute unsigned long length;
   //[Unforgeable, Throws, CrossOriginReadable] readonly attribute WindowProxy top;
-  [Unforgeable, Throws, CrossOriginReadable] readonly attribute WindowProxy? top;
+  [LegacyUnforgeable, Throws, CrossOriginReadable] readonly attribute WindowProxy? top;
   [Throws, CrossOriginReadable] attribute any opener;
   //[Throws] readonly attribute WindowProxy parent;
   [Replaceable, Throws, CrossOriginReadable] readonly attribute WindowProxy? parent;
   [Throws, NeedsSubjectPrincipal] readonly attribute Element? frameElement;
   //[Throws] WindowProxy? open(optional USVString url = "about:blank", optional DOMString target = "_blank", [TreatNullAs=EmptyString] optional DOMString features = "");
-  [Throws] WindowProxy? open(optional USVString url = "", optional DOMString target = "", optional [TreatNullAs=EmptyString] DOMString features = "");
+  [Throws] WindowProxy? open(optional USVString url = "", optional DOMString target = "", optional [LegacyNullToEmptyString] DOMString features = "");
   getter object (DOMString name);
 
   // the user agent
@@ -302,8 +302,6 @@ partial interface Window {
            attribute EventHandler ondevicemotion;
            attribute EventHandler ondeviceorientation;
            attribute EventHandler onabsolutedeviceorientation;
-           attribute EventHandler ondeviceproximity;
-           attribute EventHandler onuserproximity;
            attribute EventHandler ondevicelight;
 
   void                      dump(DOMString str);

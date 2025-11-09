@@ -325,13 +325,13 @@ CustomElementRegistry::RunCustomElementCreationCallback::Run() {
   MOZ_ASSERT(!mRegistry->mElementCreationCallbacks.GetWeak(mAtom),
              "Callback should be removed.");
 
-  mozilla::UniquePtr<nsTHashtable<nsRefPtrHashKey<nsIWeakReference>>> elements;
+  mozilla::UniquePtr<nsTHashSet<RefPtr<nsIWeakReference>>> elements;
   mRegistry->mElementCreationCallbacksUpgradeCandidatesMap.Remove(mAtom,
                                                                   &elements);
   MOZ_ASSERT(elements, "There should be a list");
 
-  for (auto iter = elements->Iter(); !iter.Done(); iter.Next()) {
-    nsCOMPtr<Element> elem = do_QueryReferent(iter.Get()->GetKey());
+  for (const auto& key : *elements) {
+    nsCOMPtr<Element> elem = do_QueryReferent(key);
     if (!elem) {
       continue;
     }
@@ -353,7 +353,7 @@ CustomElementDefinition* CustomElementRegistry::LookupCustomElementDefinition(
     mElementCreationCallbacks.Get(aTypeAtom, getter_AddRefs(callback));
     if (callback) {
       mElementCreationCallbacks.Remove(aTypeAtom);
-      mElementCreationCallbacksUpgradeCandidatesMap.LookupOrAdd(aTypeAtom);
+      mElementCreationCallbacksUpgradeCandidatesMap.GetOrInsertNew(aTypeAtom);
       RefPtr<Runnable> runnable =
           new RunCustomElementCreationCallback(this, aTypeAtom, callback);
       nsContentUtils::AddScriptRunner(runnable.forget());
@@ -409,10 +409,10 @@ void CustomElementRegistry::RegisterUnresolvedElement(Element* aElement,
     return;
   }
 
-  nsTHashtable<nsRefPtrHashKey<nsIWeakReference>>* unresolved =
-      mCandidatesMap.LookupOrAdd(typeName);
+  nsTHashSet<RefPtr<nsIWeakReference>>* unresolved =
+      mCandidatesMap.GetOrInsertNew(typeName);
   nsWeakPtr elem = do_GetWeakReference(aElement);
-  unresolved->PutEntry(elem);
+  unresolved->Insert(elem);
 }
 
 void CustomElementRegistry::UnregisterUnresolvedElement(Element* aElement,
@@ -431,10 +431,10 @@ void CustomElementRegistry::UnregisterUnresolvedElement(Element* aElement,
   }
 #endif
 
-  nsTHashtable<nsRefPtrHashKey<nsIWeakReference>>* candidates = nullptr;
+  nsTHashSet<RefPtr<nsIWeakReference>>* candidates = nullptr;
   if (mCandidatesMap.Get(aTypeName, &candidates)) {
     MOZ_ASSERT(candidates);
-    candidates->RemoveEntry(weak);
+    candidates->Remove(weak);
   }
 }
 
@@ -549,7 +549,7 @@ namespace {
 
 class CandidateFinder {
  public:
-  CandidateFinder(nsTHashtable<nsRefPtrHashKey<nsIWeakReference>>& aCandidates,
+  CandidateFinder(nsTHashSet<RefPtr<nsIWeakReference>>& aCandidates,
                   Document* aDoc);
   nsTArray<nsCOMPtr<Element>> OrderedCandidates();
 
@@ -559,18 +559,17 @@ class CandidateFinder {
 };
 
 CandidateFinder::CandidateFinder(
-    nsTHashtable<nsRefPtrHashKey<nsIWeakReference>>& aCandidates,
-    Document* aDoc)
+    nsTHashSet<RefPtr<nsIWeakReference>>& aCandidates, Document* aDoc)
     : mDoc(aDoc), mCandidates(aCandidates.Count()) {
   MOZ_ASSERT(mDoc);
-  for (auto iter = aCandidates.Iter(); !iter.Done(); iter.Next()) {
-    nsCOMPtr<Element> elem = do_QueryReferent(iter.Get()->GetKey());
+  for (const auto& candidate : aCandidates) {
+    nsCOMPtr<Element> elem = do_QueryReferent(candidate);
     if (!elem) {
       continue;
     }
 
     Element* key = elem.get();
-    mCandidates.Put(key, elem.forget());
+    mCandidates.InsertOrUpdate(key, elem.forget());
   }
 }
 
@@ -613,7 +612,7 @@ void CustomElementRegistry::UpgradeCandidates(
     return;
   }
 
-  mozilla::UniquePtr<nsTHashtable<nsRefPtrHashKey<nsIWeakReference>>> candidates;
+  mozilla::UniquePtr<nsTHashSet<RefPtr<nsIWeakReference>>> candidates;
   if (mCandidatesMap.Remove(aKey, &candidates)) {
     MOZ_ASSERT(candidates);
     CustomElementReactionsStack* reactionsStack =
@@ -666,7 +665,8 @@ bool CustomElementRegistry::JSObjectToAtomArray(
 
   if (!iterable.isUndefined()) {
     if (!iterable.isObject()) {
-      aRv.ThrowTypeError<MSG_NOT_SEQUENCE>(NS_ConvertUTF16toUTF8(aName));
+      aRv.ThrowTypeError<MSG_CONVERSION_ERROR>(NS_ConvertUTF16toUTF8(aName),
+                                               "sequence");
       return false;
     }
 
@@ -677,7 +677,8 @@ bool CustomElementRegistry::JSObjectToAtomArray(
     }
 
     if (!iter.valueIsIterable()) {
-      aRv.ThrowTypeError<MSG_NOT_SEQUENCE>(NS_ConvertUTF16toUTF8(aName));
+      aRv.ThrowTypeError<MSG_CONVERSION_ERROR>(NS_ConvertUTF16toUTF8(aName),
+                                               "sequence");
       return false;
     }
 
@@ -916,16 +917,16 @@ void CustomElementRegistry::Define(
       }
     }
 
-    /**
-     * 14.6. Let disabledFeatures be an empty sequence<DOMString>.
-     * 14.7. Let disabledFeaturesIterable be Get(constructor,
-     *       "disabledFeatures"). Rethrow any exceptions.
-     * 14.8. If disabledFeaturesIterable is not undefined, then set
-     *       disabledFeatures to the result of converting
-     *       disabledFeaturesIterable to a sequence<DOMString>.
-     *       Rethrow any exceptions from the conversion.
-     */
-    if (StaticPrefs::dom_webcomponents_formAssociatedCustomElement_enabled()) {
+    if (StaticPrefs::dom_webcomponents_disabledFeatures_enabled()) {
+      /**
+       * 14.6. Let disabledFeatures be an empty sequence<DOMString>.
+       * 14.7. Let disabledFeaturesIterable be Get(constructor,
+       *       "disabledFeatures"). Rethrow any exceptions.
+       * 14.8. If disabledFeaturesIterable is not undefined, then set
+       *       disabledFeatures to the result of converting
+       *       disabledFeaturesIterable to a sequence<DOMString>.
+       *       Rethrow any exceptions from the conversion.
+       */
       if (!JSObjectToAtomArray(aCx, constructor, u"disabledFeatures"_ns,
                                disabledFeatures, aRv)) {
         return;
@@ -940,7 +941,9 @@ void CustomElementRegistry::Define(
       //        "shadow".
       disableShadow = disabledFeatures.Contains(
           static_cast<nsStaticAtom*>(nsGkAtoms::shadow));
+    }
 
+    if (StaticPrefs::dom_webcomponents_formAssociatedCustomElement_enabled()) {
       // 14.11. Let formAssociatedValue be Get(constructor, "formAssociated").
       //        Rethrow any exceptions.
       JS::Rooted<JS::Value> formAssociatedValue(aCx);
@@ -984,7 +987,7 @@ void CustomElementRegistry::Define(
       disableInternals, disableShadow);
 
   CustomElementDefinition* def = definition.get();
-  mCustomDefinitions.Put(nameAtom, std::move(definition));
+  mCustomDefinitions.InsertOrUpdate(nameAtom, std::move(definition));
 
   MOZ_ASSERT(mCustomDefinitions.Count() == mConstructors.count(),
              "Number of entries should be the same");
@@ -1043,7 +1046,7 @@ void CustomElementRegistry::SetElementCreationCallback(
   }
 
   RefPtr<CustomElementCreationCallback> callback = &aCallback;
-  mElementCreationCallbacks.Put(nameAtom, std::move(callback));
+  mElementCreationCallbacks.InsertOrUpdate(nameAtom, std::move(callback));
 }
 
 void CustomElementRegistry::Upgrade(nsINode& aRoot) {
@@ -1083,36 +1086,48 @@ void CustomElementRegistry::Get(JSContext* aCx, const nsAString& aName,
 
 already_AddRefed<Promise> CustomElementRegistry::WhenDefined(
     const nsAString& aName, ErrorResult& aRv) {
-  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(mWindow);
-  RefPtr<Promise> promise = Promise::Create(global, aRv);
+  // Define a function that lazily creates a Promise and perform some action on
+  // it when creation succeeded. It's needed in multiple cases below, but not in
+  // all of them.
+  auto createPromise = [&](auto&& action) -> already_AddRefed<Promise> {
+    nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(mWindow);
+    RefPtr<Promise> promise = Promise::Create(global, aRv);
 
-  if (aRv.Failed()) {
-    return nullptr;
-  }
+    if (aRv.Failed()) {
+      return nullptr;
+    }
+
+    action(promise);
+
+    return promise.forget();
+  };
 
   RefPtr<nsAtom> nameAtom(NS_Atomize(aName));
   Document* doc = mWindow->GetExtantDoc();
   uint32_t nameSpaceID =
       doc ? doc->GetDefaultNamespaceID() : kNameSpaceID_XHTML;
   if (!nsContentUtils::IsCustomElementName(nameAtom, nameSpaceID)) {
-    promise->MaybeReject(NS_ERROR_DOM_SYNTAX_ERR);
-    return promise.forget();
+    return createPromise([](const RefPtr<Promise>& promise) {
+      promise->MaybeReject(NS_ERROR_DOM_SYNTAX_ERR);
+    });
   }
 
   if (CustomElementDefinition* definition =
           mCustomDefinitions.GetWeak(nameAtom)) {
-    promise->MaybeResolve(definition->mConstructor);
-    return promise.forget();
+    return createPromise([&](const RefPtr<Promise>& promise) {
+      promise->MaybeResolve(definition->mConstructor);
+    });
   }
 
-  auto entry = mWhenDefinedPromiseMap.LookupForAdd(nameAtom);
-  if (entry) {
-    promise = entry.Data();
-  } else {
-    entry.OrInsert([&promise]() { return promise; });
-  }
-
-  return promise.forget();
+  return mWhenDefinedPromiseMap.WithEntryHandle(
+      nameAtom, [&](auto&& entry) -> already_AddRefed<Promise> {
+        if (!entry) {
+          return createPromise([&entry](const RefPtr<Promise>& promise) {
+            entry.Insert(promise);
+          });
+        }
+        return do_AddRef(entry.Data());
+      });
 }
 
 namespace {
@@ -1128,6 +1143,10 @@ static void DoUpgrade(Element* aElement, CustomElementDefinition* aDefinition,
         NS_ConvertUTF16toUTF8(aDefinition->mType->GetUTF16String()).get()));
     return;
   }
+
+  CustomElementData* data = aElement->GetCustomElementData();
+  MOZ_ASSERT(data, "CustomElementData should exist");
+  data->mState = CustomElementData::State::ePrecustomized;
 
   JS::Rooted<JS::Value> constructResult(RootingCx());
   // Rethrow the exception since it might actually throw the exception from the
@@ -1155,7 +1174,7 @@ static void DoUpgrade(Element* aElement, CustomElementDefinition* aDefinition,
 void CustomElementRegistry::Upgrade(Element* aElement,
                                     CustomElementDefinition* aDefinition,
                                     ErrorResult& aRv) {
-  RefPtr<CustomElementData> data = aElement->GetCustomElementData();
+  CustomElementData* data = aElement->GetCustomElementData();
   MOZ_ASSERT(data, "CustomElementData should exist");
 
   // Step 1.
@@ -1209,7 +1228,13 @@ void CustomElementRegistry::Upgrade(Element* aElement,
   DoUpgrade(aElement, aDefinition, MOZ_KnownLive(aDefinition->mConstructor),
             aRv);
   if (aRv.Failed()) {
-    MOZ_ASSERT(data->mState == CustomElementData::State::eFailed);
+    MOZ_ASSERT(data->mState == CustomElementData::State::eFailed ||
+               data->mState == CustomElementData::State::ePrecustomized);
+    // Spec doesn't set custom element state to failed here, but without this we
+    // would have inconsistent state on a custom elemet that is failed to
+    // upgrade, see https://github.com/whatwg/html/issues/6929, and
+    // https://github.com/web-platform-tests/wpt/pull/29911 for the test.
+    data->mState = CustomElementData::State::eFailed;
     aElement->SetCustomElementDefinition(nullptr);
     // Empty element's custom element reaction queue.
     data->mReactionQueue.Clear();
@@ -1272,6 +1297,15 @@ already_AddRefed<nsISupports> CustomElementRegistry::CallGetCustomInterface(
   return wrapper.forget();
 }
 
+void CustomElementRegistry::TraceDefinitions(JSTracer* aTrc) {
+  for (const auto& entry : mCustomDefinitions) {
+    const RefPtr<CustomElementDefinition>& definition = entry.GetData();
+    if (definition && definition->mConstructor) {
+      mozilla::TraceScriptHolder(definition->mConstructor, aTrc);
+    }
+  }
+}
+
 //-----------------------------------------------------
 // CustomElementReactionsStack
 
@@ -1332,7 +1366,7 @@ void CustomElementReactionsStack::EnqueueCallbackReaction(
 
 void CustomElementReactionsStack::Enqueue(Element* aElement,
                                           CustomElementReaction* aReaction) {
-  RefPtr<CustomElementData> elementData = aElement->GetCustomElementData();
+  CustomElementData* elementData = aElement->GetCustomElementData();
   MOZ_ASSERT(elementData, "CustomElementData should exist");
 
   if (mRecursionDepth) {
@@ -1394,7 +1428,7 @@ void CustomElementReactionsStack::InvokeReactions(ElementQueue* aElementQueue,
     // nullptr.
     MOZ_ASSERT(element);
 
-    RefPtr<CustomElementData> elementData = element->GetCustomElementData();
+    CustomElementData* elementData = element->GetCustomElementData();
     if (!elementData || !element->GetOwnerGlobal()) {
       // This happens when the document is destroyed and the element is already
       // unlinked, no need to fire the callbacks in this case.

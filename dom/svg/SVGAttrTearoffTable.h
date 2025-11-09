@@ -5,7 +5,8 @@
 #ifndef DOM_SVG_SVGATTRTEAROFFTABLE_H_
 #define DOM_SVG_SVGATTRTEAROFFTABLE_H_
 
-#include "nsDataHashtable.h"
+#include "mozilla/DebugOnly.h"
+#include "nsTHashMap.h"
 #include "nsDebug.h"
 #include "nsHashKeys.h"
 
@@ -35,8 +36,8 @@ class SVGAttrTearoffTable {
   void RemoveTearoff(SimpleType* aSimple);
 
  private:
-  typedef nsPtrHashKey<SimpleType> SimpleTypePtrKey;
-  typedef nsDataHashtable<SimpleTypePtrKey, TearoffType*> TearoffTable;
+  using SimpleTypePtrKey = nsPtrHashKey<SimpleType>;
+  using TearoffTable = nsTHashMap<SimpleTypePtrKey, TearoffType*>;
 
   TearoffTable* mTable;
 };
@@ -48,10 +49,7 @@ TearoffType* SVGAttrTearoffTable<SimpleType, TearoffType>::GetTearoff(
 
   TearoffType* tearoff = nullptr;
 
-#ifdef DEBUG
-  bool found =
-#endif
-      mTable->Get(aSimple, &tearoff);
+  DebugOnly<bool> found = mTable->Get(aSimple, &tearoff);
   MOZ_ASSERT(!found || tearoff,
              "null pointer stored in attribute tear-off map");
 
@@ -72,7 +70,7 @@ void SVGAttrTearoffTable<SimpleType, TearoffType>::AddTearoff(
     return;
   }
 
-  mTable->Put(aSimple, aTearoff);
+  mTable->InsertOrUpdate(aSimple, aTearoff);
 }
 
 template <class SimpleType, class TearoffType>

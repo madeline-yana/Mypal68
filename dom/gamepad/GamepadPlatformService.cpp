@@ -14,8 +14,7 @@
 
 using namespace mozilla::ipc;
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 namespace {
 
@@ -252,5 +251,4 @@ void GamepadPlatformService::Cleanup() {
   mChannelParents.Clear();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

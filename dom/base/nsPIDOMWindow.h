@@ -58,11 +58,6 @@ class TabGroup;
 class Element;
 class Navigator;
 class Performance;
-class Report;
-class ReportBody;
-#ifdef THE_REPORTING
-class ReportingObserver;
-#endif
 class Selection;
 class ServiceWorker;
 class ServiceWorkerDescriptor;
@@ -459,15 +454,10 @@ class nsPIDOMWindowInner : public mozIDOMWindow {
 
   virtual void SetFocusedElement(mozilla::dom::Element* aElement,
                                  uint32_t aFocusMethod = 0,
-                                 bool aNeedsFocus = false,
-                                 bool aWillShowOutline = false) = 0;
-  /**
-   * Get whether the focused element did show outlines when it was focused.
-   *
-   * Only for the focus manager. Returns false if there was no focused element.
-   */
-  bool FocusedElementShowedOutline() const {
-    return mFocusedElementShowedOutlines;
+                                 bool aNeedsFocus = false) = 0;
+
+  bool UnknownFocusMethodShouldShowOutline() const {
+    return mUnknownFocusMethodShouldShowOutline;
   }
 
   /**
@@ -538,7 +528,9 @@ class nsPIDOMWindowInner : public mozIDOMWindow {
    *
    * Inner windows only.
    */
+#ifdef MOZ_GAMEPAD
   virtual void SetHasGamepadEventListener(bool aHasGamepad = true) = 0;
+#endif
 
   /**
    * Return the window id of this window
@@ -578,17 +570,6 @@ class nsPIDOMWindowInner : public mozIDOMWindow {
   mozilla::dom::DocGroup* GetDocGroup() const;
   virtual nsISerialEventTarget* EventTargetFor(
       mozilla::TaskCategory aCategory) const = 0;
-
-#ifdef THE_REPORTING
-  void RegisterReportingObserver(mozilla::dom::ReportingObserver* aObserver,
-                                 bool aBuffered);
-
-  void UnregisterReportingObserver(mozilla::dom::ReportingObserver* aObserver);
-
-  void BroadcastReport(mozilla::dom::Report* aReport);
-
-  MOZ_CAN_RUN_SCRIPT void NotifyReportingObservers();
-#endif
 
   void SaveStorageAccessGranted(const nsACString& aPermissionKey);
 
@@ -664,7 +645,11 @@ class nsPIDOMWindowInner : public mozIDOMWindow {
   // notification.
   bool mHasNotifiedGlobalCreated;
 
-  bool mFocusedElementShowedOutlines = false;
+  // Whether when focused via an "unknown" focus method, we should show outlines
+  // by default or not. The initial value of this is true (so as to show
+  // outlines for stuff like html autofocus, or initial programmatic focus
+  // without any other user interaction).
+  bool mUnknownFocusMethodShouldShowOutline = true;
 
   uint32_t mMarkedCCGeneration;
 
@@ -686,12 +671,6 @@ class nsPIDOMWindowInner : public mozIDOMWindow {
   // The event dispatch code sets and unsets this while keeping
   // the event object alive.
   mozilla::dom::Event* mEvent;
-
-  // List of Report objects for ReportingObservers.
-#ifdef THE_REPORTING
-  nsTArray<RefPtr<mozilla::dom::ReportingObserver>> mReportingObservers;
-  nsTArray<RefPtr<mozilla::dom::Report>> mReportRecords;
-#endif
 
   // This is a list of storage access granted for the current window. These are
   // also set as permissions, but it could happen that we need to access them
@@ -961,14 +940,12 @@ class nsPIDOMWindowOuter : public mozIDOMWindowProxy {
 
   virtual void SetFocusedElement(mozilla::dom::Element* aElement,
                                  uint32_t aFocusMethod = 0,
-                                 bool aNeedsFocus = false,
-                                 bool aWillShowOutline = false) = 0;
+                                 bool aNeedsFocus = false) = 0;
   /**
-   * Get whether the focused element did show outlines when it was focused.
-   *
-   * Only for the focus manager. Returns false if there was no focused element.
+   * Get whether a focused element focused by unknown reasons (like script
+   * focus) should match the :focus-visible pseudo-class.
    */
-  bool FocusedElementShowedOutline() const;
+  bool UnknownFocusMethodShouldShowOutline() const;
 
   /**
    * Retrieves the method that was used to focus the current node.

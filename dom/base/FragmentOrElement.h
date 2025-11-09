@@ -17,7 +17,6 @@
 #include "nsCycleCollectionParticipant.h"  // NS_DECL_CYCLE_*
 #include "nsIContent.h"                    // base class
 #include "nsIHTMLCollection.h"
-#include "nsDataHashtable.h"
 
 class ContentUnbinder;
 class nsContentList;
@@ -186,7 +185,7 @@ class FragmentOrElement : public nsIContent {
     /**
      * Web components custom element data.
      */
-    RefPtr<CustomElementData> mCustomElementData;
+    UniquePtr<CustomElementData> mCustomElementData;
   };
 
   class nsDOMSlots : public nsIContent::nsContentSlots {

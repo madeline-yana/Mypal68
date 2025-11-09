@@ -4,16 +4,40 @@
 
 #include "LSDatabase.h"
 
-namespace mozilla {
-namespace dom {
+// Local includes
+#include "ActorsChild.h"
+#include "LSObject.h"
+#include "LSSnapshot.h"
 
-using namespace mozilla::services;
+// Global includes
+#include <cstring>
+#include <new>
+#include <utility>
+#include "MainThreadUtils.h"
+#include "mozilla/MacroForEach.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/Services.h"
+#include "mozilla/StaticPtr.h"
+#include "mozilla/dom/PBackgroundLSDatabase.h"
+#include "nsBaseHashtable.h"
+#include "nsCOMPtr.h"
+#include "nsTHashMap.h"
+#include "nsDebug.h"
+#include "nsError.h"
+#include "nsHashKeys.h"
+#include "nsIObserver.h"
+#include "nsIObserverService.h"
+#include "nsString.h"
+#include "nsTArray.h"
+#include "nscore.h"
+
+namespace mozilla::dom {
 
 namespace {
 
 #define XPCOM_SHUTDOWN_OBSERVER_TOPIC "xpcom-shutdown"
 
-typedef nsDataHashtable<nsCStringHashKey, LSDatabase*> LSDatabaseHashtable;
+typedef nsTHashMap<nsCStringHashKey, LSDatabase*> LSDatabaseHashtable;
 
 StaticAutoPtr<LSDatabaseHashtable> gLSDatabases;
 
@@ -51,15 +75,16 @@ LSDatabase::LSDatabase(const nsACString& aOrigin)
 
     sObserver = new Observer();
 
-    nsCOMPtr<nsIObserverService> obsSvc = GetObserverService();
+    nsCOMPtr<nsIObserverService> obsSvc =
+        mozilla::services::GetObserverService();
     MOZ_ASSERT(obsSvc);
 
     MOZ_ALWAYS_SUCCEEDS(
         obsSvc->AddObserver(sObserver, XPCOM_SHUTDOWN_OBSERVER_TOPIC, false));
   }
 
-  MOZ_ASSERT(!gLSDatabases->Get(mOrigin));
-  gLSDatabases->Put(mOrigin, this);
+  MOZ_ASSERT(!gLSDatabases->Contains(mOrigin));
+  gLSDatabases->InsertOrUpdate(mOrigin, this);
 }
 
 LSDatabase::~LSDatabase() {
@@ -351,7 +376,8 @@ void LSDatabase::AllowToClose() {
 
     MOZ_ASSERT(sObserver);
 
-    nsCOMPtr<nsIObserverService> obsSvc = GetObserverService();
+    nsCOMPtr<nsIObserverService> obsSvc =
+        mozilla::services::GetObserverService();
     MOZ_ASSERT(obsSvc);
 
     MOZ_ALWAYS_SUCCEEDS(
@@ -382,21 +408,16 @@ LSDatabase::Observer::Observe(nsISupports* aSubject, const char* aTopic,
 
   MOZ_ASSERT(gLSDatabases);
 
-  nsTArray<RefPtr<LSDatabase>> databases;
+  nsTArray<RefPtr<LSDatabase>> databases(gLSDatabases->Count());
+  std::transform(gLSDatabases->cbegin(), gLSDatabases->cend(),
+                 MakeBackInserter(databases),
+                 [](const auto& entry) { return entry.GetData(); });
 
-  for (auto iter = gLSDatabases->ConstIter(); !iter.Done(); iter.Next()) {
-    LSDatabase* database = iter.Data();
-    MOZ_ASSERT(database);
-
-    databases.AppendElement(database);
-  }
-
-  for (RefPtr<LSDatabase>& database : databases) {
+  for (const RefPtr<LSDatabase>& database : databases) {
     database->RequestAllowToClose();
   }
 
   return NS_OK;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

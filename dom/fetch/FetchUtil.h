@@ -8,7 +8,6 @@
 #include "nsString.h"
 #include "nsError.h"
 
-#include "mozilla/ErrorResult.h"
 #include "mozilla/dom/File.h"
 #include "mozilla/dom/FormData.h"
 
@@ -57,7 +56,7 @@ class FetchUtil final {
    * given JSContext before returning false. If executing in a worker, the
    * WorkerPrivate must be given.
    */
-  static bool StreamResponseToJS(JSContext* aCx, JS::HandleObject aObj,
+  static bool StreamResponseToJS(JSContext* aCx, JS::Handle<JSObject*> aObj,
                                  JS::MimeType aMimeType,
                                  JS::StreamConsumer* aConsumer,
                                  WorkerPrivate* aMaybeWorker);

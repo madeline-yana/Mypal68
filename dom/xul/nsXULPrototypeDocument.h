@@ -95,8 +95,6 @@ class nsXULPrototypeDocument final : public nsISerializable {
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsXULPrototypeDocument)
 
-  void TraceProtos(JSTracer* aTrc);
-
   bool WasL10nCached() { return mWasL10nCached; };
 
   void SetIsL10nCached();
@@ -115,7 +113,6 @@ class nsXULPrototypeDocument final : public nsISerializable {
   RefPtr<nsNodeInfoManager> mNodeInfoManager;
 
   uint32_t mCCGeneration;
-  uint32_t mGCNumber;
 
   nsXULPrototypeDocument();
   virtual ~nsXULPrototypeDocument();

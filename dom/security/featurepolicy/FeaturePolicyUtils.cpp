@@ -142,10 +142,11 @@ void FeaturePolicyUtils::ReportViolation(Document* aDocument,
   }
 #ifdef THE_REPORTING
   RefPtr<FeaturePolicyViolationReportBody> body =
-      new FeaturePolicyViolationReportBody(window, aFeatureName, fileName,
-                                           lineNumber, columnNumber,
+      new FeaturePolicyViolationReportBody(window->AsGlobal(), aFeatureName,
+                                           fileName, lineNumber, columnNumber,
                                            u"enforce"_ns);
-  ReportingUtils::Report(window, nsGkAtoms::featurePolicyViolation,
+
+  ReportingUtils::Report(window->AsGlobal(), nsGkAtoms::featurePolicyViolation,
                          u"default"_ns, NS_ConvertUTF8toUTF16(spec), body);
 #endif
 }

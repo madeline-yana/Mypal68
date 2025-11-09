@@ -57,7 +57,7 @@ class WindowGlobalParent final : public WindowGlobalActor,
   already_AddRefed<WindowGlobalChild> GetChildActor();
 
   // Get a JS actor object by name.
-  already_AddRefed<JSWindowActorParent> GetActor(const nsAString& aName,
+  already_AddRefed<JSWindowActorParent> GetActor(const nsACString& aName,
                                                  ErrorResult& aRv);
 
   // Get this actor's manager if it is not an in-process actor. Returns
@@ -93,7 +93,7 @@ class WindowGlobalParent final : public WindowGlobalActor,
   bool IsCurrentGlobal();
 
   already_AddRefed<Promise> ChangeFrameRemoteness(dom::BrowsingContext* aBc,
-                                                  const nsAString& aRemoteType,
+                                                  const nsACString& aRemoteType,
                                                   uint64_t aPendingSwitchId,
                                                   ErrorResult& aRv);
 
@@ -112,7 +112,7 @@ class WindowGlobalParent final : public WindowGlobalActor,
                        JS::Handle<JSObject*> aGivenProto) override;
 
  protected:
-  const nsAString& GetRemoteType() override;
+  const nsACString& GetRemoteType() override;
   JSWindowActor::Type GetSide() override { return JSWindowActor::Type::Parent; }
 
   // IPC messages
@@ -135,7 +135,7 @@ class WindowGlobalParent final : public WindowGlobalActor,
   nsCOMPtr<nsIURI> mDocumentURI;
   RefPtr<nsFrameLoader> mFrameLoader;
   RefPtr<CanonicalBrowsingContext> mBrowsingContext;
-  nsRefPtrHashtable<nsStringHashKey, JSWindowActorParent> mWindowActors;
+  nsRefPtrHashtable<nsCStringHashKey, JSWindowActorParent> mWindowActors;
   uint64_t mInnerWindowId;
   uint64_t mOuterWindowId;
   bool mInProcess;

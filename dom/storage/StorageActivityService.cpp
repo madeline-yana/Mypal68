@@ -4,10 +4,17 @@
 
 #include "StorageActivityService.h"
 
+#include "mozilla/ipc/BackgroundChild.h"
 #include "mozilla/ipc/BackgroundUtils.h"
+#include "mozilla/ipc/PBackgroundChild.h"
+#include "mozilla/ipc/PBackgroundSharedTypes.h"
+#include "mozilla/BasePrincipal.h"
+#include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
 #include "nsCOMPtr.h"
+#include "nsComponentManagerUtils.h"
 #include "nsIMutableArray.h"
+#include "nsIObserverService.h"
 #include "nsIPrincipal.h"
 #include "nsSupportsPrimitives.h"
 #include "nsXPCOM.h"
@@ -152,7 +159,7 @@ void StorageActivityService::SendActivityInternal(nsIPrincipal* aPrincipal) {
 void StorageActivityService::SendActivityInternal(const nsACString& aOrigin) {
   MOZ_ASSERT(XRE_IsParentProcess());
 
-  mActivities.Put(aOrigin, PR_Now());
+  mActivities.InsertOrUpdate(aOrigin, PR_Now());
   MaybeStartTimer();
 }
 
@@ -160,7 +167,8 @@ void StorageActivityService::SendActivityToParent(nsIPrincipal* aPrincipal) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!XRE_IsParentProcess());
 
-  PBackgroundChild* actor = BackgroundChild::GetOrCreateForCurrentThread();
+  ::mozilla::ipc::PBackgroundChild* actor =
+      ::mozilla::ipc::BackgroundChild::GetOrCreateForCurrentThread();
   if (NS_WARN_IF(!actor)) {
     return;
   }
@@ -248,10 +256,10 @@ StorageActivityService::GetActiveOrigins(PRTime aFrom, PRTime aTo,
     return rv;
   }
 
-  for (auto iter = mActivities.Iter(); !iter.Done(); iter.Next()) {
-    if (iter.UserData() >= aFrom && iter.UserData() <= aTo) {
+  for (const auto& activityEntry : mActivities) {
+    if (activityEntry.GetData() >= aFrom && activityEntry.GetData() <= aTo) {
       RefPtr<BasePrincipal> principal =
-          BasePrincipal::CreateCodebasePrincipal(iter.Key());
+          BasePrincipal::CreateCodebasePrincipal(activityEntry.GetKey());
       MOZ_ASSERT(principal);
 
       rv = devices->AppendElement(principal);
@@ -278,7 +286,7 @@ StorageActivityService::MoveOriginInTime(nsIPrincipal* aPrincipal,
     return rv;
   }
 
-  mActivities.Put(origin, aWhen / PR_USEC_PER_SEC);
+  mActivities.InsertOrUpdate(origin, aWhen / PR_USEC_PER_SEC);
   return NS_OK;
 }
 

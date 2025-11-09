@@ -30,6 +30,7 @@
 #endif
 #include "mozilla/dom/UnionTypes.h"
 #include "mozilla/dom/WindowBinding.h"  // For IdleRequestCallback/Options
+#include "mozilla/dom/WorkerPrivate.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "mozilla/net/UrlClassifierFeatureFactory.h"
 #include "IOActivityMonitor.h"
@@ -445,26 +446,21 @@ void ChromeUtils::IdleDispatch(const GlobalObject& aGlobal,
 
 /* static */
 void ChromeUtils::Import(const GlobalObject& aGlobal,
-                         const nsAString& aResourceURI,
+                         const nsACString& aResourceURI,
                          const Optional<JS::Handle<JSObject*>>& aTargetObj,
                          JS::MutableHandle<JSObject*> aRetval,
                          ErrorResult& aRv) {
   RefPtr<mozJSComponentLoader> moduleloader = mozJSComponentLoader::Get();
   MOZ_ASSERT(moduleloader);
 
-  NS_ConvertUTF16toUTF8 registryLocation(aResourceURI);
-
   AUTO_PROFILER_LABEL_DYNAMIC_NSCSTRING_NONSENSITIVE("ChromeUtils::Import",
-                                                     OTHER, registryLocation);
+                                                     OTHER, aResourceURI);
 
   JSContext* cx = aGlobal.Context();
 
-  bool ignoreExports = aTargetObj.WasPassed() && !aTargetObj.Value();
-
   JS::RootedObject global(cx);
   JS::RootedObject exports(cx);
-  nsresult rv = moduleloader->Import(cx, registryLocation, &global, &exports,
-                                     ignoreExports);
+  nsresult rv = moduleloader->Import(cx, aResourceURI, &global, &exports);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
@@ -474,20 +470,6 @@ void ChromeUtils::Import(const GlobalObject& aGlobal,
   // exception on the JSContext.  Check for that case.
   if (JS_IsExceptionPending(cx)) {
     aRv.NoteJSContextException(cx);
-    return;
-  }
-
-  if (ignoreExports) {
-    // Since we're ignoring exported symbols, return the module global rather
-    // than an exports object.
-    //
-    // Note: This behavior is deprecated, since it is incompatible with ES6
-    // module semantics, which don't include any such global object.
-    if (!JS_WrapObject(cx, &global)) {
-      aRv.Throw(NS_ERROR_FAILURE);
-      return;
-    }
-    aRetval.set(global);
     return;
   }
 
@@ -503,6 +485,38 @@ void ChromeUtils::Import(const GlobalObject& aGlobal,
     return;
   }
   aRetval.set(exports);
+}
+
+/* static */
+void ChromeUtils::ImportModule(const GlobalObject& aGlobal,
+                               const nsAString& aResourceURI,
+                               JS::MutableHandle<JSObject*> aRetval,
+                               ErrorResult& aRv) {
+  RefPtr<mozJSComponentLoader> moduleloader = mozJSComponentLoader::Get();
+  MOZ_ASSERT(moduleloader);
+
+  NS_ConvertUTF16toUTF8 registryLocation(aResourceURI);
+
+  AUTO_PROFILER_LABEL_DYNAMIC_NSCSTRING_NONSENSITIVE(
+      "ChromeUtils::ImportModule", OTHER, registryLocation);
+
+  JSContext* cx = aGlobal.Context();
+
+  JS::RootedObject moduleNamespace(cx);
+  nsresult rv =
+      moduleloader->ImportModule(cx, registryLocation, &moduleNamespace);
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+    return;
+  }
+
+  MOZ_ASSERT(!JS_IsExceptionPending(cx));
+
+  if (!JS_WrapObject(cx, &moduleNamespace)) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return;
+  }
+  aRetval.set(moduleNamespace);
 }
 
 namespace module_getter {
@@ -802,19 +816,17 @@ already_AddRefed<Promise> ChromeUtils::RequestProcInfo(GlobalObject& aGlobal,
                         return;
                       }
                       // Converting the Content Type into a ProcType
-                      nsAutoString processType;
+                      nsAutoCString processType;
                       processType.Assign(contentParent->GetRemoteType());
-                      if (processType.EqualsLiteral(DEFAULT_REMOTE_TYPE)) {
+                      if (processType == DEFAULT_REMOTE_TYPE) {
                         type = mozilla::ProcType::Web;
-                      } else if (processType.EqualsLiteral(FILE_REMOTE_TYPE)) {
+                      } else if (processType == FILE_REMOTE_TYPE) {
                         type = mozilla::ProcType::File;
-                      } else if (processType.EqualsLiteral(
-                                     EXTENSION_REMOTE_TYPE)) {
+                      } else if (processType == EXTENSION_REMOTE_TYPE) {
                         type = mozilla::ProcType::Extension;
-                      } else if (processType.EqualsLiteral(PRIVILEGED_REMOTE_TYPE)) {
+                      } else if (processType == PRIVILEGED_REMOTE_TYPE) {
                         type = mozilla::ProcType::Privileged;
-                      } else if (processType.EqualsLiteral(
-                                     LARGE_ALLOCATION_REMOTE_TYPE)) {
+                      } else if (processType == LARGE_ALLOCATION_REMOTE_TYPE) {
                         type = mozilla::ProcType::WebLargeAllocation;
                       }
                       childId = contentParent->ChildID();
@@ -1048,7 +1060,7 @@ void ChromeUtils::CreateError(const GlobalObject& aGlobal,
 
     JS::Rooted<JS::Value> err(cx);
     if (!JS::CreateError(cx, JSEXN_ERR, stack, fileName, line, column, nullptr,
-                         message, &err)) {
+                         message, JS::NothingHandleValue, &err)) {
       return;
     }
 
@@ -1144,7 +1156,7 @@ void ChromeUtils::ResetLastExternalProtocolIframeAllowed(
 
 /* static */
 void ChromeUtils::RegisterWindowActor(const GlobalObject& aGlobal,
-                                      const nsAString& aName,
+                                      const nsACString& aName,
                                       const WindowActorOptions& aOptions,
                                       ErrorResult& aRv) {
   MOZ_ASSERT(XRE_IsParentProcess());
@@ -1155,7 +1167,7 @@ void ChromeUtils::RegisterWindowActor(const GlobalObject& aGlobal,
 
 /* static */
 void ChromeUtils::UnregisterWindowActor(const GlobalObject& aGlobal,
-                                        const nsAString& aName) {
+                                        const nsACString& aName) {
   MOZ_ASSERT(XRE_IsParentProcess());
 
   RefPtr<JSWindowActorService> service = JSWindowActorService::GetSingleton();

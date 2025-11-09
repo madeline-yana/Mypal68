@@ -17,9 +17,7 @@
 
 #include "mozilla/Unused.h"
 
-
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 /*
  * Implementation of the test service. This is just to provide a simple binding
@@ -247,5 +245,4 @@ JSObject* GamepadServiceTest::WrapObject(JSContext* aCx,
   return GamepadServiceTest_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

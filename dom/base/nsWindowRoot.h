@@ -12,7 +12,7 @@ class nsIGlobalObject;
 #include "nsIWeakReferenceUtils.h"
 #include "nsPIWindowRoot.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 #include "nsHashKeys.h"
 
 class nsWindowRoot final : public nsPIWindowRoot {
@@ -26,9 +26,10 @@ class nsWindowRoot final : public nsPIWindowRoot {
 
   bool ComputeDefaultWantsUntrusted(mozilla::ErrorResult& aRv) final;
 
-  bool DispatchEvent(mozilla::dom::Event& aEvent,
-                     mozilla::dom::CallerType aCallerType,
-                     mozilla::ErrorResult& aRv) override;
+  // TODO: Convert this to MOZ_CAN_RUN_SCRIPT (bug 1415230)
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY bool DispatchEvent(
+      mozilla::dom::Event& aEvent, mozilla::dom::CallerType aCallerType,
+      mozilla::ErrorResult& aRv) override;
 
   void GetEventTargetParent(mozilla::EventChainPreVisitor& aVisitor) override;
 
@@ -75,8 +76,7 @@ class nsWindowRoot final : public nsPIWindowRoot {
   virtual ~nsWindowRoot();
 
   void GetEnabledDisabledCommandsForControllers(
-      nsIControllers* aControllers,
-      nsTHashtable<nsCStringHashKey>& aCommandsHandled,
+      nsIControllers* aControllers, nsTHashSet<nsCString>& aCommandsHandled,
       nsTArray<nsCString>& aEnabledCommands,
       nsTArray<nsCString>& aDisabledCommands);
 
@@ -93,7 +93,7 @@ class nsWindowRoot final : public nsPIWindowRoot {
 
   // The BrowserParents that are currently registered with this top-level
   // window.
-  typedef nsTHashtable<nsRefPtrHashKey<nsIWeakReference>> WeakBrowserTable;
+  typedef nsTHashSet<RefPtr<nsIWeakReference>> WeakBrowserTable;
   WeakBrowserTable mWeakBrowsers;
 };
 

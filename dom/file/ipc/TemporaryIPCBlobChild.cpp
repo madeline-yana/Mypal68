@@ -3,12 +3,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "TemporaryIPCBlobChild.h"
+#include "mozilla/dom/BlobImpl.h"
 #include "mozilla/dom/MutableBlobStorage.h"
 #include "mozilla/dom/IPCBlobUtils.h"
 #include <private/pprio.h>
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 TemporaryIPCBlobChild::TemporaryIPCBlobChild(MutableBlobStorage* aStorage)
     : mMutableBlobStorage(aStorage), mActive(true) {
@@ -80,5 +80,4 @@ void TemporaryIPCBlobChild::AskForBlob(TemporaryIPCBlobChildCallback* aCallback,
   SendOperationDone(nsCString(aContentType), fdd);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

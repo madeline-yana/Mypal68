@@ -7,6 +7,7 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/EnumSet.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/TextControlElement.h"
 #include "mozilla/TextEditor.h"
@@ -170,31 +171,30 @@ class TextControlState final : public SupportsWeakPtr {
    * OnEditActionHandled() is called when mTextEditor handles something
    * and immediately before dispatching "input" event.
    */
-  MOZ_CAN_RUN_SCRIPT MOZ_MUST_USE nsresult OnEditActionHandled();
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT nsresult OnEditActionHandled();
 
-  enum SetValueFlags {
-    // The call is for internal processing.
-    eSetValue_Internal = 1 << 0,
-    // The value is changed by a call of setUserInput() from chrome.
-    eSetValue_BySetUserInput = 1 << 1,
+  enum class ValueSetterOption {
+    // The call is for setting value to initial one, computed one, etc.
+    ByInternalAPI,
+    // The value is changed by a call of setUserInput() API from chrome.
+    BySetUserInputAPI,
     // The value is changed by changing value attribute of the element or
     // something like setRangeText().
-    eSetValue_ByContent = 1 << 2,
+    ByContentAPI,
     // Whether the value change should be notified to the frame/contet nor not.
-    eSetValue_Notify = 1 << 3,
+    UpdateOverlayTextVisibilityAndInvalidateFrame,
     // Whether to move the cursor to end of the value (in the case when we have
     // cached selection offsets), in the case when the value has changed.  If
-    // this is not set and
-    // eSetValue_MoveCursorToBeginSetSelectionDirectionForward
+    // this is not set and MoveCursorToBeginSetSelectionDirectionForward
     // is not set, the cached selection offsets will simply be clamped to
     // be within the length of the new value. In either case, if the value has
     // not changed the cursor won't move.
     // TODO(mbrodesser): update comment and enumerator identifier to reflect
     // that also the direction is set to forward.
-    eSetValue_MoveCursorToEndIfValueChanged = 1 << 4,
+    MoveCursorToEndIfValueChanged,
 
     // The value change should preserve undo history.
-    eSetValue_PreserveHistory = 1 << 5,
+    PreserveUndoHistory,
 
     // Whether it should be tried to move the cursor to the beginning of the
     // text control and set the selection direction to "forward".
@@ -202,8 +202,10 @@ class TextControlState final : public SupportsWeakPtr {
     // (https://bugzilla.mozilla.org/show_bug.cgi?id=1541454), it should be set
     // to "none" and only fall back to "forward" if the platform doesn't support
     // it.
-    eSetValue_MoveCursorToBeginSetSelectionDirectionForward = 1 << 6,
+    MoveCursorToBeginSetSelectionDirectionForward,
   };
+  using ValueSetterOptions = EnumSet<ValueSetterOption, uint32_t>;
+
   /**
    * SetValue() sets the value to aValue with replacing \r\n and \r with \n.
    *
@@ -211,15 +213,16 @@ class TextControlState final : public SupportsWeakPtr {
    * @param aOldValue   Optional.  If you have already know current value,
    *                    set this to it.  However, this must not contain \r
    *                    for the performance.
-   * @param aFlags      See SetValueFlags.
+   * @param aOptions    See ValueSetterOption.
    */
-  MOZ_CAN_RUN_SCRIPT MOZ_MUST_USE bool SetValue(const nsAString& aValue,
-                                                const nsAString* aOldValue,
-                                                uint32_t aFlags);
-  MOZ_CAN_RUN_SCRIPT MOZ_MUST_USE bool SetValue(const nsAString& aValue,
-                                                uint32_t aFlags) {
-    return SetValue(aValue, nullptr, aFlags);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT bool SetValue(
+      const nsAString& aValue, const nsAString* aOldValue,
+      const ValueSetterOptions& aOptions);
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT bool SetValue(
+      const nsAString& aValue, const ValueSetterOptions& aOptions) {
+    return SetValue(aValue, nullptr, aOptions);
   }
+
   /**
    * GetValue() returns current value either with or without TextEditor.
    * The result never includes \r.
@@ -273,8 +276,6 @@ class TextControlState final : public SupportsWeakPtr {
 
   struct SelectionProperties {
    public:
-    SelectionProperties()
-        : mStart(0), mEnd(0), mDirection(nsITextControlFrame::eForward) {}
     bool IsDefault() const {
       return mStart == 0 && mEnd == 0 &&
              mDirection == nsITextControlFrame::eForward;
@@ -282,12 +283,12 @@ class TextControlState final : public SupportsWeakPtr {
     uint32_t GetStart() const { return mStart; }
     void SetStart(uint32_t value) {
       mIsDirty = true;
-      mStart = value;
+      mStart = std::min(value, mMaxLength);
     }
     uint32_t GetEnd() const { return mEnd; }
     void SetEnd(uint32_t value) {
       mIsDirty = true;
-      mEnd = value;
+      mEnd = std::min(value, mMaxLength);
     }
     nsITextControlFrame::SelectionDirection GetDirection() const {
       return mDirection;
@@ -296,15 +297,25 @@ class TextControlState final : public SupportsWeakPtr {
       mIsDirty = true;
       mDirection = value;
     }
+    void SetMaxLength(uint32_t aMax) {
+      mMaxLength = aMax;
+      // recompute against the new max length
+      SetStart(GetStart());
+      SetEnd(GetEnd());
+    }
+
     // return true only if mStart, mEnd, or mDirection have been modified,
     // or if SetIsDirty() was explicitly called.
     bool IsDirty() const { return mIsDirty; }
     void SetIsDirty() { mIsDirty = true; }
 
    private:
-    uint32_t mStart, mEnd;
+    uint32_t mStart = 0;
+    uint32_t mEnd = 0;
+    uint32_t mMaxLength = 0;
     bool mIsDirty = false;
-    nsITextControlFrame::SelectionDirection mDirection;
+    nsITextControlFrame::SelectionDirection mDirection =
+        nsITextControlFrame::eForward;
   };
 
   bool IsSelectionCached() const { return mSelectionCached; }

@@ -18,8 +18,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(IFrame)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLIFrameElement)
 
@@ -61,7 +60,7 @@ HTMLIFrameElement::HTMLIFrameElement(
   mFeaturePolicy->SetDefaultOrigin(origin);
 }
 
-HTMLIFrameElement::~HTMLIFrameElement() {}
+HTMLIFrameElement::~HTMLIFrameElement() = default;
 
 NS_IMPL_ELEMENT_CLONE(HTMLIFrameElement)
 
@@ -277,5 +276,4 @@ void HTMLIFrameElement::RefreshFeaturePolicy(bool aParseAllowAttribute) {
   }
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

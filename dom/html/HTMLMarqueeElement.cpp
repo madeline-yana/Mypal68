@@ -15,8 +15,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Marquee)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 HTMLMarqueeElement::~HTMLMarqueeElement() = default;
 
@@ -170,5 +169,4 @@ void HTMLMarqueeElement::Stop() {
   }
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

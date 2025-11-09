@@ -4,13 +4,12 @@
 
 #include "GamepadTestChannelChild.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 void GamepadTestChannelChild::AddPromise(const uint32_t& aID,
                                          Promise* aPromise) {
   MOZ_ASSERT(!mPromiseList.Get(aID, nullptr));
-  mPromiseList.Put(aID, RefPtr{aPromise});
+  mPromiseList.InsertOrUpdate(aID, RefPtr{aPromise});
 }
 
 mozilla::ipc::IPCResult GamepadTestChannelChild::RecvReplyGamepadIndex(
@@ -25,5 +24,4 @@ mozilla::ipc::IPCResult GamepadTestChannelChild::RecvReplyGamepadIndex(
   return IPC_OK();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

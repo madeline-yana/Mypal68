@@ -19,7 +19,7 @@ interface DOMImplementation {
                                   DOMString systemId);
   [Throws]
   Document createDocument(DOMString? namespace,
-                          [TreatNullAs=EmptyString] DOMString qualifiedName,
+                          [LegacyNullToEmptyString] DOMString qualifiedName,
                           optional DocumentType? doctype = null);
   [Throws]
   Document createHTMLDocument(optional DOMString title);

@@ -200,8 +200,7 @@ nsresult nsXULPopupListener::FireFocusOnTargetContent(
   nsIFrame* currFrame = targetFrame;
   // Look for the nearest enclosing focusable frame.
   while (currFrame) {
-    int32_t tabIndexUnused;
-    if (currFrame->IsFocusable(&tabIndexUnused, true) &&
+    if (currFrame->IsFocusable(/* aWithMouse = */ true) &&
         currFrame->GetContent()->IsElement()) {
       newFocusElement = currFrame->GetContent()->AsElement();
       break;
@@ -209,8 +208,7 @@ nsresult nsXULPopupListener::FireFocusOnTargetContent(
     currFrame = currFrame->GetParent();
   }
 
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (fm) {
+  if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
     if (newFocusElement) {
       uint32_t focusFlags =
           nsIFocusManager::FLAG_BYMOUSE | nsIFocusManager::FLAG_NOSCROLL;

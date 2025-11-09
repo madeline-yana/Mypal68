@@ -7,8 +7,7 @@
 #include "mozilla/Assertions.h"
 #include "nsJSUtils.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 //-----------------------------------------------------------------------------
 // TimeoutHandler
@@ -151,5 +150,4 @@ bool CallbackTimeoutHandler::Call(const char* aExecutionReason) {
 
 void CallbackTimeoutHandler::MarkForCC() { mFunction->MarkForCC(); }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

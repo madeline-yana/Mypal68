@@ -20,8 +20,7 @@
 #  define ASSERT_UNLESS_FUZZING(...) MOZ_ASSERT(false, __VA_ARGS__)
 #endif
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 /* static */
 StaticAutoPtr<ContentProcessManager> ContentProcessManager::sSingleton;
@@ -41,9 +40,10 @@ void ContentProcessManager::AddContentProcess(ContentParent* aChildCp) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aChildCp);
 
-  auto entry = mContentParentMap.LookupForAdd(aChildCp->ChildID());
-  MOZ_ASSERT_IF(entry, entry.Data() == aChildCp);
-  entry.OrInsert([&] { return aChildCp; });
+  mContentParentMap.WithEntryHandle(aChildCp->ChildID(), [&](auto&& entry) {
+    MOZ_ASSERT_IF(entry, entry.Data() == aChildCp);
+    entry.OrInsert(aChildCp);
+  });
 }
 
 void ContentProcessManager::RemoveContentProcess(
@@ -69,10 +69,16 @@ bool ContentProcessManager::RegisterRemoteFrame(BrowserParent* aChildBp) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aChildBp);
 
-  auto entry = mBrowserParentMap.LookupForAdd(aChildBp->GetTabId());
-  MOZ_ASSERT_IF(entry, entry.Data() == aChildBp);
-  entry.OrInsert([&] { return aChildBp; });
-  return !entry;
+  return mBrowserParentMap.WithEntryHandle(
+      aChildBp->GetTabId(), [&](auto&& entry) {
+        if (entry) {
+          MOZ_ASSERT(entry.Data() == aChildBp);
+          return false;
+        }
+
+        entry.Insert(aChildBp);
+        return true;
+      });
 }
 
 void ContentProcessManager::UnregisterRemoteFrame(const TabId& aChildTabId) {
@@ -129,5 +135,4 @@ ContentProcessManager::GetTopLevelBrowserParentByProcessAndTabId(
   return browserParent.forget();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

@@ -7,6 +7,7 @@
  */
 
 #include "mozilla/dom/Selection.h"
+#include "mozilla/intl/BidiEmbeddingLevel.h"
 
 #include "mozilla/AccessibleCaretEventHub.h"
 #include "mozilla/AsyncEventDispatcher.h"
@@ -21,6 +22,7 @@
 #include "mozilla/ErrorResult.h"
 #include "mozilla/EventStates.h"
 #include "mozilla/HTMLEditor.h"
+#include "mozilla/Logging.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/RangeBoundary.h"
 #include "mozilla/RangeUtils.h"
@@ -75,6 +77,8 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+static LazyLogModule sSelectionLog("Selection");
 
 //#define DEBUG_TABLE 1
 
@@ -374,7 +378,9 @@ Nullable<int16_t> Selection::GetCaretBidiLevel(
     aRv.Throw(NS_ERROR_NOT_INITIALIZED);
     return Nullable<int16_t>();
   }
-  nsBidiLevel caretBidiLevel = mFrameSelection->GetCaretBidiLevel();
+  mozilla::intl::BidiEmbeddingLevel caretBidiLevel =
+      static_cast<mozilla::intl::BidiEmbeddingLevel>(
+          mFrameSelection->GetCaretBidiLevel());
   return (caretBidiLevel & BIDI_LEVEL_UNDEFINED)
              ? Nullable<int16_t>()
              : Nullable<int16_t>(caretBidiLevel);
@@ -392,7 +398,7 @@ void Selection::SetCaretBidiLevel(const Nullable<int16_t>& aCaretBidiLevel,
     mFrameSelection->UndefineCaretBidiLevel();
   } else {
     mFrameSelection->SetCaretBidiLevelAndMaybeSchedulePaint(
-        aCaretBidiLevel.Value());
+        mozilla::intl::BidiEmbeddingLevel(aCaretBidiLevel.Value()));
   }
 }
 
@@ -540,6 +546,7 @@ DocGroup* Selection::GetDocGroup() const {
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(Selection)
 
+MOZ_CAN_RUN_SCRIPT_BOUNDARY
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Selection)
   // Unlink the selection listeners *before* we do RemoveAllRanges since
   // we don't want to notify the listeners during JS GC (they could be
@@ -550,7 +557,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Selection)
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSelectionChangeEventDispatcher)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSelectionListeners)
-  tmp->RemoveAllRanges(IgnoreErrors());
+  MOZ_KnownLive(tmp)->RemoveAllRanges(IgnoreErrors());
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mFrameSelection)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -917,6 +924,12 @@ nsresult Selection::AddRangesForSelectableNodes(
 
   NS_ASSERTION(aOutIndex, "aOutIndex can't be null");
 
+  MOZ_LOG(
+      sSelectionLog, LogLevel::Debug,
+      ("%s: selection=%p, type=%i, range=(%p, StartOffset=%u, EndOffset=%u)",
+       __FUNCTION__, this, static_cast<int>(GetType()), aRange,
+       aRange->StartOffset(), aRange->EndOffset()));
+
   if (mUserInitiated) {
     return AddRangesForUserSelectableNodes(aRange, aOutIndex,
                                            aDispatchSelectstartEvent);
@@ -1272,33 +1285,23 @@ nsresult Selection::StyledRanges::GetIndicesForInterval(
   return NS_OK;
 }
 
-nsresult Selection::GetPrimaryFrameForAnchorNode(nsIFrame** aReturnFrame) {
+nsIFrame* Selection::GetPrimaryFrameForAnchorNode() const {
   MOZ_ASSERT(mSelectionType == SelectionType::eNormal);
 
-  if (!aReturnFrame) return NS_ERROR_NULL_POINTER;
-
   int32_t frameOffset = 0;
-  *aReturnFrame = 0;
   nsCOMPtr<nsIContent> content = do_QueryInterface(GetAnchorNode());
   if (content && mFrameSelection) {
-    *aReturnFrame = nsFrameSelection::GetFrameForNodeOffset(
+    return nsFrameSelection::GetFrameForNodeOffset(
         content, AnchorOffset(), mFrameSelection->GetHint(), &frameOffset);
-    if (*aReturnFrame) return NS_OK;
   }
-  return NS_ERROR_FAILURE;
+  return nullptr;
 }
 
-nsresult Selection::GetPrimaryFrameForFocusNode(nsIFrame** aReturnFrame,
-                                                int32_t* aOffsetUsed,
-                                                bool aVisual) {
-  if (!aReturnFrame) {
-    return NS_ERROR_NULL_POINTER;
-  }
-
-  *aReturnFrame = nullptr;
+nsIFrame* Selection::GetPrimaryFrameForFocusNode(bool aVisual,
+                                                 int32_t* aOffsetUsed) const {
   nsINode* focusNode = GetFocusNode();
   if (!focusNode || !focusNode->IsContent() || !mFrameSelection) {
-    return NS_ERROR_FAILURE;
+    return nullptr;
   }
 
   nsCOMPtr<nsIContent> content = focusNode->AsContent();
@@ -1307,60 +1310,52 @@ nsresult Selection::GetPrimaryFrameForFocusNode(nsIFrame** aReturnFrame,
     aOffsetUsed = &frameOffset;
   }
 
-  nsresult rv = GetPrimaryOrCaretFrameForNodeOffset(
-      content, FocusOffset(), aReturnFrame, aOffsetUsed, aVisual);
-  if (NS_SUCCEEDED(rv)) {
-    return rv;
+  nsIFrame* frame = GetPrimaryOrCaretFrameForNodeOffset(content, FocusOffset(),
+                                                        aOffsetUsed, aVisual);
+  if (frame) {
+    return frame;
   }
 
   // If content is whitespace only, we promote focus node to parent because
   // whitespace only node might have no frame.
 
   if (!content->TextIsOnlyWhitespace()) {
-    return NS_ERROR_FAILURE;
+    return nullptr;
   }
 
   nsCOMPtr<nsIContent> parent = content->GetParent();
   if (NS_WARN_IF(!parent)) {
-    return NS_ERROR_FAILURE;
+    return nullptr;
   }
   int32_t offset = parent->ComputeIndexOf(content);
 
-  return GetPrimaryOrCaretFrameForNodeOffset(parent, offset, aReturnFrame,
-                                             aOffsetUsed, aVisual);
+  return GetPrimaryOrCaretFrameForNodeOffset(parent, offset, aOffsetUsed,
+                                             aVisual);
 }
 
-nsresult Selection::GetPrimaryOrCaretFrameForNodeOffset(nsIContent* aContent,
-                                                        uint32_t aOffset,
-                                                        nsIFrame** aReturnFrame,
-                                                        int32_t* aOffsetUsed,
-                                                        bool aVisual) const {
-  MOZ_ASSERT(aReturnFrame);
+nsIFrame* Selection::GetPrimaryOrCaretFrameForNodeOffset(nsIContent* aContent,
+                                                         uint32_t aOffset,
+                                                         int32_t* aOffsetUsed,
+                                                         bool aVisual) const {
   MOZ_ASSERT(aOffsetUsed);
 
-  *aReturnFrame = nullptr;
-
   if (!mFrameSelection) {
-    return NS_ERROR_FAILURE;
+    return nullptr;
   }
 
   CaretAssociationHint hint = mFrameSelection->GetHint();
 
   if (aVisual) {
-    nsBidiLevel caretBidiLevel = mFrameSelection->GetCaretBidiLevel();
+    mozilla::intl::BidiEmbeddingLevel caretBidiLevel =
+        mFrameSelection->GetCaretBidiLevel();
 
     return nsCaret::GetCaretFrameForNodeOffset(
-        mFrameSelection, aContent, aOffset, hint, caretBidiLevel, aReturnFrame,
+        mFrameSelection, aContent, aOffset, hint, caretBidiLevel,
         /* aReturnUnadjustedFrame = */ nullptr, aOffsetUsed);
   }
 
-  *aReturnFrame = nsFrameSelection::GetFrameForNodeOffset(aContent, aOffset,
-                                                          hint, aOffsetUsed);
-  if (!*aReturnFrame) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
+  return nsFrameSelection::GetFrameForNodeOffset(aContent, aOffset, hint,
+                                                 aOffsetUsed);
 }
 
 void Selection::SelectFramesOf(nsIContent* aContent, bool aSelected) const {
@@ -2053,10 +2048,12 @@ void Selection::CollapseJS(nsINode* aContainer, uint32_t aOffset,
     RemoveAllRanges(aRv);
     return;
   }
-  Collapse(RawRangeBoundary(aContainer, aOffset), aRv);
+  CollapseInternal(InLimiter::eNo, RawRangeBoundary(aContainer, aOffset), aRv);
 }
 
-void Selection::Collapse(const RawRangeBoundary& aPoint, ErrorResult& aRv) {
+void Selection::CollapseInternal(InLimiter aInLimiter,
+                                 const RawRangeBoundary& aPoint,
+                                 ErrorResult& aRv) {
   if (!mFrameSelection) {
     aRv.Throw(NS_ERROR_NOT_INITIALIZED);  // Can't do selection
     return;
@@ -2088,7 +2085,8 @@ void Selection::Collapse(const RawRangeBoundary& aPoint, ErrorResult& aRv) {
 
   RefPtr<nsFrameSelection> frameSelection = mFrameSelection;
   frameSelection->InvalidateDesiredCaretPos();
-  if (!frameSelection->IsValidSelectionPoint(aPoint.Container())) {
+  if (aInLimiter == InLimiter::eYes &&
+      !frameSelection->IsValidSelectionPoint(aPoint.Container())) {
     aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
@@ -2198,7 +2196,8 @@ void Selection::CollapseToStart(ErrorResult& aRv) {
     aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
-  Collapse(*container, firstRange->StartOffset(), aRv);
+  CollapseInternal(InLimiter::eNo,
+                   RawRangeBoundary(container, firstRange->StartOffset()), aRv);
 }
 
 /*
@@ -2234,7 +2233,8 @@ void Selection::CollapseToEnd(ErrorResult& aRv) {
     aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
-  Collapse(*container, lastRange->EndOffset(), aRv);
+  CollapseInternal(InLimiter::eNo,
+                   RawRangeBoundary(container, lastRange->EndOffset()), aRv);
 }
 
 void Selection::GetType(nsAString& aOutType) const {
@@ -2854,6 +2854,8 @@ nsIFrame* Selection::GetSelectionEndPointGeometry(SelectionRegion aRegion,
       content, nodeOffset, mFrameSelection->GetHint(), &frameOffset);
   if (!frame) return nullptr;
 
+  nsFrameSelection::AdjustFrameForLineStart(frame, frameOffset);
+
   // Figure out what node type we have, then get the
   // appropriate rect for it's nodeOffset.
   bool isText = node->IsText();
@@ -3066,7 +3068,7 @@ void Selection::StyledRanges::MaybeFocusCommonEditingHost(
   if (window && !document->HasFlag(NODE_IS_EDITABLE) &&
       nsContentUtils::GetHTMLEditor(presContext)) {
     RefPtr<Element> newEditingHost = GetCommonEditingHost();
-    nsFocusManager* fm = nsFocusManager::GetFocusManager();
+    RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager();
     nsCOMPtr<nsPIDOMWindowOuter> focusedWindow;
     nsIContent* focusedContent = nsFocusManager::GetFocusedDescendant(
         window, nsFocusManager::eOnlyCurrentWindow,
@@ -3098,6 +3100,9 @@ nsresult Selection::NotifySelectionListeners() {
     return NS_OK;  // nothing to do
   }
 
+  MOZ_LOG(sSelectionLog, LogLevel::Debug,
+          ("%s: selection=%p", __FUNCTION__, this));
+
   // Our internal code should not move focus with using this class while
   // this moves focus nor from selection listeners.
   AutoRestore<bool> calledByJSRestorer(mCalledByJS);
@@ -3109,7 +3114,8 @@ nsresult Selection::NotifySelectionListeners() {
   // browsers don't do it either.
   if (mSelectionType == SelectionType::eNormal &&
       calledByJSRestorer.SavedValue()) {
-    mStyledRanges.MaybeFocusCommonEditingHost(GetPresShell());
+    RefPtr<PresShell> presShell = GetPresShell();
+    mStyledRanges.MaybeFocusCommonEditingHost(presShell);
   }
 
   RefPtr<nsFrameSelection> frameSelection = mFrameSelection;
@@ -3210,7 +3216,8 @@ void Selection::DeleteFromDocument(ErrorResult& aRv) {
   // If we deleted one character, then we move back one element.
   // FIXME  We don't know how to do this past frame boundaries yet.
   if (AnchorOffset() > 0) {
-    Collapse(GetAnchorNode(), AnchorOffset());
+    RefPtr<nsINode> anchor = GetAnchorNode();
+    CollapseInLimiter(anchor, AnchorOffset());
   }
 #ifdef DEBUG
   else {
@@ -3242,6 +3249,11 @@ void Selection::Modify(const nsAString& aAlter, const nsAString& aDirection,
       !aDirection.LowerCaseEqualsLiteral("right")) {
     aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
     return;
+  }
+
+  // Make sure the layout is up to date as we access bidi information below.
+  if (RefPtr<Document> doc = GetDocument()) {
+    doc->FlushPendingNotifications(FlushType::Layout);
   }
 
   // Line moves are always visual.
@@ -3280,25 +3292,23 @@ void Selection::Modify(const nsAString& aAlter, const nsAString& aDirection,
   // To avoid this, we need to collapse the selection first.
   nsresult rv = NS_OK;
   if (!extend) {
-    nsINode* focusNode = GetFocusNode();
+    RefPtr<nsINode> focusNode = GetFocusNode();
     // We should have checked earlier that there was a focus node.
     if (!focusNode) {
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return;
     }
     uint32_t focusOffset = FocusOffset();
-    Collapse(focusNode, focusOffset);
+    CollapseInLimiter(focusNode, focusOffset);
   }
 
   // If the paragraph direction of the focused frame is right-to-left,
   // we may have to swap the direction of movement.
-  nsIFrame* frame;
-  int32_t offset;
-  rv = GetPrimaryFrameForFocusNode(&frame, &offset, visual);
-  if (NS_SUCCEEDED(rv) && frame) {
-    nsBidiDirection paraDir = nsBidiPresUtils::ParagraphDirection(frame);
+  if (nsIFrame* frame = GetPrimaryFrameForFocusNode(visual)) {
+    mozilla::intl::BidiDirection paraDir =
+        nsBidiPresUtils::ParagraphDirection(frame);
 
-    if (paraDir == NSBIDI_RTL && visual) {
+    if (paraDir == mozilla::intl::BidiDirection::RTL && visual) {
       if (amount == eSelectBeginLine) {
         amount = eSelectEndLine;
         forward = !forward;
@@ -3452,33 +3462,28 @@ nsresult Selection::SelectionLanguageChange(bool aLangRTL) {
   RefPtr<nsFrameSelection> frameSelection = mFrameSelection;
 
   // if the direction of the language hasn't changed, nothing to do
-  nsBidiLevel kbdBidiLevel = aLangRTL ? NSBIDI_RTL : NSBIDI_LTR;
+  mozilla::intl::BidiEmbeddingLevel kbdBidiLevel =
+      aLangRTL ? mozilla::intl::BidiEmbeddingLevel::RTL()
+               : mozilla::intl::BidiEmbeddingLevel::LTR();
   if (kbdBidiLevel == frameSelection->mKbdBidiLevel) {
     return NS_OK;
   }
 
   frameSelection->mKbdBidiLevel = kbdBidiLevel;
 
-  nsresult result;
-  nsIFrame* focusFrame = 0;
-
-  result = GetPrimaryFrameForFocusNode(&focusFrame, nullptr, false);
-  if (NS_FAILED(result)) {
-    return result;
-  }
+  nsIFrame* focusFrame = GetPrimaryFrameForFocusNode(false);
   if (!focusFrame) {
     return NS_ERROR_FAILURE;
   }
 
-  int32_t frameStart, frameEnd;
-  focusFrame->GetOffsets(frameStart, frameEnd);
+  auto [frameStart, frameEnd] = focusFrame->GetOffsets();
   RefPtr<nsPresContext> context = GetPresContext();
-  nsBidiLevel levelBefore, levelAfter;
+  mozilla::intl::BidiEmbeddingLevel levelBefore, levelAfter;
   if (!context) {
     return NS_ERROR_FAILURE;
   }
 
-  nsBidiLevel level = focusFrame->GetEmbeddingLevel();
+  mozilla::intl::BidiEmbeddingLevel level = focusFrame->GetEmbeddingLevel();
   int32_t focusOffset = static_cast<int32_t>(FocusOffset());
   if ((focusOffset != frameStart) && (focusOffset != frameEnd))
     // the cursor is not at a frame boundary, so the level of both the
@@ -3496,26 +3501,30 @@ nsresult Selection::SelectionLanguageChange(bool aLangRTL) {
     levelAfter = levels.mLevelAfter;
   }
 
-  if (IS_SAME_DIRECTION(levelBefore, levelAfter)) {
+  if (levelBefore.IsSameDirection(levelAfter)) {
     // if cursor is between two characters with the same orientation, changing
     // the keyboard language must toggle the cursor level between the level of
     // the character with the lowest level (if the new language corresponds to
     // the orientation of that character) and this level plus 1 (if the new
     // language corresponds to the opposite orientation)
-    if ((level != levelBefore) && (level != levelAfter))
+    if ((level != levelBefore) && (level != levelAfter)) {
       level = std::min(levelBefore, levelAfter);
-    if (IS_SAME_DIRECTION(level, kbdBidiLevel))
+    }
+    if (level.IsSameDirection(kbdBidiLevel)) {
       frameSelection->SetCaretBidiLevelAndMaybeSchedulePaint(level);
-    else
-      frameSelection->SetCaretBidiLevelAndMaybeSchedulePaint(level + 1);
+    } else {
+      frameSelection->SetCaretBidiLevelAndMaybeSchedulePaint(
+          mozilla::intl::BidiEmbeddingLevel(level + 1));
+    }
   } else {
     // if cursor is between characters with opposite orientations, changing the
     // keyboard language must change the cursor level to that of the adjacent
     // character with the orientation corresponding to the new language.
-    if (IS_SAME_DIRECTION(levelBefore, kbdBidiLevel))
+    if (levelBefore.IsSameDirection(kbdBidiLevel)) {
       frameSelection->SetCaretBidiLevelAndMaybeSchedulePaint(levelBefore);
-    else
+    } else {
       frameSelection->SetCaretBidiLevelAndMaybeSchedulePaint(levelAfter);
+    }
   }
 
   // The caret might have moved, so invalidate the desired position

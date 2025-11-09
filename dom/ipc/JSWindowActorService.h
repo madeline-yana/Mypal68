@@ -45,7 +45,7 @@ class JSWindowActorProtocol final : public nsIObserver,
   JSWindowActorInfo ToIPC();
 
   static already_AddRefed<JSWindowActorProtocol> FromWebIDLOptions(
-      const nsAString& aName, const WindowActorOptions& aOptions,
+      const nsACString& aName, const WindowActorOptions& aOptions,
       ErrorResult& aRv);
 
   struct Sided {
@@ -73,18 +73,18 @@ class JSWindowActorProtocol final : public nsIObserver,
   void AddObservers();
   void RemoveObservers();
   bool Matches(BrowsingContext* aBrowsingContext, nsIURI* aURI,
-               const nsAString& aRemoteType);
+               const nsACString& aRemoteType);
 
  private:
-  explicit JSWindowActorProtocol(const nsAString& aName) : mName(aName) {}
+  explicit JSWindowActorProtocol(const nsACString& aName) : mName(aName) {}
   extensions::MatchPatternSet* GetURIMatcher();
   ~JSWindowActorProtocol() = default;
 
-  nsString mName;
+  nsCString mName;
   bool mAllFrames = false;
   bool mIncludeChrome = false;
   nsTArray<nsString> mMatches;
-  nsTArray<nsString> mRemoteTypes;
+  nsTArray<nsCString> mRemoteTypes;
 
   ParentSide mParent;
   ChildSide mChild;
@@ -98,11 +98,11 @@ class JSWindowActorService final {
 
   static already_AddRefed<JSWindowActorService> GetSingleton();
 
-  void RegisterWindowActor(const nsAString& aName,
+  void RegisterWindowActor(const nsACString& aName,
                            const WindowActorOptions& aOptions,
                            ErrorResult& aRv);
 
-  void UnregisterWindowActor(const nsAString& aName);
+  void UnregisterWindowActor(const nsACString& aName);
 
   // Register child's Window Actor from JSWindowActorInfos for content process.
   void LoadJSWindowActorInfos(nsTArray<JSWindowActorInfo>& aInfos);
@@ -117,14 +117,14 @@ class JSWindowActorService final {
   // NOTE: This method is static, as it may be called during shutdown.
   static void UnregisterWindowRoot(EventTarget* aRoot);
 
-  already_AddRefed<JSWindowActorProtocol> GetProtocol(const nsAString& aName);
+  already_AddRefed<JSWindowActorProtocol> GetProtocol(const nsACString& aName);
 
  private:
   JSWindowActorService();
   ~JSWindowActorService();
 
   nsTArray<EventTarget*> mRoots;
-  nsRefPtrHashtable<nsStringHashKey, JSWindowActorProtocol> mDescriptors;
+  nsRefPtrHashtable<nsCStringHashKey, JSWindowActorProtocol> mDescriptors;
 };
 
 }  // namespace dom

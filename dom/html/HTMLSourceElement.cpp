@@ -19,8 +19,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Source)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 HTMLSourceElement::HTMLSourceElement(
     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo)
@@ -140,5 +139,4 @@ JSObject* HTMLSourceElement::WrapNode(JSContext* aCx,
   return HTMLSourceElement_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

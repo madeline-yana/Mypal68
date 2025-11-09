@@ -35,8 +35,7 @@
 #include "mozilla/dom/ScriptSettings.h"
 #include "ReferrerInfo.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 Location::Location(nsPIDOMWindowInner* aWindow, nsIDocShell* aDocShell)
     : mInnerWindow(aWindow) {
@@ -835,5 +834,4 @@ JSObject* Location::WrapObject(JSContext* aCx,
   return Location_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

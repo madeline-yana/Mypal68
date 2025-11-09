@@ -27,6 +27,36 @@
 
 // IMPORTANT: Do not change this list without review from
 //            a JavaScript Engine peer!
+var wasmGlobalEntry = {
+  name: "WebAssembly",
+  insecureContext: true,
+  disabled: !getJSTestingFunctions().wasmIsSupportedByHardware(),
+};
+var wasmGlobalInterfaces = [
+  { name: "Module", insecureContext: true },
+  { name: "Instance", insecureContext: true },
+  { name: "Memory", insecureContext: true },
+  { name: "Table", insecureContext: true },
+  { name: "Global", insecureContext: true },
+  { name: "CompileError", insecureContext: true },
+  { name: "LinkError", insecureContext: true },
+  { name: "RuntimeError", insecureContext: true },
+  {
+    name: "Function",
+    insecureContext: true,
+    nightly: true,
+  },
+  {
+    name: "Exception",
+    insecureContext: true,
+  },
+  {
+    name: "Tag",
+    insecureContext: true,
+  },
+];
+// IMPORTANT: Do not change this list without review from
+//            a JavaScript Engine peer!
 var ecmaGlobals = [
   { name: "AggregateError", insecureContext: true },
   { name: "Array", insecureContext: true },
@@ -36,8 +66,6 @@ var ecmaGlobals = [
   { name: "BigInt64Array", insecureContext: true },
   { name: "BigUint64Array", insecureContext: true },
   { name: "Boolean", insecureContext: true },
-  { name: "ByteLengthQueuingStrategy", insecureContext: true },
-  { name: "CountQueuingStrategy", insecureContext: true },
   { name: "DataView", insecureContext: true },
   { name: "Date", insecureContext: true },
   { name: "Error", insecureContext: true },
@@ -63,7 +91,6 @@ var ecmaGlobals = [
   { name: "Promise", insecureContext: true },
   { name: "Proxy", insecureContext: true },
   { name: "RangeError", insecureContext: true },
-  { name: "ReadableStream", insecureContext: true },
   { name: "ReferenceError", insecureContext: true },
   { name: "Reflect", insecureContext: true },
   { name: "RegExp", insecureContext: true },
@@ -84,11 +111,7 @@ var ecmaGlobals = [
   { name: "WeakMap", insecureContext: true },
   { name: "WeakRef", insecureContext: true },
   { name: "WeakSet", insecureContext: true },
-  {
-    name: "WebAssembly",
-    insecureContext: true,
-    disabled: !getJSTestingFunctions().wasmIsSupportedByHardware(),
-  },
+  wasmGlobalEntry,
 ];
 // IMPORTANT: Do not change the list above without review from
 //            a JavaScript Engine peer!
@@ -104,11 +127,15 @@ var interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "BroadcastChannel", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "ByteLengthQueuingStrategy", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "Cache", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "CacheStorage", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "CloseEvent", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "CountQueuingStrategy", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "Crypto", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -224,6 +251,12 @@ var interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "PushSubscriptionOptions", insecureContext: true, fennec: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "ReadableStream", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "ReadableStreamDefaultController", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "ReadableStreamDefaultReader", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "Request", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "Response", insecureContext: true },
@@ -237,6 +270,13 @@ var interfaceNamesInGlobalScope = [
   { name: "TextDecoder", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "TextEncoder", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "TransformStream", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  {
+    name: "TransformStreamDefaultController",
+    insecureContext: true,
+  },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "XMLHttpRequest", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -280,18 +320,47 @@ var interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "WorkerNavigator", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "WritableStream", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "WritableStreamDefaultController", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "WritableStreamDefaultWriter", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
 ];
 // IMPORTANT: Do not change the list above without review from a DOM peer!
 
-function createInterfaceMap({
-  isNightly,
-  isEarlyBetaOrEarlier,
-  isRelease,
-  isDesktop,
-  isAndroid,
-  isInsecureContext,
-  isFennec,
-}) {
+function entryDisabled(
+  entry,
+  {
+    isNightly,
+    isEarlyBetaOrEarlier,
+    isRelease,
+    isDesktop,
+    isAndroid,
+    isInsecureContext,
+    isFennec,
+  }
+) {
+  return (
+    entry.nightly === !isNightly ||
+    (entry.nightlyAndroid === !(isAndroid && isNightly) && isAndroid) ||
+    entry.desktop === !isDesktop ||
+    (entry.android === !isAndroid && !entry.nightlyAndroid) ||
+    entry.fennecOrDesktop === (isAndroid && !isFennec) ||
+    entry.fennec === !isFennec ||
+    entry.release === !isRelease ||
+    // The insecureContext test is very purposefully converting
+    // entry.insecureContext to boolean, so undefined will convert to
+    // false.  That way entries without an insecureContext annotation
+    // will get treated as "insecureContext: false", which means exposed
+    // only in secure contexts.
+    (isInsecureContext && !entry.insecureContext) ||
+    entry.earlyBetaOrEarlier === !isEarlyBetaOrEarlier ||
+    entry.disabled
+  );
+}
+
+function createInterfaceMap(data, ...interfaceGroups) {
   var interfaceMap = {};
 
   function addInterfaces(interfaces) {
@@ -300,40 +369,21 @@ function createInterfaceMap({
         interfaceMap[entry] = !isInsecureContext;
       } else {
         ok(!("pref" in entry), "Bogus pref annotation for " + entry.name);
-        if (
-          entry.nightly === !isNightly ||
-          (entry.nightlyAndroid === !(isAndroid && isNightly) && isAndroid) ||
-          entry.desktop === !isDesktop ||
-          (entry.android === !isAndroid && !entry.nightlyAndroid) ||
-          entry.fennecOrDesktop === (isAndroid && !isFennec) ||
-          entry.fennec === !isFennec ||
-          entry.release === !isRelease ||
-          // The insecureContext test is very purposefully converting
-          // entry.insecureContext to boolean, so undefined will convert to
-          // false.  That way entries without an insecureContext annotation
-          // will get treated as "insecureContext: false", which means exposed
-          // only in secure contexts.
-          (isInsecureContext && !entry.insecureContext) ||
-          entry.earlyBetaOrEarlier === !isEarlyBetaOrEarlier ||
-          entry.disabled
-        ) {
-          interfaceMap[entry.name] = false;
-        } else {
-          interfaceMap[entry.name] = true;
-        }
+        interfaceMap[entry.name] = !entryDisabled(entry, data);
       }
     }
   }
 
-  addInterfaces(ecmaGlobals);
-  addInterfaces(interfaceNamesInGlobalScope);
+  for (let interfaceGroup of interfaceGroups) {
+    addInterfaces(interfaceGroup);
+  }
 
   return interfaceMap;
 }
 
-function runTest(data) {
-  var interfaceMap = createInterfaceMap(data);
-  for (var name of Object.getOwnPropertyNames(self)) {
+function runTest(parentName, parent, data, ...interfaceGroups) {
+  var interfaceMap = createInterfaceMap(data, ...interfaceGroups);
+  for (var name of Object.getOwnPropertyNames(parent)) {
     // An interface name should start with an upper case character.
     if (!/^[A-Z]/.test(name)) {
       continue;
@@ -342,18 +392,21 @@ function runTest(data) {
       interfaceMap[name],
       "If this is failing: DANGER, are you sure you want to expose the new interface " +
         name +
-        " to all webpages as a property on the worker? Do not make a change to this file without a " +
+        " to all webpages as a property of " +
+        parentName +
+        "? Do not make a change to this file without a " +
         " review from a DOM peer for that specific change!!! (or a JS peer for changes to ecmaGlobals)"
     );
     delete interfaceMap[name];
   }
   for (var name of Object.keys(interfaceMap)) {
     ok(
-      name in self === interfaceMap[name],
+      name in parent === interfaceMap[name],
       name +
         " should " +
         (interfaceMap[name] ? "" : " NOT") +
-        " be defined on the global scope"
+        " be defined on " +
+        parentName
     );
     if (!interfaceMap[name]) {
       delete interfaceMap[name];
@@ -368,6 +421,9 @@ function runTest(data) {
 }
 
 workerTestGetHelperData(function(data) {
-  runTest(data);
+  runTest("self", self, data, ecmaGlobals, interfaceNamesInGlobalScope);
+  if (WebAssembly && !entryDisabled(wasmGlobalEntry, data)) {
+    runTest("WebAssembly", WebAssembly, data, wasmGlobalInterfaces);
+  }
   workerTestDone();
 });

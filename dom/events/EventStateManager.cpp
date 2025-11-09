@@ -391,10 +391,12 @@ static bool IsMessageMouseUserActivity(EventMessage aMessage) {
          aMessage == eMouseActivate || aMessage == eMouseLongTap;
 }
 
+#ifdef MOZ_GAMEPAD
 static bool IsMessageGamepadUserActivity(EventMessage aMessage) {
   return aMessage == eGamepadButtonDown || aMessage == eGamepadButtonUp ||
          aMessage == eGamepadAxisMove;
 }
+#endif
 
 // We ignore things that shouldn't cause popups, but also things that look
 // like shortcut presses. In some obscure cases these may actually be
@@ -485,8 +487,11 @@ nsresult EventStateManager::PreHandleEvent(nsPresContext* aPresContext,
        aEvent->mClass == ePointerEventClass ||
        aEvent->mClass == eTouchEventClass ||
        aEvent->mClass == eKeyboardEventClass ||
-       (aEvent->mClass == eDragEventClass && aEvent->mMessage == eDrop) ||
-       IsMessageGamepadUserActivity(aEvent->mMessage))) {
+       (aEvent->mClass == eDragEventClass && aEvent->mMessage == eDrop)
+#ifdef MOZ_GAMEPAD
+       || IsMessageGamepadUserActivity(aEvent->mMessage)
+#endif
+           )) {
     if (gMouseOrKeyboardEventCounter == 0) {
       nsCOMPtr<nsIObserverService> obs =
           mozilla::services::GetObserverService();
@@ -1028,7 +1033,8 @@ bool EventStateManager::LookForAccessKeyAndExecute(
   if (nsIContent* focusedContent = GetFocusedContent()) {
     start = mAccessKeys.IndexOf(focusedContent);
     if (start == -1 && focusedContent->IsInNativeAnonymousSubtree()) {
-      start = mAccessKeys.IndexOf(focusedContent->GetClosestNativeAnonymousSubtreeRootParent());
+      start = mAccessKeys.IndexOf(
+          focusedContent->GetClosestNativeAnonymousSubtreeRootParent());
     }
   }
   RefPtr<Element> element;
@@ -1063,7 +1069,8 @@ bool EventStateManager::LookForAccessKeyAndExecute(
         if (shouldActivate) {
           focusChanged =
               element->PerformAccesskey(shouldActivate, aIsTrustedEvent);
-        } else if (nsFocusManager* fm = nsFocusManager::GetFocusManager()) {
+        } else if (RefPtr<nsFocusManager> fm =
+                       nsFocusManager::GetFocusManager()) {
           fm->SetFocus(element, nsIFocusManager::FLAG_BYKEY);
           focusChanged = true;
         }
@@ -1714,8 +1721,7 @@ void EventStateManager::MaybeFirePointerCancel(WidgetInputEvent* aEvent) {
   RefPtr<PresShell> presShell = mPresContext->GetPresShell();
   AutoWeakFrame targetFrame = mCurrentTarget;
 
-  if (!StaticPrefs::dom_w3c_pointer_events_enabled() || !presShell ||
-      !targetFrame) {
+  if (!presShell || !targetFrame) {
     return;
   }
 
@@ -1931,9 +1937,9 @@ void EventStateManager::GenerateDragGesture(nsPresContext* aPresContext,
   }
 
   if (status != nsEventStatus_eConsumeNoDefault) {
-    bool dragStarted = DoDefaultDragStart(
-        aPresContext, event, dataTransfer, allowEmptyDataTransfer,
-        targetContent, selection, principal);
+    bool dragStarted = DoDefaultDragStart(aPresContext, event, dataTransfer,
+                                          allowEmptyDataTransfer, targetContent,
+                                          selection, principal);
     if (dragStarted) {
       sActiveESM = nullptr;
       MaybeFirePointerCancel(aEvent);
@@ -2026,13 +2032,10 @@ void EventStateManager::DetermineDragTargetAndDefaultData(
   }
 }
 
-bool EventStateManager::DoDefaultDragStart(nsPresContext* aPresContext,
-                                           WidgetDragEvent* aDragEvent,
-                                           DataTransfer* aDataTransfer,
-                                           bool aAllowEmptyDataTransfer,
-                                           nsIContent* aDragTarget,
-                                           Selection* aSelection,
-                                           nsIPrincipal* aPrincipal) {
+bool EventStateManager::DoDefaultDragStart(
+    nsPresContext* aPresContext, WidgetDragEvent* aDragEvent,
+    DataTransfer* aDataTransfer, bool aAllowEmptyDataTransfer,
+    nsIContent* aDragTarget, Selection* aSelection, nsIPrincipal* aPrincipal) {
   nsCOMPtr<nsIDragService> dragService =
       do_GetService("@mozilla.org/widget/dragservice;1");
   if (!dragService) return false;
@@ -3227,16 +3230,14 @@ nsresult EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
             break;
           }
 
-          int32_t tabIndexUnused;
-          if (frame->IsFocusable(&tabIndexUnused, true)) {
+          if (frame->IsFocusable(/* aWithMouse = */ true)) {
             break;
           }
         }
 
         MOZ_ASSERT_IF(newFocus, newFocus->IsElement());
 
-        nsFocusManager* fm = nsFocusManager::GetFocusManager();
-        if (fm) {
+        if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
           // if something was found to focus, focus it. Otherwise, if the
           // element that was clicked doesn't have -moz-user-focus: ignore,
           // clear the existing focus. For -moz-user-focus: ignore, the focus
@@ -3257,7 +3258,7 @@ nsresult EventStateManager::PostHandleEvent(nsPresContext* aPresContext,
                 MouseEvent_Binding::MOZ_SOURCE_TOUCH) {
               flags |= nsIFocusManager::FLAG_BYTOUCH;
             }
-            fm->SetFocus(newFocus->AsElement(), flags);
+            fm->SetFocus(MOZ_KnownLive(newFocus->AsElement()), flags);
           } else if (!suppressBlur) {
             // clear the focus within the frame and then set it as the
             // focused frame
@@ -4121,8 +4122,7 @@ class MOZ_STACK_CLASS ESMEventCB : public EventDispatchingCallback {
     if (aVisitor.mPresContext) {
       nsIFrame* frame = aVisitor.mPresContext->GetPrimaryFrameFor(mTarget);
       if (frame) {
-        frame->HandleEvent(MOZ_KnownLive(aVisitor.mPresContext),
-                           aVisitor.mEvent->AsGUIEvent(),
+        frame->HandleEvent(aVisitor.mPresContext, aVisitor.mEvent->AsGUIEvent(),
                            &aVisitor.mEventStatus);
       }
     }
@@ -4438,9 +4438,6 @@ static LayoutDeviceIntPoint GetWindowClientRectCenter(nsIWidget* aWidget) {
 
 void EventStateManager::GeneratePointerEnterExit(EventMessage aMessage,
                                                  WidgetMouseEvent* aEvent) {
-  if (!StaticPrefs::dom_w3c_pointer_events_enabled()) {
-    return;
-  }
   WidgetPointerEvent pointerEvent(*aEvent);
   pointerEvent.mMessage = aMessage;
   GenerateMouseEnterExit(&pointerEvent);
@@ -4612,8 +4609,7 @@ OverOutElementsWrapper* EventStateManager::GetWrapperByEventID(
     }
     return mMouseEnterLeaveHelper;
   }
-  return mPointersEnterLeaveHelper.LookupForAdd(pointer->pointerId)
-      .OrInsert([]() { return new OverOutElementsWrapper(); });
+  return mPointersEnterLeaveHelper.GetOrInsertNew(pointer->pointerId);
 }
 
 /* static */
@@ -5130,7 +5126,7 @@ nsresult EventStateManager::HandleMiddleClickPaste(
     //     designMode editor is clicked, the point is in the editor.
     //     However, outer HTMLEditor and Selection should handle it.
     //     So, in such case, Selection::Collapse() will fail.
-    DebugOnly<nsresult> rv = selection->Collapse(container, offset);
+    DebugOnly<nsresult> rv = selection->CollapseInLimiter(container, offset);
     NS_WARNING_ASSERTION(NS_SUCCEEDED(rv),
                          "Failed to collapse Selection at middle clicked");
   }
@@ -5322,6 +5318,14 @@ void EventStateManager::UpdateAncestorState(nsIContent* aStartNode,
   }
 }
 
+// static
+bool CanContentHaveActiveState(nsIContent& aContent) {
+  // Editable content can never become active since their default actions
+  // are disabled.  Watch out for editable content in native anonymous
+  // subtrees though, as they belong to text controls.
+  return !aContent.IsEditable() || aContent.IsInNativeAnonymousSubtree();
+}
+
 bool EventStateManager::SetContentState(nsIContent* aContent,
                                         EventStates aState) {
   MOZ_ASSERT(ManagesState(aState), "Unexpected state");
@@ -5344,11 +5348,7 @@ bool EventStateManager::SetContentState(nsIContent* aContent,
     }
 
     if (aState == NS_EVENT_STATE_ACTIVE) {
-      // Editable content can never become active since their default actions
-      // are disabled.  Watch out for editable content in native anonymous
-      // subtrees though, as they belong to text controls.
-      if (aContent && aContent->IsEditable() &&
-          !aContent->IsInNativeAnonymousSubtree()) {
+      if (aContent && !CanContentHaveActiveState(*aContent)) {
         aContent = nullptr;
       }
       if (aContent != mActiveContent) {
@@ -5445,7 +5445,7 @@ bool EventStateManager::SetContentState(nsIContent* aContent,
 }
 
 void EventStateManager::ResetLastOverForContent(
-    const uint32_t& aIdx, RefPtr<OverOutElementsWrapper>& aElemWrapper,
+    const uint32_t& aIdx, const RefPtr<OverOutElementsWrapper>& aElemWrapper,
     nsIContent* aContent) {
   if (aElemWrapper && aElemWrapper->mLastOverElement &&
       nsContentUtils::ContentIsFlattenedTreeDescendantOf(
@@ -5488,7 +5488,8 @@ void EventStateManager::RemoveNodeFromChainIfNeeded(EventStates aState,
     // Also, NAC is not observable and NAC being removed will go away soon.
     leaf = newLeaf;
   }
-  MOZ_ASSERT(leaf == newLeaf);
+  MOZ_ASSERT(leaf == newLeaf || (aState == NS_EVENT_STATE_ACTIVE && !leaf &&
+                                 !CanContentHaveActiveState(*newLeaf)));
 }
 
 void EventStateManager::NativeAnonymousContentRemoved(nsIContent* aContent) {
@@ -5552,9 +5553,8 @@ void EventStateManager::ContentRemoved(Document* aDocument,
 
   // See bug 292146 for why we want to null this out
   ResetLastOverForContent(0, mMouseEnterLeaveHelper, aContent);
-  for (auto iter = mPointersEnterLeaveHelper.Iter(); !iter.Done();
-       iter.Next()) {
-    ResetLastOverForContent(iter.Key(), iter.Data(), aContent);
+  for (const auto& entry : mPointersEnterLeaveHelper) {
+    ResetLastOverForContent(entry.GetKey(), entry.GetData(), aContent);
   }
 }
 

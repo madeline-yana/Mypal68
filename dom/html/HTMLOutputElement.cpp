@@ -14,8 +14,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Output)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 HTMLOutputElement::HTMLOutputElement(
     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
@@ -164,5 +163,4 @@ JSObject* HTMLOutputElement::WrapNode(JSContext* aCx,
   return HTMLOutputElement_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

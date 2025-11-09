@@ -33,8 +33,7 @@
 
 using namespace mozilla::ipc;
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 namespace {
 
@@ -174,7 +173,7 @@ void GamepadManager::RemoveListener(nsGlobalWindowInner* aWindow) {
     return;  // doesn't exist
   }
 
-  for (auto iter = mGamepads.Iter(); !iter.Done(); iter.Next()) {
+  for (auto iter = mGamepads.ConstIter(); !iter.Done(); iter.Next()) {
     aWindow->RemoveGamepad(iter.Key());
   }
 
@@ -236,8 +235,8 @@ void GamepadManager::AddGamepad(uint32_t aIndex, const nsAString& aId,
 
   // We store the gamepad related to its index given by the parent process,
   // and no duplicate index is allowed.
-  MOZ_ASSERT(!mGamepads.Get(newIndex, nullptr));
-  mGamepads.Put(newIndex, std::move(gamepad));
+  MOZ_ASSERT(!mGamepads.Contains(newIndex));
+  mGamepads.InsertOrUpdate(newIndex, std::move(gamepad));
   NewConnectionEvent(newIndex, true);
 }
 
@@ -614,8 +613,8 @@ void GamepadManager::StopHaptics() {
     return;
   }
 
-  for (auto iter = mGamepads.Iter(); !iter.Done(); iter.Next()) {
-    const uint32_t gamepadIndex = iter.UserData()->HashKey();
+  for (const auto& entry : mGamepads) {
+    const uint32_t gamepadIndex = entry.GetWeak()->HashKey();
     if (gamepadIndex >= VR_GAMEPAD_IDX_OFFSET) {
 #ifdef MOZ_VR
       if (gfx::VRManagerChild::IsCreated()) {
@@ -632,5 +631,4 @@ void GamepadManager::StopHaptics() {
   }
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

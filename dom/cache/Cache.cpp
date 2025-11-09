@@ -15,6 +15,7 @@
 #include "mozilla/dom/CacheBinding.h"
 #include "mozilla/dom/cache/AutoUtils.h"
 #include "mozilla/dom/cache/CacheChild.h"
+#include "mozilla/dom/cache/CacheCommon.h"
 #include "mozilla/dom/cache/CacheWorkerRef.h"
 #include "mozilla/dom/cache/ReadStream.h"
 #include "mozilla/ErrorResult.h"
@@ -78,12 +79,12 @@ static bool IsValidPutResponseStatus(Response& aResponse,
   if ((aPolicy == PutStatusPolicy::RequireOK && !aResponse.Ok()) ||
       aResponse.Status() == 206) {
     nsCString type(ResponseTypeValues::GetString(aResponse.Type()));
-    nsAutoCString status;
-    status.AppendInt(aResponse.Status());
+
     nsAutoString url;
     aResponse.GetUrl(url);
+
     aRv.ThrowTypeError<MSG_CACHE_ADD_FAILED_RESPONSE>(
-        type, status, NS_ConvertUTF16toUTF8(url));
+        type, IntToCString(aResponse.Status()), NS_ConvertUTF16toUTF8(url));
     return false;
   }
 
@@ -110,8 +111,8 @@ class Cache::FetchHandler final : public PromiseNativeHandler {
     MOZ_DIAGNOSTIC_ASSERT(mPromise);
   }
 
-  virtual void ResolvedCallback(JSContext* aCx,
-                                JS::Handle<JS::Value> aValue) override {
+  virtual void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                                ErrorResult& aRv) override {
     NS_ASSERT_OWNINGTHREAD(FetchHandler);
 
     // Stop holding the worker alive when we leave this method.
@@ -124,46 +125,33 @@ class Cache::FetchHandler final : public PromiseNativeHandler {
     AutoTArray<RefPtr<Response>, 256> responseList;
     responseList.SetCapacity(mRequestList.Length());
 
+    const auto failOnErr = [this](const auto) { Fail(); };
+
     bool isArray;
-    if (NS_WARN_IF(!JS::IsArrayObject(aCx, aValue, &isArray) || !isArray)) {
-      Fail();
-      return;
-    }
+    CACHE_TRY(OkIf(JS::IsArrayObject(aCx, aValue, &isArray)), QM_VOID,
+              failOnErr);
+    CACHE_TRY(OkIf(isArray), QM_VOID, failOnErr);
 
     JS::Rooted<JSObject*> obj(aCx, &aValue.toObject());
 
     uint32_t length;
-    if (NS_WARN_IF(!JS::GetArrayLength(aCx, obj, &length))) {
-      Fail();
-      return;
-    }
+    CACHE_TRY(OkIf(JS::GetArrayLength(aCx, obj, &length)), QM_VOID, failOnErr);
 
     for (uint32_t i = 0; i < length; ++i) {
       JS::Rooted<JS::Value> value(aCx);
 
-      if (NS_WARN_IF(!JS_GetElement(aCx, obj, i, &value))) {
-        Fail();
-        return;
-      }
+      CACHE_TRY(OkIf(JS_GetElement(aCx, obj, i, &value)), QM_VOID, failOnErr);
 
-      if (NS_WARN_IF(!value.isObject())) {
-        Fail();
-        return;
-      }
+      CACHE_TRY(OkIf(value.isObject()), QM_VOID, failOnErr);
 
       JS::Rooted<JSObject*> responseObj(aCx, &value.toObject());
 
       RefPtr<Response> response;
-      nsresult rv = UNWRAP_OBJECT(Response, responseObj, response);
-      if (NS_WARN_IF(NS_FAILED(rv))) {
-        Fail();
-        return;
-      }
+      CACHE_TRY((UNWRAP_OBJECT(Response, responseObj, response)), QM_VOID,
+                failOnErr);
 
-      if (NS_WARN_IF(response->Type() == ResponseType::Error)) {
-        Fail();
-        return;
-      }
+      CACHE_TRY(OkIf(response->Type() != ResponseType::Error), QM_VOID,
+                failOnErr);
 
       // Do not allow the convenience methods .add()/.addAll() to store failed
       // or invalid responses.  A consequence of this is that these methods
@@ -201,8 +189,8 @@ class Cache::FetchHandler final : public PromiseNativeHandler {
     mPromise->MaybeResolve(put);
   }
 
-  virtual void RejectedCallback(JSContext* aCx,
-                                JS::Handle<JS::Value> aValue) override {
+  virtual void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                                ErrorResult& aRv) override {
     NS_ASSERT_OWNINGTHREAD(FetchHandler);
     Fail();
   }

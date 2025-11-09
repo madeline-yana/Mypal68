@@ -51,9 +51,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(EffectCompositor)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(EffectCompositor)
-  for (auto& elementSet : tmp->mElementsToRestyle) {
-    for (auto iter = elementSet.Iter(); !iter.Done(); iter.Next()) {
-      CycleCollectionNoteChild(cb, iter.Key().mElement,
+  for (const auto& elementSet : tmp->mElementsToRestyle) {
+    for (const auto& element : elementSet) {
+      CycleCollectionNoteChild(cb, element.GetKey().mElement,
                                "EffectCompositor::mElementsToRestyle[]",
                                cb.Flags());
     }
@@ -106,6 +106,12 @@ bool EffectCompositor::AllowCompositorAnimationsOnFrame(
 bool FindAnimationsForCompositor(
     const nsIFrame* aFrame, const nsCSSPropertyIDSet& aPropertySet,
     nsTArray<RefPtr<dom::Animation>>* aMatches /*out*/) {
+  // Do not process any animations on the compositor when in print or print
+  // preview.
+  if (aFrame->PresContext()->IsPrintingOrPrintPreview()) {
+    return false;
+  }
+
   MOZ_ASSERT(
       aPropertySet.IsSubsetOf(LayerAnimationInfo::GetCSSPropertiesFor(
           DisplayItemType::TYPE_TRANSFORM)) ||
@@ -233,21 +239,14 @@ void EffectCompositor::RequestRestyle(dom::Element* aElement,
   auto& elementsToRestyle = mElementsToRestyle[aCascadeLevel];
   PseudoElementHashEntry::KeyType key = {aElement, aPseudoType};
 
+  bool& restyleEntry = elementsToRestyle.LookupOrInsert(key, false);
   if (aRestyleType == RestyleType::Throttled) {
-    elementsToRestyle.LookupForAdd(key).OrInsert([]() { return false; });
     mPresContext->PresShell()->SetNeedThrottledAnimationFlush();
   } else {
-    bool skipRestyle;
-    // Update hashtable first in case PostRestyleForAnimation mutates it.
+    // Update hashtable first in case PostRestyleForAnimation mutates it
+    // and invalidates the restyleEntry reference.
     // (It shouldn't, but just to be sure.)
-    if (auto p = elementsToRestyle.LookupForAdd(key)) {
-      skipRestyle = p.Data();
-      p.Data() = true;
-    } else {
-      skipRestyle = false;
-      p.OrInsert([]() { return true; });
-    }
-
+    bool skipRestyle = std::exchange(restyleEntry, true);
     if (!skipRestyle) {
       PostRestyleForAnimation(aElement, aPseudoType, aCascadeLevel);
     }
@@ -427,8 +426,6 @@ bool EffectCompositor::GetServoAnimationRule(
     const dom::Element* aElement, PseudoStyleType aPseudoType,
     CascadeLevel aCascadeLevel, RawServoAnimationValueMap* aAnimationValues) {
   MOZ_ASSERT(aAnimationValues);
-  MOZ_ASSERT(mPresContext && mPresContext->IsDynamic(),
-             "Should not be in print preview");
   // Gecko_GetAnimationRule should have already checked this
   MOZ_ASSERT(nsContentUtils::GetPresShellForContent(aElement),
              "Should not be trying to run animations on elements in documents"
@@ -838,7 +835,7 @@ bool EffectCompositor::PreTraverseInSubtree(ServoTraversalFlags aFlags,
       (aFlags & ServoTraversalFlags::FlushThrottledAnimations);
 
   using ElementsToRestyleIterType =
-      nsDataHashtable<PseudoElementHashEntry, bool>::Iterator;
+      nsTHashMap<PseudoElementHashEntry, bool>::ConstIterator;
   auto getNeededRestyleTarget =
       [&](const ElementsToRestyleIterType& aIter) -> NonOwningAnimationTarget {
     NonOwningAnimationTarget returnTarget;
@@ -880,7 +877,7 @@ bool EffectCompositor::PreTraverseInSubtree(ServoTraversalFlags aFlags,
   for (size_t i = 0; i < kCascadeLevelCount; ++i) {
     CascadeLevel cascadeLevel = CascadeLevel(i);
     auto& elementSet = mElementsToRestyle[cascadeLevel];
-    for (auto iter = elementSet.Iter(); !iter.Done(); iter.Next()) {
+    for (auto iter = elementSet.ConstIter(); !iter.Done(); iter.Next()) {
       const NonOwningAnimationTarget& target = getNeededRestyleTarget(iter);
       if (!target.mElement) {
         continue;

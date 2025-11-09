@@ -11,8 +11,7 @@
 using namespace mozilla::layers;
 using namespace mozilla::gfx;
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 static ImageBitmapFormat GetImageBitmapFormatFromSurfaceFromat(
     SurfaceFormat aSurfaceFormat) {
@@ -198,5 +197,4 @@ uint32_t ImageUtils::GetBufferLength() const {
   return mImpl->GetBufferLength();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

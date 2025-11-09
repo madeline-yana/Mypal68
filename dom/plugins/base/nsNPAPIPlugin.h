@@ -63,20 +63,20 @@ static_assert(sizeof(NPIdentifier) == sizeof(jsid),
 
 inline jsid NPIdentifierToJSId(NPIdentifier id) {
   jsid tmp;
-  JSID_BITS(tmp) = (size_t)id;
+  tmp.asBits_ = (size_t)id;
   return tmp;
 }
 
 inline NPIdentifier JSIdToNPIdentifier(jsid id) {
-  return (NPIdentifier)JSID_BITS(id);
+  return (NPIdentifier)id.asRawBits();
 }
 
 inline bool NPIdentifierIsString(NPIdentifier id) {
-  return JSID_IS_STRING(NPIdentifierToJSId(id));
+  return NPIdentifierToJSId(id).isString();
 }
 
 inline JSString* NPIdentifierToString(NPIdentifier id) {
-  return JSID_TO_STRING(NPIdentifierToJSId(id));
+  return NPIdentifierToJSId(id).toString();
 }
 
 inline NPIdentifier StringToNPIdentifier(JSContext* cx, JSString* str) {
@@ -84,15 +84,15 @@ inline NPIdentifier StringToNPIdentifier(JSContext* cx, JSString* str) {
 }
 
 inline bool NPIdentifierIsInt(NPIdentifier id) {
-  return JSID_IS_INT(NPIdentifierToJSId(id));
+  return NPIdentifierToJSId(id).isInt();
 }
 
 inline int NPIdentifierToInt(NPIdentifier id) {
-  return JSID_TO_INT(NPIdentifierToJSId(id));
+  return NPIdentifierToJSId(id).toInt();
 }
 
 inline NPIdentifier IntToNPIdentifier(int i) {
-  return JSIdToNPIdentifier(INT_TO_JSID(i));
+  return JSIdToNPIdentifier(JS::PropertyKey::Int(i));
 }
 
 JSContext* GetJSContext(NPP npp);
@@ -102,7 +102,7 @@ inline bool NPStringIdentifierIsPermanent(NPIdentifier id) {
   return JS_StringHasBeenPinned(cx, NPIdentifierToString(id));
 }
 
-#define NPIdentifier_VOID (JSIdToNPIdentifier(JSID_VOID))
+#define NPIdentifier_VOID (JSIdToNPIdentifier(JS::PropertyKey::Void()))
 
 NPObject* _getwindowobject(NPP npp);
 

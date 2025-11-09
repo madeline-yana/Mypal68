@@ -14,9 +14,11 @@
 #include "IDBFactory.h"
 #include "IndexedDatabaseInlines.h"
 #include "IndexedDatabaseManager.h"
+#include "IndexedDBCommon.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/EventDispatcher.h"
 #include "MainThreadUtils.h"
+#include "mozilla/ResultExtensions.h"
 #include "mozilla/Services.h"
 #include "mozilla/storage.h"
 #include "mozilla/dom/BindingDeclarations.h"
@@ -50,8 +52,7 @@
 // Include this last to avoid path problems on Windows.
 #include "ActorsChild.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 using namespace mozilla::dom::indexedDB;
 using namespace mozilla::dom::quota;
@@ -200,12 +201,10 @@ RefPtr<IDBDatabase> IDBDatabase::Create(IDBOpenDBRequest* aRequest,
           obsSvc->AddObserver(observer, kWindowObserverTopic, false));
 
       // These topics are not crucial.
-      if (NS_FAILED(obsSvc->AddObserver(observer, kCycleCollectionObserverTopic,
-                                        false)) ||
-          NS_FAILED(obsSvc->AddObserver(observer, kMemoryPressureObserverTopic,
-                                        false))) {
-        NS_WARNING("Failed to add additional memory observers!");
-      }
+      QM_WARNONLY_TRY(
+          obsSvc->AddObserver(observer, kCycleCollectionObserverTopic, false));
+      QM_WARNONLY_TRY(
+          obsSvc->AddObserver(observer, kMemoryPressureObserverTopic, false));
 
       db->mObserver = std::move(observer);
     }
@@ -310,9 +309,9 @@ void IDBDatabase::RevertToPreviousState() {
 void IDBDatabase::RefreshSpec(bool aMayDelete) {
   AssertIsOnOwningThread();
 
-  for (auto iter = mTransactions.Iter(); !iter.Done(); iter.Next()) {
+  for (auto* weakTransaction : mTransactions) {
     const auto transaction =
-        SafeRefPtr{iter.Get()->GetKey(), AcquireStrongRefFromRawPtr{}};
+        SafeRefPtr{weakTransaction, AcquireStrongRefFromRawPtr{}};
     MOZ_ASSERT(transaction);
     transaction->AssertIsOnOwningThread();
     transaction->RefreshSpec(aMayDelete);
@@ -366,11 +365,14 @@ RefPtr<IDBObjectStore> IDBDatabase::CreateObjectStore(
     return nullptr;
   }
 
-  KeyPath keyPath(0);
-  if (NS_FAILED(KeyPath::Parse(aOptionalParameters.mKeyPath, &keyPath))) {
+  QM_NOTEONLY_TRY_UNWRAP(const auto maybeKeyPath,
+                         KeyPath::Parse(aOptionalParameters.mKeyPath));
+  if (!maybeKeyPath) {
     aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
     return nullptr;
   }
+
+  const auto& keyPath = maybeKeyPath.ref();
 
   auto& objectStores = mSpec->objectStores();
   const auto end = objectStores.cend();
@@ -415,9 +417,10 @@ RefPtr<IDBObjectStore> IDBDatabase::CreateObjectStore(
 
   IDB_LOG_MARK_CHILD_TRANSACTION_REQUEST(
       "database(%s).transaction(%s).createObjectStore(%s)",
-      "IDBDatabase.createObjectStore()", transaction->LoggingSerialNumber(),
-      requestSerialNumber, IDB_LOG_STRINGIFY(this),
-      IDB_LOG_STRINGIFY(*transaction), IDB_LOG_STRINGIFY(objectStore));
+      "IDBDatabase.createObjectStore(%.0s%.0s%.0s)",
+      transaction->LoggingSerialNumber(), requestSerialNumber,
+      IDB_LOG_STRINGIFY(this), IDB_LOG_STRINGIFY(*transaction),
+      IDB_LOG_STRINGIFY(objectStore));
 
   return objectStore;
 }
@@ -464,9 +467,10 @@ void IDBDatabase::DeleteObjectStore(const nsAString& aName, ErrorResult& aRv) {
 
   IDB_LOG_MARK_CHILD_TRANSACTION_REQUEST(
       "database(%s).transaction(%s).deleteObjectStore(\"%s\")",
-      "IDBDatabase.deleteObjectStore()", transaction->LoggingSerialNumber(),
-      requestSerialNumber, IDB_LOG_STRINGIFY(this),
-      IDB_LOG_STRINGIFY(*transaction), NS_ConvertUTF16toUTF8(aName).get());
+      "IDBDatabase.deleteObjectStore(%.0s%.0s%.0s)",
+      transaction->LoggingSerialNumber(), requestSerialNumber,
+      IDB_LOG_STRINGIFY(this), IDB_LOG_STRINGIFY(*transaction),
+      NS_ConvertUTF16toUTF8(aName).get());
 }
 
 RefPtr<IDBTransaction> IDBDatabase::Transaction(
@@ -601,7 +605,7 @@ RefPtr<IDBTransaction> IDBDatabase::Transaction(
       new BackgroundTransactionChild(transaction.clonePtr());
 
   IDB_LOG_MARK_CHILD_TRANSACTION(
-      "database(%s).transaction(%s)", "IDBDatabase.transaction()",
+      "database(%s).transaction(%s)", "IDBDatabase.transaction(%.0s%.0s)",
       transaction->LoggingSerialNumber(), IDB_LOG_STRINGIFY(this),
       IDB_LOG_STRINGIFY(*transaction));
 
@@ -654,16 +658,15 @@ RefPtr<IDBRequest> IDBDatabase::CreateMutableFile(
 
   CreateFileParams params(nsString(aName), type);
 
-  auto request = IDBRequest::Create(aCx, this, nullptr);
-  MOZ_ASSERT(request);
+  auto request = IDBRequest::Create(aCx, this, nullptr).unwrap();
 
   BackgroundDatabaseRequestChild* actor =
       new BackgroundDatabaseRequestChild(this, request);
 
   IDB_LOG_MARK_CHILD_REQUEST(
-      "database(%s).createMutableFile(%s)", "IDBDatabase.createMutableFile()",
-      request->LoggingSerialNumber(), IDB_LOG_STRINGIFY(this),
-      NS_ConvertUTF16toUTF8(aName).get());
+      "database(%s).createMutableFile(%s)",
+      "IDBDatabase.createMutableFile(%.0s%.0s)", request->LoggingSerialNumber(),
+      IDB_LOG_STRINGIFY(this), NS_ConvertUTF16toUTF8(aName).get());
 
   mBackgroundActor->SendPBackgroundIDBDatabaseRequestConstructor(actor, params);
 
@@ -678,7 +681,7 @@ void IDBDatabase::RegisterTransaction(IDBTransaction& aTransaction) {
   aTransaction.AssertIsOnOwningThread();
   MOZ_ASSERT(!mTransactions.Contains(&aTransaction));
 
-  mTransactions.PutEntry(&aTransaction);
+  mTransactions.Insert(&aTransaction);
 }
 
 void IDBDatabase::UnregisterTransaction(IDBTransaction& aTransaction) {
@@ -686,7 +689,7 @@ void IDBDatabase::UnregisterTransaction(IDBTransaction& aTransaction) {
   aTransaction.AssertIsOnOwningThread();
   MOZ_ASSERT(mTransactions.Contains(&aTransaction));
 
-  mTransactions.RemoveEntry(&aTransaction);
+  mTransactions.Remove(&aTransaction);
 }
 
 void IDBDatabase::AbortTransactions(bool aShouldWarn) {
@@ -709,8 +712,7 @@ void IDBDatabase::AbortTransactions(bool aShouldWarn) {
   StrongTransactionArray transactionsToAbort;
   transactionsToAbort.SetCapacity(mTransactions.Count());
 
-  for (const auto& entry : mTransactions) {
-    IDBTransaction* transaction = entry.GetKey();
+  for (IDBTransaction* const transaction : mTransactions) {
     MOZ_ASSERT(transaction);
 
     transaction->AssertIsOnOwningThread();
@@ -802,7 +804,7 @@ PBackgroundIDBDatabaseFileChild* IDBDatabase::GetOrCreateFileActorForBlob(
 
     MOZ_ASSERT(actor->GetActorEventTarget(),
                "The event target shall be inherited from its manager actor.");
-    mFileActors.Put(weakRef, actor);
+    mFileActors.InsertOrUpdate(weakRef, actor);
   }
 
   MOZ_ASSERT(actor);
@@ -874,21 +876,13 @@ nsresult IDBDatabase::GetQuotaInfo(nsACString& aOrigin,
       MOZ_CRASH("Is this needed?!");
 
     case PrincipalInfo::TSystemPrincipalInfo:
-      QuotaManager::GetInfoForChrome(nullptr, nullptr, &aOrigin);
+      aOrigin = QuotaManager::GetOriginForChrome();
       return NS_OK;
 
     case PrincipalInfo::TContentPrincipalInfo: {
-      auto principalOrErr = PrincipalInfoToPrincipal(*principalInfo);
-      if (NS_WARN_IF(principalOrErr.isErr())) {
-        return principalOrErr.unwrapErr();
-      }
+      IDB_TRY_UNWRAP(auto principal, PrincipalInfoToPrincipal(*principalInfo));
 
-      nsCOMPtr<nsIPrincipal> principal = principalOrErr.unwrap();
-      nsresult rv = QuotaManager::GetInfoFromPrincipal(principal, nullptr,
-                                                       nullptr, &aOrigin);
-      if (NS_WARN_IF(NS_FAILED(rv))) {
-        return rv;
-      }
+      IDB_TRY_UNWRAP(aOrigin, QuotaManager::GetOriginFromPrincipal(principal));
 
       return NS_OK;
     }
@@ -935,24 +929,22 @@ void IDBDatabase::ExpireFileActors(bool aExpireAll) {
   }
 }
 
-void IDBDatabase::NoteLiveMutableFile(IDBMutableFile* aMutableFile) {
+void IDBDatabase::NoteLiveMutableFile(IDBMutableFile& aMutableFile) {
   AssertIsOnOwningThread();
-  MOZ_ASSERT(aMutableFile);
-  aMutableFile->AssertIsOnOwningThread();
-  MOZ_ASSERT(!mLiveMutableFiles.Contains(aMutableFile));
+  aMutableFile.AssertIsOnOwningThread();
+  MOZ_ASSERT(!mLiveMutableFiles.Contains(&aMutableFile));
 
-  mLiveMutableFiles.AppendElement(aMutableFile);
+  mLiveMutableFiles.AppendElement(WrapNotNullUnchecked(&aMutableFile));
 }
 
-void IDBDatabase::NoteFinishedMutableFile(IDBMutableFile* aMutableFile) {
+void IDBDatabase::NoteFinishedMutableFile(IDBMutableFile& aMutableFile) {
   AssertIsOnOwningThread();
-  MOZ_ASSERT(aMutableFile);
-  aMutableFile->AssertIsOnOwningThread();
+  aMutableFile.AssertIsOnOwningThread();
 
   // It's ok if this is called after we cleared the array, so don't assert that
   // aMutableFile is in the list.
 
-  mLiveMutableFiles.RemoveElement(aMutableFile);
+  mLiveMutableFiles.RemoveElement(&aMutableFile);
 }
 
 void IDBDatabase::InvalidateMutableFiles() {
@@ -1214,5 +1206,4 @@ void IDBDatabase::MaybeDecreaseActiveDatabaseCount() {
   }
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

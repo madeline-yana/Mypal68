@@ -95,7 +95,6 @@
 #include "mozilla/WebBrowserPersistLocalDocument.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/PromiseNativeHandler.h"
-#include "mozilla/dom/ParentSHistory.h"
 #include "mozilla/dom/ChildSHistory.h"
 #include "mozilla/dom/CanonicalBrowsingContext.h"
 #include "mozilla/dom/ContentChild.h"
@@ -146,7 +145,7 @@ typedef ScrollableLayerGuid::ViewID ViewID;
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(nsFrameLoader, mBrowsingContext,
                                       mMessageManager, mChildMessageManager,
-                                      mParentSHistory, mBrowserParent)
+                                      mBrowserParent)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFrameLoader)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFrameLoader)
 
@@ -1231,9 +1230,9 @@ nsresult nsFrameLoader::SwapWithOtherRemoteLoader(
         nsGlobalWindowOuter::Cast(newWin)->GetMainWidget();
     const ManagedContainer<mozilla::plugins::PPluginWidgetParent>& plugins =
         aOther->mBrowserParent->ManagedPPluginWidgetParent();
-    for (auto iter = plugins.ConstIter(); !iter.Done(); iter.Next()) {
-      static_cast<mozilla::plugins::PluginWidgetParent*>(iter.Get()->GetKey())
-          ->SetParent(newParent);
+    for (auto* key : plugins) {
+      static_cast<mozilla::plugins::PluginWidgetParent*>(key)->SetParent(
+          newParent);
     }
   }
 #endif  // XP_WIN
@@ -2125,15 +2124,12 @@ nsresult nsFrameLoader::MaybeCreateDocShell() {
     return NS_ERROR_FAILURE;
   }
 
-  // If we are an in-process browser, we want to set up our session history. We
-  // do this by creating both the child SHistory (which is in the nsDocShell),
-  // and creating the corresponding in-process ParentSHistory.
+  // If we are an in-process browser, we want to set up our session history.
   if (mIsTopLevelContent && mOwnerContent->IsXULElement(nsGkAtoms::browser) &&
       !mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disablehistory)) {
     // XXX(nika): Set this up more explicitly?
     nsresult rv = docShell->InitSessionHistory();
     NS_ENSURE_SUCCESS(rv, rv);
-    mParentSHistory = new ParentSHistory(this);
   }
 
   OriginAttributes attrs;
@@ -2549,7 +2545,7 @@ bool nsFrameLoader::TryRemoteBrowser() {
   }
 
   // The flush could have initialized us.
-  if (mBrowserBridgeChild) {
+  if (mBrowserParent) {
     return true;
   }
 
@@ -2670,7 +2666,7 @@ bool nsFrameLoader::TryRemoteBrowser() {
     mBrowsingContext->SetEmbedderElement(mOwnerContent);
 
     mBrowserBridgeChild = BrowserBridgeChild::Create(
-        this, context, NS_LITERAL_STRING(DEFAULT_REMOTE_TYPE),
+        this, context, DEFAULT_REMOTE_TYPE,
         mBrowsingContext);
     return !!mBrowserBridgeChild;
   }
@@ -2702,14 +2698,6 @@ bool nsFrameLoader::TryRemoteBrowser() {
     nsCOMPtr<nsIBrowserDOMWindow> browserDOMWin;
     rootChromeWin->GetBrowserDOMWindow(getter_AddRefs(browserDOMWin));
     mBrowserParent->SetBrowserDOMWindow(browserDOMWin);
-  }
-
-  // Set up a parent SHistory
-  if (XRE_IsParentProcess()) {
-    // XXX(nika): Once we get out of process iframes we won't want to
-    // unconditionally set this up. What do we do for iframes in a chrome loaded
-    // document for example?
-    mParentSHistory = new ParentSHistory(this);
   }
 
   // For xul:browsers, update some settings based on attributes:
@@ -3400,9 +3388,11 @@ nsresult nsFrameLoader::GetNewTabContext(MutableTabContext* aTabContext,
     }
   }
 
-  bool tabContextUpdated =
-      aTabContext->SetTabContext(chromeOuterWindowID, showFocusRings, attrs,
-                                 presentationURLStr);
+  uint32_t maxTouchPoints = BrowserParent::GetMaxTouchPoints(mOwnerContent);
+
+  bool tabContextUpdated = aTabContext->SetTabContext(
+      chromeOuterWindowID, showFocusRings, attrs,
+      presentationURLStr, maxTouchPoints);
   NS_ENSURE_STATE(tabContextUpdated);
 
   return NS_OK;

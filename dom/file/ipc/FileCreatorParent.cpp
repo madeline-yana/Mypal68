@@ -125,7 +125,7 @@ nsresult FileCreatorParent::CreateBlobImpl(
   }
 
   if (!aIsFromNsIFile) {
-    impl->SetMozFullPath(EmptyString());
+    impl->SetMozFullPath(u""_ns);
   }
 
   impl.forget(aBlobImpl);

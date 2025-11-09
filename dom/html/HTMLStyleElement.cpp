@@ -13,8 +13,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Style)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 HTMLStyleElement::HTMLStyleElement(
     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo)
@@ -178,10 +177,10 @@ Maybe<LinkStyle::SheetInfo> HTMLStyleElement::GetStyleSheetInfo() {
       CORS_NONE,
       title,
       media,
-      /* integrity = */ EmptyString(),
+      /* integrity = */ u""_ns,
       /* nsStyleUtil::CSPAllowsInlineStyle takes care of nonce checking for
          inline styles. Bug 1607011 */
-      /* nonce = */ EmptyString(),
+      /* nonce = */ u""_ns,
       HasAlternateRel::No,
       IsInline::Yes,
       IsExplicitlyEnabled::No,
@@ -193,5 +192,4 @@ JSObject* HTMLStyleElement::WrapNode(JSContext* aCx,
   return HTMLStyleElement_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

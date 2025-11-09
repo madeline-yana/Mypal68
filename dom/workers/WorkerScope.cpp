@@ -171,7 +171,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(WorkerGlobalScopeBase,
   tmp->mWorkerPrivate->AssertIsOnWorkerThread();
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mConsole)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSerialEventTarget)
-  tmp->TraverseHostObjectURIs(cb);
+  tmp->TraverseObjectsInGlobal(cb);
   tmp->mWorkerPrivate->TraverseTimeouts(cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -180,7 +180,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(WorkerGlobalScopeBase,
   tmp->mWorkerPrivate->AssertIsOnWorkerThread();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mConsole)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSerialEventTarget)
-  tmp->UnlinkHostObjectURIs();
+  tmp->UnlinkObjectsInGlobal();
   tmp->mWorkerPrivate->UnlinkTimeouts();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -224,6 +224,11 @@ JSObject* WorkerGlobalScopeBase::GetGlobalJSObject() {
 JSObject* WorkerGlobalScopeBase::GetGlobalJSObjectPreserveColor() const {
   mWorkerPrivate->AssertIsOnWorkerThread();
   return GetWrapperPreserveColor();
+}
+
+StorageAccess WorkerGlobalScopeBase::GetStorageAccess() {
+  mWorkerPrivate->AssertIsOnWorkerThread();
+  return mWorkerPrivate->StorageAccess();
 }
 
 Maybe<ClientInfo> WorkerGlobalScopeBase::GetClientInfo() const {

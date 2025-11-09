@@ -26,8 +26,9 @@
 #include "nsIPropertyBag2.h"
 #include "nsComponentManagerUtils.h"
 #include "nsCRT.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 #include "nsQueryObject.h"
+#include "nsTHashMap.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -159,11 +160,11 @@ class ProcessPriorityManagerImpl final : public nsIObserver,
   void ObserveContentParentCreated(nsISupports* aContentParent);
   void ObserveContentParentDestroyed(nsISupports* aSubject);
 
-  nsDataHashtable<nsUint64HashKey, RefPtr<ParticularProcessPriorityManager> >
+  nsTHashMap<uint64_t, RefPtr<ParticularProcessPriorityManager> >
       mParticularManagers;
 
   /** Contains the PIDs of child processes holding high-priority wakelocks */
-  nsTHashtable<nsUint64HashKey> mHighPriorityChildIDs;
+  nsTHashSet<uint64_t> mHighPriorityChildIDs;
 };
 
 /**
@@ -277,7 +278,7 @@ class ParticularProcessPriorityManager final : public WakeLockObserver,
   nsCOMPtr<nsITimer> mResetPriorityTimer;
 
   // This hashtable contains the list of active TabId for this process.
-  nsTHashtable<nsUint64HashKey> mActiveBrowserParents;
+  nsTHashSet<uint64_t> mActiveBrowserParents;
 };
 
 /* static */
@@ -395,21 +396,16 @@ ProcessPriorityManagerImpl::Observe(nsISupports* aSubject, const char* aTopic,
 already_AddRefed<ParticularProcessPriorityManager>
 ProcessPriorityManagerImpl::GetParticularProcessPriorityManager(
     ContentParent* aContentParent) {
-  uint64_t cpId = aContentParent->ChildID();
-  auto entry = mParticularManagers.LookupForAdd(cpId);
-  RefPtr<ParticularProcessPriorityManager> pppm =
-      entry.OrInsert([aContentParent]() {
-        return new ParticularProcessPriorityManager(aContentParent);
-      });
-
-  if (!entry) {
-    // We created a new entry.
-    pppm->Init();
-    FireTestOnlyObserverNotification("process-created",
-                                     nsPrintfCString("%" PRIu64, cpId));
-  }
-
-  return pppm.forget();
+  const uint64_t cpId = aContentParent->ChildID();
+  return mParticularManagers.WithEntryHandle(cpId, [&](auto&& entry) {
+    if (!entry) {
+      entry.Insert(new ParticularProcessPriorityManager(aContentParent));
+      entry.Data()->Init();
+      FireTestOnlyObserverNotification("process-created",
+                                       nsPrintfCString("%" PRIu64, cpId));
+    }
+    return do_AddRef(entry.Data());
+  });
 }
 
 void ProcessPriorityManagerImpl::SetProcessPriority(
@@ -437,12 +433,12 @@ void ProcessPriorityManagerImpl::ObserveContentParentDestroyed(
   NS_ENSURE_TRUE_VOID(props);
 
   uint64_t childID = CONTENT_PROCESS_ID_UNKNOWN;
-  props->GetPropertyAsUint64(NS_LITERAL_STRING("childID"), &childID);
+  props->GetPropertyAsUint64(u"childID"_ns, &childID);
   NS_ENSURE_TRUE_VOID(childID != CONTENT_PROCESS_ID_UNKNOWN);
 
   if (auto entry = mParticularManagers.Lookup(childID)) {
     entry.Data()->ShutDown();
-    mHighPriorityChildIDs.RemoveEntry(childID);
+    mHighPriorityChildIDs.Remove(childID);
     entry.Remove();
   }
 }
@@ -454,10 +450,10 @@ void ProcessPriorityManagerImpl::NotifyProcessPriorityChanged(
 
   if (newPriority >= PROCESS_PRIORITY_FOREGROUND_HIGH &&
       aOldPriority < PROCESS_PRIORITY_FOREGROUND_HIGH) {
-    mHighPriorityChildIDs.PutEntry(aParticularManager->ChildID());
+    mHighPriorityChildIDs.Insert(aParticularManager->ChildID());
   } else if (newPriority < PROCESS_PRIORITY_FOREGROUND_HIGH &&
              aOldPriority >= PROCESS_PRIORITY_FOREGROUND_HIGH) {
-    mHighPriorityChildIDs.RemoveEntry(aParticularManager->ChildID());
+    mHighPriorityChildIDs.Remove(aParticularManager->ChildID());
   }
 }
 
@@ -502,13 +498,10 @@ void ParticularProcessPriorityManager::Init() {
 
   // This process may already hold the CPU lock; for example, our parent may
   // have acquired it on our behalf.
-  mHoldsCPUWakeLock = IsHoldingWakeLock(NS_LITERAL_STRING("cpu"));
-  mHoldsHighPriorityWakeLock =
-      IsHoldingWakeLock(NS_LITERAL_STRING("high-priority"));
-  mHoldsPlayingAudioWakeLock =
-      IsHoldingWakeLock(NS_LITERAL_STRING("audio-playing"));
-  mHoldsPlayingVideoWakeLock =
-      IsHoldingWakeLock(NS_LITERAL_STRING("video-playing"));
+  mHoldsCPUWakeLock = IsHoldingWakeLock(u"cpu"_ns);
+  mHoldsHighPriorityWakeLock = IsHoldingWakeLock(u"high-priority"_ns);
+  mHoldsPlayingAudioWakeLock = IsHoldingWakeLock(u"audio-playing"_ns);
+  mHoldsPlayingVideoWakeLock = IsHoldingWakeLock(u"video-playing"_ns);
 
   LOGP(
       "Done starting up.  mHoldsCPUWakeLock=%d, "
@@ -662,7 +655,7 @@ void ParticularProcessPriorityManager::OnBrowserParentDestroyed(
     return;
   }
 
-  mActiveBrowserParents.RemoveEntry(tabId);
+  mActiveBrowserParents.Remove(tabId);
 
   ResetPriority();
 }
@@ -731,7 +724,7 @@ ProcessPriority ParticularProcessPriorityManager::CurrentPriority() {
 
 ProcessPriority ParticularProcessPriorityManager::ComputePriority() {
   if (!mActiveBrowserParents.IsEmpty() ||
-      mContentParent->GetRemoteType().EqualsLiteral(EXTENSION_REMOTE_TYPE) ||
+      mContentParent->GetRemoteType() == EXTENSION_REMOTE_TYPE ||
       mHoldsPlayingAudioWakeLock) {
     return PROCESS_PRIORITY_FOREGROUND;
   }
@@ -797,9 +790,9 @@ void ParticularProcessPriorityManager::TabActivityChanged(
   MOZ_ASSERT(aBrowserParent);
 
   if (!aIsActive) {
-    mActiveBrowserParents.RemoveEntry(aBrowserParent->GetTabId());
+    mActiveBrowserParents.Remove(aBrowserParent->GetTabId());
   } else {
-    mActiveBrowserParents.PutEntry(aBrowserParent->GetTabId());
+    mActiveBrowserParents.Insert(aBrowserParent->GetTabId());
   }
 
   ResetPriority();
@@ -915,7 +908,7 @@ ProcessPriorityManagerChild::Observe(nsISupports* aSubject, const char* aTopic,
   NS_ENSURE_TRUE(props, NS_OK);
 
   int32_t priority = static_cast<int32_t>(PROCESS_PRIORITY_UNKNOWN);
-  props->GetPropertyAsInt32(NS_LITERAL_STRING("priority"), &priority);
+  props->GetPropertyAsInt32(u"priority"_ns, &priority);
   NS_ENSURE_TRUE(ProcessPriority(priority) != PROCESS_PRIORITY_UNKNOWN, NS_OK);
 
   mCachedPriority = static_cast<ProcessPriority>(priority);

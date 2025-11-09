@@ -5,6 +5,7 @@
 #include "WebBrowserPersistLocalDocument.h"
 #include "WebBrowserPersistDocumentParent.h"
 
+#include "mozilla/Encoding.h" //MY
 #include "mozilla/dom/Attr.h"
 #include "mozilla/dom/Comment.h"
 #include "mozilla/dom/Element.h"
@@ -568,12 +569,12 @@ PersistNodeFixup::PersistNodeFixup(WebBrowserPersistLocalDocument* aParent,
     NS_ENSURE_SUCCESS_VOID(rv);
     for (uint32_t i = 0; i < mapSize; ++i) {
       nsAutoCString urlFrom;
-      auto* urlTo = new nsCString();
+      auto urlTo = MakeUnique<nsCString>();
 
       rv = aMap->GetURIMapping(i, urlFrom, *urlTo);
       MOZ_ASSERT(NS_SUCCEEDED(rv));
       if (NS_SUCCEEDED(rv)) {
-        mMap.Put(urlFrom, urlTo);
+        mMap.InsertOrUpdate(urlFrom, std::move(urlTo));
       }
     }
   }

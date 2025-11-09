@@ -10,9 +10,7 @@
 #include "mozilla/dom/cache/CacheStorage.h"
 #include "mozilla/dom/cache/CacheWorkerRef.h"
 
-namespace mozilla {
-namespace dom {
-namespace cache {
+namespace mozilla::dom::cache {
 
 // declared in ActorUtils.h
 void DeallocPCacheStorageChild(PCacheStorageChild* aActor) { delete aActor; }
@@ -122,6 +120,4 @@ void CacheStorageChild::NoteDeletedActor() {
   }
 }
 
-}  // namespace cache
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom::cache

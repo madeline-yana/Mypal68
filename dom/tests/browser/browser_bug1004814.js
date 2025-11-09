@@ -10,7 +10,7 @@ add_task(async function() {
 
       return new Promise(resolve => {
         let ConsoleObserver = {
-          QueryInterface: ChromeUtils.generateQI([Ci.nsIObserver]),
+          QueryInterface: ChromeUtils.generateQI(["nsIObserver"]),
 
           observe(aSubject, aTopic, aData) {
             var obj = aSubject.wrappedJSObject;

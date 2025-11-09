@@ -10,14 +10,13 @@
 #include "mozilla/dom/CanonicalBrowsingContext.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/StaticPtr.h"
-#include "nsDataHashtable.h"
 #include "nsGlobalWindowOuter.h"
 
 namespace mozilla {
 namespace dom {
 
 using ControllerMap =
-    nsDataHashtable<nsUint64HashKey, RefPtr<ContentMediaController>>;
+    nsTHashMap<nsUint64HashKey, RefPtr<ContentMediaController>>;
 static StaticAutoPtr<ControllerMap> sControllers;
 
 #undef LOG
@@ -44,7 +43,7 @@ GetContentMediaControllerFromBrowsingContext(
   RefPtr<ContentMediaController> controller;
   if (!sControllers->Contains(topLevelBCId)) {
     controller = new ContentMediaController(topLevelBCId);
-    sControllers->Put(topLevelBCId, controller);
+    sControllers->InsertOrUpdate(topLevelBCId, controller);
   } else {
     controller = sControllers->Get(topLevelBCId);
   }

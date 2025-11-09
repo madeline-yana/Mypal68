@@ -5,6 +5,8 @@
 with Files("**"):
     BUG_COMPONENT = ("Core", "Storage: localStorage & sessionStorage")
 
+MOCHITEST_MANIFESTS += ['test/mochitest.ini']
+
 BROWSER_CHROME_MANIFESTS += ['test/browser.ini']
 
 XPCSHELL_TESTS_MANIFESTS += [

@@ -178,7 +178,7 @@ void ServiceWorkerContainer::ReceiveMessage(
     const ClientPostMessageArgs& aArgs) {
   RefPtr<ReceivedMessage> message = new ReceivedMessage(aArgs);
   if (mMessagesStarted) {
-    EnqueueReceivedMessageDispatch(message.forget());
+    EnqueueReceivedMessageDispatch(std::move(message));
   } else {
     mPendingMessages.AppendElement(message.forget());
   }
@@ -291,13 +291,13 @@ already_AddRefed<Promise> ServiceWorkerContainer::Register(
   if (aRv.Failed()) {
     return nullptr;
   }
-  scriptURI = cloneWithoutRef.forget();
+  scriptURI = std::move(cloneWithoutRef);
 
   aRv = NS_GetURIWithoutRef(scopeURI, getter_AddRefs(cloneWithoutRef));
   if (aRv.Failed()) {
     return nullptr;
   }
-  scopeURI = cloneWithoutRef.forget();
+  scopeURI = std::move(cloneWithoutRef);
 
   ServiceWorkerScopeAndScriptAreValid(clientInfo.ref(), scopeURI, scriptURI,
                                       aRv);

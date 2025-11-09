@@ -5,14 +5,16 @@
 #include "GetFilesHelper.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
+#include "mozilla/dom/Directory.h"
 #include "mozilla/dom/FileBlobImpl.h"
+#include "mozilla/dom/UnionTypes.h"
 #include "mozilla/dom/IPCBlobUtils.h"
 #include "mozilla/ipc/IPCStreamUtils.h"
 #include "FileSystemUtils.h"
+#include "nsContentUtils.h"
 #include "nsProxyRelease.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 namespace {
 
@@ -367,7 +369,7 @@ nsresult GetFilesHelperBase::AddExploredDirectory(nsIFile* aDir) {
     }
   }
 
-  mExploredDirectories.PutEntry(path);
+  mExploredDirectories.Insert(path);
   return NS_OK;
 }
 
@@ -559,5 +561,4 @@ already_AddRefed<GetFilesHelperParent> GetFilesHelperParent::Create(
   return helper.forget();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

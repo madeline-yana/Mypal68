@@ -93,6 +93,8 @@ class WorkerGlobalScopeBase : public DOMEventTargetHelper,
 
   JSObject* GetGlobalJSObjectPreserveColor() const final;
 
+  StorageAccess GetStorageAccess() final;
+
   Maybe<ClientInfo> GetClientInfo() const final;
 
   Maybe<ServiceWorkerDescriptor> GetController() const final;

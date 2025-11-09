@@ -39,7 +39,7 @@ class JSWindowActorParent final : public JSWindowActor {
   }
 
   WindowGlobalParent* GetManager() const;
-  void Init(const nsAString& aName, WindowGlobalParent* aManager);
+  void Init(const nsACString& aName, WindowGlobalParent* aManager);
   void StartDestroy();
   void AfterDestroy();
   CanonicalBrowsingContext* GetBrowsingContext(ErrorResult& aRv);

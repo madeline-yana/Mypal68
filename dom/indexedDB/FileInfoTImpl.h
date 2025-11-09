@@ -7,6 +7,7 @@
 
 #include "FileInfoT.h"
 
+#include "mozilla/dom/quota/QuotaCommon.h"
 #include "mozilla/Mutex.h"
 #include "nsIFile.h"
 
@@ -28,7 +29,9 @@ FileInfoT<FileManager>::FileInfoT(
 
 template <typename FileManager>
 void FileInfoT<FileManager>::AddRef() {
-  UpdateReferences(mRefCnt, 1);
+  AutoLock lock(FileManager::Mutex());
+
+  LockedAddRef();
 }
 
 template <typename FileManager>
@@ -90,16 +93,20 @@ void FileInfoT<FileManager>::UpdateReferences(ThreadSafeAutoRefCnt& aRefCount,
 
   if (needsCleanup) {
     if (aSyncDeleteFile) {
-      nsresult rv = mFileManager->SyncDeleteFile(Id());
-      if (NS_FAILED(rv)) {
-        NS_WARNING("FileManager cleanup failed!");
-      }
+      QM_WARNONLY_TRY(mFileManager->SyncDeleteFile(Id()));
     } else {
       Cleanup();
     }
   }
 
   delete this;
+}
+
+template <typename FileManager>
+void FileInfoT<FileManager>::LockedAddRef() {
+  FileManager::Mutex().AssertCurrentThreadOwns();
+
+  ++mRefCnt;
 }
 
 template <typename FileManager>
@@ -125,11 +132,7 @@ bool FileInfoT<FileManager>::LockedClearDBRefs(
 
 template <typename FileManager>
 void FileInfoT<FileManager>::Cleanup() {
-  int64_t id = Id();
-
-  if (NS_FAILED(mFileManager->AsyncDeleteFile(id))) {
-    NS_WARNING("Failed to delete file asynchronously!");
-  }
+  QM_WARNONLY_TRY(mFileManager->AsyncDeleteFile(Id()));
 }
 
 template <typename FileManager>

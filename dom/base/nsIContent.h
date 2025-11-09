@@ -314,8 +314,8 @@ class nsIContent : public nsINode {
    *                          execution is trusted.
    * @return true if the focus was changed.
    */
-  virtual bool PerformAccesskey(bool aKeyCausesActivation,
-                                bool aIsTrustedEvent) {
+  MOZ_CAN_RUN_SCRIPT virtual bool PerformAccesskey(bool aKeyCausesActivation,
+                                                   bool aIsTrustedEvent) {
     return false;
   }
 
@@ -378,6 +378,16 @@ class nsIContent : public nsINode {
    * @return The assigned slot element or null.
    */
   mozilla::dom::HTMLSlotElement* GetAssignedSlotByMode() const;
+
+  mozilla::dom::HTMLSlotElement* GetManualSlotAssignment() const {
+    const nsExtendedContentSlots* slots = GetExistingExtendedContentSlots();
+    return slots ? slots->mManualSlotAssignment : nullptr;
+  }
+
+  void SetManualSlotAssignment(mozilla::dom::HTMLSlotElement* aSlot) {
+    MOZ_ASSERT(aSlot || GetExistingExtendedContentSlots());
+    ExtendedContentSlots()->mManualSlotAssignment = aSlot;
+  }
 
   /**
    * Same as GetFlattenedTreeParentNode, but returns null if the parent is
@@ -677,6 +687,8 @@ class nsIContent : public nsINode {
      * @see nsIContent::GetAssignedSlot
      */
     RefPtr<mozilla::dom::HTMLSlotElement> mAssignedSlot;
+
+    mozilla::dom::HTMLSlotElement* mManualSlotAssignment = nullptr;
   };
 
   class nsContentSlots : public nsINode::nsSlots {
@@ -774,6 +786,10 @@ class nsIContent : public nsINode {
 
  public:
 #ifdef DEBUG
+#  define MOZ_DOM_LIST
+#endif
+
+#ifdef MOZ_DOM_LIST
   /**
    * List the content (and anything it contains) out to the given
    * file stream. Use aIndent as the base indent during formatting.

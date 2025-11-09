@@ -9,6 +9,7 @@
 #include "MediaInfo.h"
 #include "VPXDecoder.h"
 #include "mozilla/layers/KnowsCompositor.h"
+#include "mozilla/Preferences.h"
 
 #include "libavutil/pixfmt.h"
 #if LIBAVCODEC_VERSION_MAJOR < 54
@@ -174,6 +175,12 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitCodecContext() {
     }
   }
 
+  if (Preferences::GetBool("media.ffmpeg.skip_loop_filter")) {
+    // Enable skipping loop filter and allow non spec compliant speedup tricks.
+    mCodecContext->flags2 |= AV_CODEC_FLAG2_FAST;
+    mCodecContext->skip_loop_filter = AVDISCARD_ALL;
+  }
+ 
   // FFmpeg will call back to this to negotiate a video pixel format.
   mCodecContext->get_format = ChoosePixelFormat;
 }

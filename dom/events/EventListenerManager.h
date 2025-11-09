@@ -6,6 +6,7 @@
 #define mozilla_EventListenerManager_h_
 
 #include "mozilla/BasicEvents.h"
+#include "mozilla/dom/AbortFollower.h"
 #include "mozilla/dom/EventListenerBinding.h"
 #include "mozilla/JSEventHandler.h"
 #include "mozilla/MemoryReporting.h"
@@ -27,6 +28,7 @@ namespace mozilla {
 
 class ELMCreationDetector;
 class EventListenerManager;
+class ListenerSignalFollower;
 
 namespace dom {
 class Event;
@@ -166,7 +168,36 @@ class EventListenerManager final : public EventListenerManagerBase {
   ~EventListenerManager();
 
  public:
+  struct Listener;
+  class ListenerSignalFollower : public dom::AbortFollower {
+   public:
+    explicit ListenerSignalFollower(EventListenerManager* aListenerManager,
+                                    Listener* aListener);
+
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_CLASS(ListenerSignalFollower)
+
+    void RunAbortAlgorithm() override;
+
+    void Disconnect() {
+      mListenerManager = nullptr;
+      mListener.Reset();
+      Unfollow();
+    }
+
+   protected:
+    ~ListenerSignalFollower() = default;
+
+    EventListenerManager* mListenerManager;
+    EventListenerHolder mListener;
+    RefPtr<nsAtom> mTypeAtom;
+    EventMessage mEventMessage;
+    bool mAllEvents;
+    EventListenerFlags mFlags;
+  };
+
   struct Listener {
+    RefPtr<ListenerSignalFollower> mSignalFollower;
     EventListenerHolder mListener;
     RefPtr<nsAtom> mTypeAtom;
     EventMessage mEventMessage;
@@ -205,7 +236,8 @@ class EventListenerManager final : public EventListenerManagerBase {
           mIsChrome(false) {}
 
     Listener(Listener&& aOther)
-        : mListener(std::move(aOther.mListener)),
+        : mSignalFollower(std::move(aOther.mSignalFollower)),
+          mListener(std::move(aOther.mListener)),
           mTypeAtom(std::move(aOther.mTypeAtom)),
           mEventMessage(aOther.mEventMessage),
           mListenerType(aOther.mListenerType),
@@ -225,6 +257,9 @@ class EventListenerManager final : public EventListenerManagerBase {
       if ((mListenerType == eJSEventListener) && mListener) {
         static_cast<JSEventHandler*>(mListener.GetXPCOMCallback())
             ->Disconnect();
+      }
+      if (mSignalFollower) {
+        mSignalFollower->Disconnect();
       }
     }
 
@@ -289,7 +324,8 @@ class EventListenerManager final : public EventListenerManagerBase {
   void AddEventListenerByType(
       EventListenerHolder aListener, const nsAString& type,
       const EventListenerFlags& aFlags,
-      const dom::Optional<bool>& aPassive = dom::Optional<bool>());
+      const dom::Optional<bool>& aPassive = dom::Optional<bool>(),
+      dom::AbortSignal* aSignal = nullptr);
   void RemoveEventListenerByType(nsIDOMEventListener* aListener,
                                  const nsAString& type,
                                  const EventListenerFlags& aFlags) {
@@ -583,7 +619,8 @@ class EventListenerManager final : public EventListenerManagerBase {
   void AddEventListenerInternal(EventListenerHolder aListener,
                                 EventMessage aEventMessage, nsAtom* aTypeAtom,
                                 const EventListenerFlags& aFlags,
-                                bool aHandler = false, bool aAllEvents = false);
+                                bool aHandler = false, bool aAllEvents = false,
+                                dom::AbortSignal* aSignal = nullptr);
   void RemoveEventListenerInternal(EventListenerHolder aListener,
                                    EventMessage aEventMessage,
                                    nsAtom* aUserType,

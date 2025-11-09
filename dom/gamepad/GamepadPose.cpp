@@ -8,8 +8,7 @@
 #include "mozilla/dom/GamepadPoseBinding.h"
 #include "mozilla/dom/GamepadPose.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 GamepadPose::GamepadPose(nsISupports* aParent, const GamepadPoseState& aState)
     : Pose(aParent), mPoseState(aState) {
@@ -100,5 +99,4 @@ void GamepadPose::SetPoseState(const GamepadPoseState& aPose) {
 
 const GamepadPoseState& GamepadPose::GetPoseState() { return mPoseState; }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

@@ -407,14 +407,6 @@ class BrowserChild final : public nsMessageManagerScriptExecutor,
 
   bool IsTransparent() const { return mIsTransparent; }
 
-  void GetMaxTouchPoints(uint32_t* aTouchPoints) {
-    *aTouchPoints = mMaxTouchPoints;
-  }
-
-  void SetMaxTouchPoints(uint32_t aMaxTouchPoints) {
-    mMaxTouchPoints = aMaxTouchPoints;
-  }
-
   hal::ScreenOrientation GetOrientation() const { return mOrientation; }
 
   void SetBackgroundColor(const nscolor& aColor);
@@ -832,7 +824,7 @@ class BrowserChild final : public nsMessageManagerScriptExecutor,
   // Hash table to track coalesced mousemove events for different pointers.
   nsClassHashtable<nsUint32HashKey, CoalescedMouseData> mCoalescedMouseData;
 
-  nsDeque mToBeDispatchedMouseData;
+  nsDeque<CoalescedMouseData> mToBeDispatchedMouseData;
 
   CoalescedWheelData mCoalescedWheelData;
   RefPtr<CoalescedMouseMoveFlusher> mCoalescedMouseEventFlusher;

@@ -9,6 +9,7 @@
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/BrowsingContext.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsIWeakReferenceUtils.h" //MY
 #include "nsString.h"
 #include "nsWrapperCache.h"
 

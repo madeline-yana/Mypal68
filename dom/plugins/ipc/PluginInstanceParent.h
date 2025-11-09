@@ -16,7 +16,7 @@
 #endif
 
 #include "npfunctions.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsHashKeys.h"
 #include "nsRect.h"
 
@@ -223,7 +223,8 @@ class PluginInstanceParent : public PPluginInstanceParent {
 
   void GetSrcAttribute(nsACString& aOutput) const { aOutput = mSrcAttribute; }
 
-  mozilla::ipc::IPCResult AnswerPluginFocusChange(const bool& gotFocus);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY mozilla::ipc::IPCResult AnswerPluginFocusChange(
+      const bool& gotFocus);
 
   nsresult AsyncSetWindow(NPWindow* window);
   nsresult GetImageContainer(mozilla::layers::ImageContainer** aContainer);
@@ -303,7 +304,7 @@ class PluginInstanceParent : public PPluginInstanceParent {
   // drawing model has changed.
   int mLastRecordedDrawingModel;
 
-  nsDataHashtable<nsPtrHashKey<NPObject>, PluginScriptableObjectParent*>
+  nsTHashMap<nsPtrHashKey<NPObject>, PluginScriptableObjectParent*>
       mScriptableObjects;
 
   // This is used to tell the compositor that it should invalidate the

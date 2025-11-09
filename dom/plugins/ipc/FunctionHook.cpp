@@ -14,8 +14,7 @@
 #  include "PluginModuleChild.h"
 #endif
 
-namespace mozilla {
-namespace plugins {
+namespace mozilla::plugins {
 
 StaticAutoPtr<FunctionHookArray> FunctionHook::sFunctionHooks;
 
@@ -69,7 +68,7 @@ WindowsDllInterceptor* FunctionHook::GetDllInterceptorFor(
              "Non-ASCII module names are not supported");
   NS_ConvertASCIItoUTF16 moduleName(aModuleName);
 
-  WindowsDllInterceptor* ret = sDllInterceptorCache->LookupOrAdd(moduleName);
+  WindowsDllInterceptor* ret = sDllInterceptorCache->GetOrInsertNew(moduleName);
   MOZ_ASSERT(ret);
   ret->Init(moduleName.get());
   return ret;
@@ -203,7 +202,7 @@ static HANDLE WINAPI CreateFileAHookFn(LPCSTR aFname, DWORD aAccess,
 }
 
 static bool GetLocalLowTempPath(size_t aLen, LPWSTR aPath) {
-  /*NS_NAMED_LITERAL_STRING(tempname, "\\Temp");
+  /*constexpr auto tempname = u"\\Temp"_ns;
   LPWSTR path;
   if (SUCCEEDED(
           SHGetKnownFolderPath(FOLDERID_LocalAppDataLow, 0, nullptr, &path))) {
@@ -353,5 +352,4 @@ void FunctionHook::AddFunctionHooks(FunctionHookArray& aHooks) {
 
 #undef FUN_HOOK
 
-}  // namespace plugins
-}  // namespace mozilla
+}  // namespace mozilla::plugins

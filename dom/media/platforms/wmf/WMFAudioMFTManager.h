@@ -31,7 +31,7 @@ class WMFAudioMFTManager : public MFTManager {
   TrackInfo::TrackType GetType() override { return TrackInfo::kAudioTrack; }
 
   nsCString GetDescriptionName() const override {
-    return NS_LITERAL_CSTRING("wmf audio decoder");
+    return "wmf audio decoder"_ns;
   }
 
  private:

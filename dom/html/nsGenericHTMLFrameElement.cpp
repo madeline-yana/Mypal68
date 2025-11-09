@@ -295,8 +295,7 @@ void nsGenericHTMLFrameElement::AfterMaybeChangeAttr(
   if (aNamespaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::src) {
       mSrcTriggeringPrincipal = nsContentUtils::GetAttrTriggeringPrincipal(
-          this, aValue ? aValue->String() : EmptyString(),
-          aMaybeScriptedPrincipal);
+          this, aValue ? aValue->String() : u""_ns, aMaybeScriptedPrincipal);
       if (!IsHTMLElement(nsGkAtoms::iframe) ||
           !HasAttr(kNameSpaceID_None, nsGkAtoms::srcdoc)) {
         // Don't propagate error here. The attribute was successfully
@@ -309,11 +308,7 @@ void nsGenericHTMLFrameElement::AfterMaybeChangeAttr(
       nsIDocShell* docShell =
           mFrameLoader ? mFrameLoader->GetExistingDocShell() : nullptr;
       if (docShell) {
-        if (aValue) {
-          docShell->SetName(aValue->String());
-        } else {
-          docShell->SetName(EmptyString());
-        }
+        docShell->SetName(aValue ? aValue->String() : u""_ns);
       }
     }
   }

@@ -200,7 +200,7 @@ void RemoteWorkerManager::LaunchNewContentProcess() {
       NS_NewRunnableFunction("LaunchNewContentProcess", []() {
         RefPtr<ContentParent> unused =
             ContentParent::GetNewOrUsedBrowserProcess(
-                nullptr, NS_LITERAL_STRING_FROM_CSTRING(DEFAULT_REMOTE_TYPE));
+                nullptr, DEFAULT_REMOTE_TYPE);
       });
 
   nsCOMPtr<nsIEventTarget> target =

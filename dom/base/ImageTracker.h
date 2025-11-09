@@ -8,7 +8,7 @@
 #ifndef mozilla_dom_ImageTracker
 #define mozilla_dom_ImageTracker
 
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsHashKeys.h"
 
 class imgIRequest;
@@ -59,7 +59,7 @@ class ImageTracker {
  private:
   ~ImageTracker();
 
-  nsDataHashtable<nsPtrHashKey<imgIRequest>, uint32_t> mImages;
+  nsTHashMap<nsPtrHashKey<imgIRequest>, uint32_t> mImages;
   bool mLocking;
   bool mAnimating;
 };

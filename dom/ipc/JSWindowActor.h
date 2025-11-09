@@ -6,7 +6,7 @@
 #define mozilla_dom_JSWindowActor_h
 
 #include "js/TypeDecls.h"
-#include "ipc/IPCMessageUtils.h"
+#include "ipc/EnumSerializer.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/PromiseNativeHandler.h"
@@ -41,7 +41,7 @@ class JSWindowActor : public nsISupports, public nsWrapperCache {
   enum class Type { Parent, Child };
   enum class DestroyCallbackFunction { WillDestroy, DidDestroy };
 
-  const nsString& Name() const { return mName; }
+  const nsCString& Name() const { return mName; }
 
   void SendAsyncMessage(JSContext* aCx, const nsAString& aMessageName,
                         JS::Handle<JS::Value> aObj,
@@ -70,7 +70,7 @@ class JSWindowActor : public nsISupports, public nsWrapperCache {
 
   virtual ~JSWindowActor() = default;
 
-  void SetName(const nsAString& aName);
+  void SetName(const nsACString& aName);
 
   void StartDestroy();
 
@@ -97,11 +97,11 @@ class JSWindowActor : public nsISupports, public nsWrapperCache {
     QueryHandler(JSWindowActor* aActor,
                  const JSWindowActorMessageMeta& aMetadata);
 
-    void RejectedCallback(JSContext* aCx,
-                          JS::Handle<JS::Value> aValue) override;
+    void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                          ErrorResult& aRv) override;
 
-    void ResolvedCallback(JSContext* aCx,
-                          JS::Handle<JS::Value> aValue) override;
+    void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                          ErrorResult& aRv) override;
 
    private:
     ~QueryHandler() = default;
@@ -114,7 +114,7 @@ class JSWindowActor : public nsISupports, public nsWrapperCache {
     uint64_t mQueryId;
   };
 
-  nsString mName;
+  nsCString mName;
   nsRefPtrHashtable<nsUint64HashKey, Promise> mPendingQueries;
   uint64_t mNextQueryId;
 };

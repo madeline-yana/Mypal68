@@ -12,11 +12,11 @@
 #include "mozilla/dom/IPCBlobUtils.h"
 #include "mozilla/dom/PFileSystemParams.h"
 #include "mozilla/dom/Promise.h"
+#include "mozilla/ipc/BackgroundParent.h"
 #include "nsIFile.h"
 #include "nsString.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 /**
  * GetFilesTaskChild
@@ -146,7 +146,7 @@ already_AddRefed<GetFilesTaskParent> GetFilesTaskParent::Create(
     FileSystemBase* aFileSystem, const FileSystemGetFilesParams& aParam,
     FileSystemRequestParent* aParent, ErrorResult& aRv) {
   MOZ_ASSERT(XRE_IsParentProcess(), "Only call from parent process!");
-  AssertIsOnBackgroundThread();
+  mozilla::ipc::AssertIsOnBackgroundThread();
   MOZ_ASSERT(aFileSystem);
 
   RefPtr<GetFilesTaskParent> task =
@@ -168,13 +168,13 @@ GetFilesTaskParent::GetFilesTaskParent(FileSystemBase* aFileSystem,
       GetFilesHelperBase(aParam.recursiveFlag()),
       mDirectoryDOMPath(aParam.domPath()) {
   MOZ_ASSERT(XRE_IsParentProcess(), "Only call from parent process!");
-  AssertIsOnBackgroundThread();
+  mozilla::ipc::AssertIsOnBackgroundThread();
   MOZ_ASSERT(aFileSystem);
 }
 
 FileSystemResponseValue GetFilesTaskParent::GetSuccessRequestResult(
     ErrorResult& aRv) const {
-  AssertIsOnBackgroundThread();
+  mozilla::ipc::AssertIsOnBackgroundThread();
 
   FallibleTArray<FileSystemFileResponse> inputs;
   if (!inputs.SetLength(mTargetBlobImplArray.Length(), mozilla::fallible_t())) {
@@ -241,5 +241,4 @@ nsresult GetFilesTaskParent::GetTargetPath(nsAString& aPath) const {
   return mTargetPath->GetPath(aPath);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

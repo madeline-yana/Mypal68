@@ -42,8 +42,8 @@ class OnCompleteTask final : public Runnable {
     param.mRenderedBuffer = mRenderedBuffer;
 
     RefPtr<OfflineAudioCompletionEvent> event =
-        OfflineAudioCompletionEvent::Constructor(
-            mAudioContext, NS_LITERAL_STRING("complete"), param);
+        OfflineAudioCompletionEvent::Constructor(mAudioContext, u"complete"_ns,
+                                                 param);
     mAudioContext->DispatchTrustedEvent(event);
 
     return NS_OK;

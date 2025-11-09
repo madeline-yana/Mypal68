@@ -154,9 +154,9 @@ class PostMessageRunnable final : public CancelableRunnable {
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    event->InitMessageEvent(nullptr, NS_LITERAL_STRING("message"),
-                            CanBubble::eNo, Cancelable::eNo, value,
-                            EmptyString(), EmptyString(), nullptr, ports);
+    event->InitMessageEvent(nullptr, u"message"_ns, CanBubble::eNo,
+                            Cancelable::eNo, value, EmptyString(),
+                            EmptyString(), nullptr, ports);
     event->SetTrusted(true);
 
     mPort->DispatchEvent(*event);
@@ -873,7 +873,7 @@ void MessagePort::DispatchError() {
   init.mCancelable = false;
 
   RefPtr<Event> event =
-      MessageEvent::Constructor(this, NS_LITERAL_STRING("messageerror"), init);
+      MessageEvent::Constructor(this, u"messageerror"_ns, init);
   event->SetTrusted(true);
 
   DispatchEvent(*event);

@@ -11,6 +11,8 @@
 #include "mozilla/ipc/PBackgroundChild.h"
 #include "nsXPCOMPrivate.h"
 
+using namespace mozilla::ipc;
+
 namespace mozilla {
 
 namespace {

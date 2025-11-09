@@ -202,8 +202,7 @@ nsresult nsWindowRoot::GetControllerForCommand(const char* aCommand,
 }
 
 void nsWindowRoot::GetEnabledDisabledCommandsForControllers(
-    nsIControllers* aControllers,
-    nsTHashtable<nsCStringHashKey>& aCommandsHandled,
+    nsIControllers* aControllers, nsTHashSet<nsCString>& aCommandsHandled,
     nsTArray<nsCString>& aEnabledCommands,
     nsTArray<nsCString>& aDisabledCommands) {
   uint32_t controllerCount;
@@ -244,7 +243,7 @@ void nsWindowRoot::GetEnabledDisabledCommandsForControllers(
 void nsWindowRoot::GetEnabledDisabledCommands(
     nsTArray<nsCString>& aEnabledCommands,
     nsTArray<nsCString>& aDisabledCommands) {
-  nsTHashtable<nsCStringHashKey> commandsHandled;
+  nsTHashSet<nsCString> commandsHandled;
 
   nsCOMPtr<nsIControllers> controllers;
   GetControllers(false, getter_AddRefs(controllers));
@@ -290,22 +289,22 @@ JSObject* nsWindowRoot::WrapObject(JSContext* aCx,
 void nsWindowRoot::AddBrowser(mozilla::dom::BrowserParent* aBrowser) {
   nsWeakPtr weakBrowser =
       do_GetWeakReference(static_cast<nsIRemoteTab*>(aBrowser));
-  mWeakBrowsers.PutEntry(weakBrowser);
+  mWeakBrowsers.Insert(weakBrowser);
 }
 
 void nsWindowRoot::RemoveBrowser(mozilla::dom::BrowserParent* aBrowser) {
   nsWeakPtr weakBrowser =
       do_GetWeakReference(static_cast<nsIRemoteTab*>(aBrowser));
-  mWeakBrowsers.RemoveEntry(weakBrowser);
+  mWeakBrowsers.Remove(weakBrowser);
 }
 
 void nsWindowRoot::EnumerateBrowsers(BrowserEnumerator aEnumFunc, void* aArg) {
   // Collect strong references to all browsers in a separate array in
   // case aEnumFunc alters mWeakBrowsers.
   nsTArray<RefPtr<BrowserParent>> browserParents;
-  for (auto iter = mWeakBrowsers.ConstIter(); !iter.Done(); iter.Next()) {
+  for (const auto& key : mWeakBrowsers) {
     nsCOMPtr<nsIRemoteTab> browserParent(
-        do_QueryReferent(iter.Get()->GetKey()));
+        do_QueryReferent(key));
     if (BrowserParent* tab = BrowserParent::GetFrom(browserParent)) {
       browserParents.AppendElement(tab);
     }

@@ -5,9 +5,18 @@
 #ifndef mozilla_dom_quota_ActorsChild_h
 #define mozilla_dom_quota_ActorsChild_h
 
+#include <cstdint>
+#include "ErrorList.h"
+#include "mozilla/RefPtr.h"
 #include "mozilla/dom/quota/PQuotaChild.h"
 #include "mozilla/dom/quota/PQuotaRequestChild.h"
 #include "mozilla/dom/quota/PQuotaUsageRequestChild.h"
+#include "mozilla/ipc/ProtocolUtils.h"
+#include "nsCOMPtr.h"
+#include "nsStringFwd.h"
+#include "nsTArray.h"
+
+class nsIEventTarget;
 
 namespace mozilla {
 namespace ipc {
@@ -126,6 +135,10 @@ class QuotaRequestChild final : public PQuotaRequestChild {
   void HandleResponse();
 
   void HandleResponse(bool aResponse);
+
+#ifdef ENABLE_TESTS
+  void HandleResponse(const nsAString& aResponse);
+#endif
 
   void HandleResponse(const EstimateResponse& aResponse);
 

@@ -6,7 +6,7 @@
 #define dom_ipc_StringTable_h
 
 #include "mozilla/RangedPtr.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 
 /**
  * This file contains helper classes for creating and accessing compact string
@@ -70,14 +70,17 @@ class StringTableBuilder {
   using ElemType = typename StringType::char_type;
 
   StringTableEntry Add(const StringType& aKey) {
-    const auto& entry = mEntries.LookupForAdd(aKey).OrInsert([&]() {
-      Entry newEntry{mSize, aKey};
-      mSize += aKey.Length() + 1;
+    return mEntries.WithEntryHandle(aKey,
+                                    [&](auto&& entry) -> StringTableEntry {
+                                      entry.OrInsertWith([&]() {
+                                        Entry newEntry{mSize, aKey};
+                                        mSize += aKey.Length() + 1;
 
-      return newEntry;
-    });
+                                        return newEntry;
+                                      });
 
-    return {entry.mOffset, aKey.Length()};
+                                      return {entry->mOffset, aKey.Length()};
+                                    });
   }
 
   void Write(const RangedPtr<uint8_t>& aBuffer) {
@@ -104,7 +107,7 @@ class StringTableBuilder {
     StringType mValue;
   };
 
-  nsDataHashtable<KeyType, Entry> mEntries;
+  nsTHashMap<KeyType, Entry> mEntries;
   uint32_t mSize = 0;
 };
 

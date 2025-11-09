@@ -24,8 +24,9 @@
 #include "FetchStreamReader.h"
 #include "InternalResponse.h"
 
-namespace mozilla {
-namespace dom {
+#include "mozilla/dom/ReadableStreamDefaultReader.h"
+
+namespace mozilla::dom {
 
 NS_IMPL_ADDREF_INHERITED(Response, FetchBody<Response>)
 NS_IMPL_RELEASE_INHERITED(Response, FetchBody<Response>)
@@ -37,10 +38,8 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(Response, FetchBody<Response>)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mHeaders)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSignalImpl)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mFetchStreamReader)
-
-  tmp->mReadableStreamBody = nullptr;
-  tmp->mReadableStreamReader = nullptr;
-
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mReadableStreamBody)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mReadableStreamReader)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -49,11 +48,11 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(Response, FetchBody<Response>)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mHeaders)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSignalImpl)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFetchStreamReader)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mReadableStreamBody)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mReadableStreamReader)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(Response, FetchBody<Response>)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mReadableStreamBody)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mReadableStreamReader)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -276,54 +275,28 @@ already_AddRefed<Response> Response::Constructor(
 
     const fetch::ResponseBodyInit& body = aBody.Value();
     if (body.IsReadableStream()) {
+      JSContext* cx = aGlobal.Context();
       aRv.MightThrowJSException();
 
-      JSContext* cx = aGlobal.Context();
-      const ReadableStream& readableStream = body.GetAsReadableStream();
+      ReadableStream& readableStream = body.GetAsReadableStream();
 
-      JS::Rooted<JSObject*> readableStreamObj(cx, readableStream.Obj());
-
-      bool disturbed;
-      bool locked;
-      if (!JS::ReadableStreamIsDisturbed(cx, readableStreamObj, &disturbed) ||
-          !JS::ReadableStreamIsLocked(cx, readableStreamObj, &locked)) {
-        aRv.StealExceptionFromJSContext(cx);
-        return nullptr;
-      }
-      if (disturbed || locked) {
+      if (readableStream.Locked() || readableStream.Disturbed()) {
         aRv.ThrowTypeError<MSG_FETCH_BODY_CONSUMED_ERROR>();
         return nullptr;
       }
 
-      r->SetReadableStreamBody(cx, readableStreamObj);
+      r->SetReadableStreamBody(cx, &readableStream);
 
-      JS::ReadableStreamMode streamMode;
-      if (!JS::ReadableStreamGetMode(cx, readableStreamObj, &streamMode)) {
-        aRv.StealExceptionFromJSContext(cx);
-        return nullptr;
-      }
-      if (streamMode == JS::ReadableStreamMode::ExternalSource) {
-        // If this is a DOM generated ReadableStream, we can extract the
-        // inputStream directly.
-        JS::ReadableStreamUnderlyingSource* underlyingSource = nullptr;
-        if (!JS::ReadableStreamGetExternalUnderlyingSource(
-                cx, readableStreamObj, &underlyingSource)) {
-          aRv.StealExceptionFromJSContext(cx);
-          return nullptr;
-        }
-
+      // If this is a DOM generated ReadableStream, we can extract the
+      // inputStream directly.
+      if (readableStream.HasNativeUnderlyingSource()) {
+        BodyStreamHolder* underlyingSource =
+            readableStream.GetNativeUnderlyingSource();
         MOZ_ASSERT(underlyingSource);
 
         aRv = BodyStream::RetrieveInputStream(underlyingSource,
                                               getter_AddRefs(bodyStream));
 
-        // The releasing of the external source is needed in order to avoid an
-        // extra stream lock.
-        if (!JS::ReadableStreamReleaseExternalUnderlyingSource(
-                cx, readableStreamObj)) {
-          aRv.StealExceptionFromJSContext(cx);
-          return nullptr;
-        }
         if (NS_WARN_IF(aRv.Failed())) {
           return nullptr;
         }
@@ -374,24 +347,7 @@ already_AddRefed<Response> Response::Clone(JSContext* aCx, ErrorResult& aRv) {
   }
 
   if (!bodyUsed && mReadableStreamBody) {
-    aRv.MightThrowJSException();
-
-    AutoJSAPI jsapi;
-    if (!jsapi.Init(mOwner)) {
-      aRv.Throw(NS_ERROR_FAILURE);
-      return nullptr;
-    }
-
-    JSContext* cx = jsapi.cx();
-    JS::Rooted<JSObject*> body(cx, mReadableStreamBody);
-    bool locked;
-    // We just need to check the 'locked' state because GetBodyUsed() already
-    // checked the 'disturbed' state.
-    if (!JS::ReadableStreamIsLocked(cx, body, &locked)) {
-      aRv.StealExceptionFromJSContext(cx);
-      return nullptr;
-    }
-
+    bool locked = mReadableStreamBody->Locked();
     bodyUsed = locked;
   }
 
@@ -403,8 +359,9 @@ already_AddRefed<Response> Response::Clone(JSContext* aCx, ErrorResult& aRv) {
   RefPtr<FetchStreamReader> streamReader;
   nsCOMPtr<nsIInputStream> inputStream;
 
-  JS::Rooted<JSObject*> body(aCx);
-  MaybeTeeReadableStreamBody(aCx, &body, getter_AddRefs(streamReader),
+  RefPtr<ReadableStream> body;
+  MaybeTeeReadableStreamBody(aCx, getter_AddRefs(body),
+                             getter_AddRefs(streamReader),
                              getter_AddRefs(inputStream), aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
@@ -442,8 +399,9 @@ already_AddRefed<Response> Response::CloneUnfiltered(JSContext* aCx,
   RefPtr<FetchStreamReader> streamReader;
   nsCOMPtr<nsIInputStream> inputStream;
 
-  JS::Rooted<JSObject*> body(aCx);
-  MaybeTeeReadableStreamBody(aCx, &body, getter_AddRefs(streamReader),
+  RefPtr<ReadableStream> body;
+  MaybeTeeReadableStreamBody(aCx, getter_AddRefs(body),
+                             getter_AddRefs(streamReader),
                              getter_AddRefs(inputStream), aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
@@ -490,5 +448,4 @@ Headers* Response::Headers_() {
   return mHeaders;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

@@ -8,8 +8,7 @@
 #include "mozilla/plugins/PluginInstanceChild.h"
 #include "mozilla/plugins/StreamNotifyChild.h"
 
-namespace mozilla {
-namespace plugins {
+namespace mozilla::plugins {
 
 BrowserStreamChild::BrowserStreamChild(PluginInstanceChild* instance,
                                        const nsCString& url,
@@ -214,5 +213,4 @@ void BrowserStreamChild::SetSuspendedTimer() {
 
 void BrowserStreamChild::ClearSuspendedTimer() { mSuspendedTimer.Stop(); }
 
-} /* namespace plugins */
-} /* namespace mozilla */
+}  // namespace mozilla::plugins

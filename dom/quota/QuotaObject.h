@@ -5,14 +5,21 @@
 #ifndef mozilla_dom_quota_quotaobject_h__
 #define mozilla_dom_quota_quotaobject_h__
 
+// Local includes
+#include "Client.h"
+
+// Global includes
+#include <cstdint>
+#include "mozilla/AlreadyAddRefed.h"
+#include "mozilla/RefPtr.h"
+#include "nsCOMPtr.h"
+#include "nsISupports.h"
+#include "nsStringFwd.h"
+
+// XXX Avoid including this here by moving function bodies to the cpp file.
 #include "mozilla/dom/quota/QuotaCommon.h"
 
-#include "nsDataHashtable.h"
-
-#include "Client.h"
-#include "PersistenceType.h"
-
-BEGIN_QUOTA_NAMESPACE
+namespace mozilla::dom::quota {
 
 class OriginInfo;
 class QuotaManager;
@@ -30,7 +37,7 @@ class QuotaObject {
 
   const nsAString& Path() const { return mPath; }
 
-  bool MaybeUpdateSize(int64_t aSize, bool aTruncate);
+  [[nodiscard]] bool MaybeUpdateSize(int64_t aSize, bool aTruncate);
 
   bool IncreaseSize(int64_t aDelta);
 
@@ -73,6 +80,6 @@ class QuotaObject {
   bool mWritingDone;
 };
 
-END_QUOTA_NAMESPACE
+}  // namespace mozilla::dom::quota
 
 #endif  // mozilla_dom_quota_quotaobject_h__

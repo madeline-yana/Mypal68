@@ -22,8 +22,7 @@
 #  undef CreateFile
 #endif
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 /* static */
 already_AddRefed<Promise> FileCreatorHelper::CreateFile(
@@ -63,5 +62,4 @@ already_AddRefed<Promise> FileCreatorHelper::CreateFile(
   return promise.forget();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

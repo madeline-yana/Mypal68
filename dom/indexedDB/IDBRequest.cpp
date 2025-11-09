@@ -32,12 +32,9 @@
 #include "nsIScriptContext.h"
 #include "nsJSUtils.h"
 #include "nsString.h"
+#include "ThreadLocal.h"
 
-// Include this last to avoid path problems on Windows.
-#include "ActorsChild.h"
-
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 using namespace mozilla::dom::indexedDB;
 using namespace mozilla::ipc;
@@ -86,8 +83,9 @@ void IDBRequest::InitMembers() {
 }
 
 // static
-RefPtr<IDBRequest> IDBRequest::Create(JSContext* aCx, IDBDatabase* aDatabase,
-                                      SafeRefPtr<IDBTransaction> aTransaction) {
+MovingNotNull<RefPtr<IDBRequest>> IDBRequest::Create(
+    JSContext* aCx, IDBDatabase* aDatabase,
+    SafeRefPtr<IDBTransaction> aTransaction) {
   MOZ_ASSERT(aCx);
   MOZ_ASSERT(aDatabase);
   aDatabase->AssertIsOnOwningThread();
@@ -97,36 +95,37 @@ RefPtr<IDBRequest> IDBRequest::Create(JSContext* aCx, IDBDatabase* aDatabase,
 
   request->mTransaction = std::move(aTransaction);
 
-  return request;
+  return WrapMovingNotNullUnchecked(std::move(request));
 }
 
 // static
-RefPtr<IDBRequest> IDBRequest::Create(JSContext* aCx,
-                                      IDBObjectStore* aSourceAsObjectStore,
-                                      IDBDatabase* aDatabase,
-                                      SafeRefPtr<IDBTransaction> aTransaction) {
+MovingNotNull<RefPtr<IDBRequest>> IDBRequest::Create(
+    JSContext* aCx, IDBObjectStore* aSourceAsObjectStore,
+    IDBDatabase* aDatabase, SafeRefPtr<IDBTransaction> aTransaction) {
   MOZ_ASSERT(aSourceAsObjectStore);
   aSourceAsObjectStore->AssertIsOnOwningThread();
 
-  auto request = Create(aCx, aDatabase, std::move(aTransaction));
+  auto request =
+      Create(aCx, aDatabase, std::move(aTransaction)).unwrapBasePtr();
 
   request->mSourceAsObjectStore = aSourceAsObjectStore;
 
-  return request;
+  return WrapMovingNotNullUnchecked(std::move(request));
 }
 
 // static
-RefPtr<IDBRequest> IDBRequest::Create(JSContext* aCx, IDBIndex* aSourceAsIndex,
-                                      IDBDatabase* aDatabase,
-                                      SafeRefPtr<IDBTransaction> aTransaction) {
+MovingNotNull<RefPtr<IDBRequest>> IDBRequest::Create(
+    JSContext* aCx, IDBIndex* aSourceAsIndex, IDBDatabase* aDatabase,
+    SafeRefPtr<IDBTransaction> aTransaction) {
   MOZ_ASSERT(aSourceAsIndex);
   aSourceAsIndex->AssertIsOnOwningThread();
 
-  auto request = Create(aCx, aDatabase, std::move(aTransaction));
+  auto request =
+      Create(aCx, aDatabase, std::move(aTransaction)).unwrapBasePtr();
 
   request->mSourceAsIndex = aSourceAsIndex;
 
-  return request;
+  return WrapMovingNotNullUnchecked(std::move(request));
 }
 
 // static
@@ -461,5 +460,4 @@ JSObject* IDBOpenDBRequest::WrapObject(JSContext* aCx,
   return IDBOpenDBRequest_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

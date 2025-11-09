@@ -30,8 +30,7 @@ nsGenericHTMLElement* NS_NewHTMLAudioElement(
   return element;
 }
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 nsresult HTMLAudioElement::Clone(mozilla::dom::NodeInfo* aNodeInfo,
                                  nsINode** aResult) const {
@@ -106,5 +105,4 @@ JSObject* HTMLAudioElement::WrapNode(JSContext* aCx,
   return HTMLAudioElement_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

@@ -64,7 +64,7 @@ nsresult SerializeInputStreamParent(nsIInputStream* aInputStream,
 // static
 nsresult RemoteLazyInputStreamUtils::SerializeInputStream(
     nsIInputStream* aInputStream, uint64_t aSize, RemoteLazyStream& aOutStream,
-    ContentParent* aManager) {
+    dom::ContentParent* aManager) {
   PRemoteLazyInputStreamParent* actor = nullptr;
   nsresult rv = SerializeInputStreamParent(
       aInputStream, aSize, aManager->ChildID(), actor, aManager);
@@ -77,11 +77,11 @@ nsresult RemoteLazyInputStreamUtils::SerializeInputStream(
 // static
 nsresult RemoteLazyInputStreamUtils::SerializeInputStream(
     nsIInputStream* aInputStream, uint64_t aSize, RemoteLazyStream& aOutStream,
-    PBackgroundParent* aManager) {
+    mozilla::ipc::PBackgroundParent* aManager) {
   PRemoteLazyInputStreamParent* actor = nullptr;
   nsresult rv = SerializeInputStreamParent(
-      aInputStream, aSize, BackgroundParent::GetChildID(aManager), actor,
-      aManager);
+      aInputStream, aSize, mozilla::ipc::BackgroundParent::GetChildID(aManager),
+      actor, aManager);
   NS_ENSURE_SUCCESS(rv, rv);
 
   aOutStream = actor;
@@ -91,8 +91,8 @@ nsresult RemoteLazyInputStreamUtils::SerializeInputStream(
 // static
 nsresult RemoteLazyInputStreamUtils::SerializeInputStream(
     nsIInputStream* aInputStream, uint64_t aSize, RemoteLazyStream& aOutStream,
-    ContentChild* aManager) {
-  AutoIPCStream ipcStream(true /* delayed start */);
+    dom::ContentChild* aManager) {
+  mozilla::ipc::AutoIPCStream ipcStream(true /* delayed start */);
   if (!ipcStream.Serialize(aInputStream, aManager)) {
     return NS_ERROR_FAILURE;
   }
@@ -104,8 +104,8 @@ nsresult RemoteLazyInputStreamUtils::SerializeInputStream(
 // static
 nsresult RemoteLazyInputStreamUtils::SerializeInputStream(
     nsIInputStream* aInputStream, uint64_t aSize, RemoteLazyStream& aOutStream,
-    PBackgroundChild* aManager) {
-  AutoIPCStream ipcStream(true /* delayed start */);
+    mozilla::ipc::PBackgroundChild* aManager) {
+  mozilla::ipc::AutoIPCStream ipcStream(true /* delayed start */);
   if (!ipcStream.Serialize(aInputStream, aManager)) {
     return NS_ERROR_FAILURE;
   }

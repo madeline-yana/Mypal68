@@ -61,8 +61,10 @@ class BatteryManager;
 
 class Promise;
 
+#ifdef MOZ_GAMEPAD
 class Gamepad;
 class GamepadServiceTest;
+#endif
 class NavigatorUserMediaSuccessCallback;
 class NavigatorUserMediaErrorCallback;
 class MozGetUserMediaDevicesSuccessCallback;
@@ -73,7 +75,6 @@ namespace network {
 class Connection;
 }  // namespace network
 
-class Presentation;
 class LegacyMozTCPSocket;
 #ifdef MOZ_VR
 class VRDisplay;
@@ -167,9 +168,10 @@ class Navigator final : public nsISupports, public nsWrapperCache {
   already_AddRefed<LegacyMozTCPSocket> MozTCPSocket();
   network::Connection* GetConnection(ErrorResult& aRv);
   MediaDevices* GetMediaDevices(ErrorResult& aRv);
-
+#ifdef MOZ_GAMEPAD
   void GetGamepads(nsTArray<RefPtr<Gamepad>>& aGamepads, ErrorResult& aRv);
   GamepadServiceTest* RequestGamepadServiceTest();
+#endif
 #ifdef MOZ_VR
   already_AddRefed<Promise> GetVRDisplays(ErrorResult& aRv);
   void GetActiveVRDisplays(nsTArray<RefPtr<VRDisplay>>& aDisplays) const;
@@ -180,8 +182,6 @@ class Navigator final : public nsISupports, public nsWrapperCache {
 #endif
   already_AddRefed<Promise> RequestMIDIAccess(const MIDIOptions& aOptions,
                                               ErrorResult& aRv);
-
-  Presentation* GetPresentation(ErrorResult& aRv);
 
   bool SendBeacon(const nsAString& aUrl, const Nullable<fetch::BodyInit>& aData,
                   ErrorResult& aRv);
@@ -263,8 +263,9 @@ class Navigator final : public nsISupports, public nsWrapperCache {
   RefPtr<MediaDevices> mMediaDevices;
   RefPtr<ServiceWorkerContainer> mServiceWorkerContainer;
   nsCOMPtr<nsPIDOMWindowInner> mWindow;
-  RefPtr<Presentation> mPresentation;
+#ifdef MOZ_GAMEPAD
   RefPtr<GamepadServiceTest> mGamepadServiceTest;
+#endif
 #ifdef MOZ_VR
   nsTArray<RefPtr<Promise>> mVRGetDisplaysPromises;
   RefPtr<VRServiceTest> mVRServiceTest;

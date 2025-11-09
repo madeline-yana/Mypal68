@@ -38,6 +38,7 @@
 #include "mozilla/fallible.h"
 #include "mozilla/gfx/Point.h"
 #include "nsCOMPtr.h"
+#include "nsHashtablesFwd.h"
 #include "nsIContentPolicy.h"
 #include "nsID.h"
 #include "nsINode.h"
@@ -120,8 +121,6 @@ class nsIWindowProvider;
 struct JSContext;
 struct nsPoint;
 
-template <class K, class V>
-class nsDataHashtable;
 template <class T>
 class nsRefPtrHashKey;
 
@@ -185,11 +184,6 @@ class WorkerPrivate;
 enum class ElementCallbackType;
 enum class ReferrerPolicy : uint8_t;
 }  // namespace dom
-
-namespace intl {
-class LineBreaker;
-class WordBreaker;
-}  // namespace intl
 
 namespace ipc {
 class Shmem;
@@ -272,6 +266,8 @@ class nsContentUtils {
     return ThreadsafeIsSystemCaller(aCx) || IsFuzzingEnabled();
   }
 
+  static bool IsCallerChromeOrErrorPage(JSContext*, JSObject*);
+
   // The APIs for checking whether the caller is system (in the sense of system
   // principal) should only be used when the JSContext is known to accurately
   // represent the caller.  In practice, that means you should only use them in
@@ -344,6 +340,7 @@ class nsContentUtils {
   static bool ShouldResistFingerprinting(
       mozilla::dom::WorkerPrivate* aWorkerPrivate);
   static bool ShouldResistFingerprinting(const Document* aDoc);
+  static bool ShouldResistFingerprinting(nsIChannel* aChannel);
 
   // Prevent system colors from being exposed to CSS or canvas.
   static bool UseStandinsForNativeColors();
@@ -614,7 +611,10 @@ class nsContentUtils {
    * Returns true if aChar is of class Lu, Ll, Lt, Lm, Lo, Nd, Nl or No
    */
   static bool IsAlphanumeric(uint32_t aChar);
-  static bool IsAlphanumericAt(const nsTextFragment* aFrag, uint32_t aOffset);
+  /**
+   * Returns true if aChar is of class L*, N* or S* (for first-letter).
+   */
+  static bool IsAlphanumericOrSymbol(uint32_t aChar);
 
   /*
    * Is the character an HTML whitespace character?
@@ -835,14 +835,6 @@ class nsContentUtils {
 
   // Returns true if aDoc1 and aDoc2 have equal NodePrincipal()s.
   static bool HaveEqualPrincipals(Document* aDoc1, Document* aDoc2);
-
-  static mozilla::intl::LineBreaker* LineBreaker() {
-    return sLineBreaker.get();
-  }
-
-  static mozilla::intl::WordBreaker* WordBreaker() {
-    return sWordBreaker.get();
-  }
 
   /**
    * Regster aObserver as a shutdown observer. A strong reference is held
@@ -1566,7 +1558,8 @@ class nsContentUtils {
    * Helper to dispatch a "framefocusrequested" event to chrome, which will only
    * bring the window to the foreground and switch tabs if aCanRaise is true.
    */
-  static void RequestFrameFocus(Element& aFrameElement, bool aCanRaise);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY static void RequestFrameFocus(
+      Element& aFrameElement, bool aCanRaise);
 
   /**
    * This method creates and dispatches a trusted event.
@@ -2710,6 +2703,11 @@ class nsContentUtils {
   static bool IsNodeInEditableRegion(nsINode* aNode);
 
   /**
+   * Returns a LogModule that logs debugging info from RFP functions.
+   */
+  static mozilla::LogModule* ResistFingerprintingLog();
+
+  /**
    * Returns a LogModule that dump calls from content script are logged to.
    * This can be enabled with the 'Dump' module, and is useful for synchronizing
    * content JS to other logging modules.
@@ -3140,9 +3138,13 @@ class nsContentUtils {
   // Alternate data MIME type used by the ScriptLoader to register and read
   // bytecode out of the nsCacheInfoChannel.
   [[nodiscard]] static bool InitJSBytecodeMimeType();
-  static nsCString& JSBytecodeMimeType() {
-    MOZ_ASSERT(sJSBytecodeMimeType);
-    return *sJSBytecodeMimeType;
+  static nsCString& JSScriptBytecodeMimeType() {
+    MOZ_ASSERT(sJSScriptBytecodeMimeType);
+    return *sJSScriptBytecodeMimeType;
+  }
+  static nsCString& JSModuleBytecodeMimeType() {
+    MOZ_ASSERT(sJSModuleBytecodeMimeType);
+    return *sJSModuleBytecodeMimeType;
   }
 
   /**
@@ -3224,18 +3226,18 @@ class nsContentUtils {
                              JS::MutableHandle<JS::Value> vp,
                              bool aAllowWrapping);
 
-  static nsresult DispatchEvent(Document* aDoc, nsISupports* aTarget,
-                                const nsAString& aEventName, CanBubble,
-                                Cancelable, Composed, Trusted,
-                                bool* aDefaultAction = nullptr,
-                                ChromeOnlyDispatch = ChromeOnlyDispatch::eNo);
+  // TODO: Convert this to MOZ_CAN_RUN_SCRIPT (bug 1415230)
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY static nsresult DispatchEvent(
+      Document* aDoc, nsISupports* aTarget, const nsAString& aEventName,
+      CanBubble, Cancelable, Composed, Trusted, bool* aDefaultAction = nullptr,
+      ChromeOnlyDispatch = ChromeOnlyDispatch::eNo);
 
-  static nsresult DispatchEvent(Document* aDoc, nsISupports* aTarget,
-                                mozilla::WidgetEvent& aWidgetEvent,
-                                EventMessage aEventMessage, CanBubble,
-                                Cancelable, Trusted,
-                                bool* aDefaultAction = nullptr,
-                                ChromeOnlyDispatch = ChromeOnlyDispatch::eNo);
+  // TODO: Convert this to MOZ_CAN_RUN_SCRIPT (bug 1415230)
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY static nsresult DispatchEvent(
+      Document* aDoc, nsISupports* aTarget, mozilla::WidgetEvent& aWidgetEvent,
+      EventMessage aEventMessage, CanBubble, Cancelable, Trusted,
+      bool* aDefaultAction = nullptr,
+      ChromeOnlyDispatch = ChromeOnlyDispatch::eNo);
 
   static void InitializeModifierStrings();
 
@@ -3276,9 +3278,8 @@ class nsContentUtils {
 
   static nsIConsoleService* sConsoleService;
 
-  static nsDataHashtable<nsRefPtrHashKey<nsAtom>, EventNameMapping>*
-      sAtomEventTable;
-  static nsDataHashtable<nsStringHashKey, EventNameMapping>* sStringEventTable;
+  static nsTHashMap<nsRefPtrHashKey<nsAtom>, EventNameMapping>* sAtomEventTable;
+  static nsTHashMap<nsStringHashKey, EventNameMapping>* sStringEventTable;
   static nsTArray<RefPtr<nsAtom>>* sUserDefinedEvents;
 
   static nsIStringBundleService* sStringBundleService;
@@ -3287,9 +3288,6 @@ class nsContentUtils {
 
   static nsIContentPolicy* sContentPolicyService;
   static bool sTriedToGetContentPolicy;
-
-  static RefPtr<mozilla::intl::LineBreaker> sLineBreaker;
-  static RefPtr<mozilla::intl::WordBreaker> sWordBreaker;
 
   static mozilla::StaticRefPtr<nsIBidiKeyboard> sBidiKeyboard;
 
@@ -3328,10 +3326,12 @@ class nsContentUtils {
   static nsString* sAltText;
   static nsString* sModifierSeparator;
 
-  // Alternate data mime type, used by the ScriptLoader to register and read the
-  // bytecode out of the nsCacheInfoChannel.
-  static nsCString* sJSBytecodeMimeType;
+  // Alternate data mime types, used by the ScriptLoader to register and read
+  // the bytecode out of the nsCacheInfoChannel.
+  static nsCString* sJSScriptBytecodeMimeType;
+  static nsCString* sJSModuleBytecodeMimeType;
 
+  static mozilla::LazyLogModule gResistFingerprintingLog;
   static mozilla::LazyLogModule sDOMDumpLog;
 
   static int32_t sInnerOrOuterWindowCount;

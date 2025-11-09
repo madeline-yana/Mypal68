@@ -23,8 +23,7 @@ namespace mozilla {
 
 using namespace ipc;
 
-namespace dom {
-namespace ipc {
+namespace dom::ipc {
 
 // Align to size of uintptr_t here, to be safe. It's probably not strictly
 // necessary, though.
@@ -129,8 +128,8 @@ void SharedMap::Update(const FileDescriptor& aMapFile, size_t aMapSize,
                                               fallible);
   }
 
-  RefPtr<SharedMapChangeEvent> event = SharedMapChangeEvent::Constructor(
-      this, NS_LITERAL_STRING("change"), init);
+  RefPtr<SharedMapChangeEvent> event =
+      SharedMapChangeEvent::Constructor(this, u"change"_ns, init);
   event->SetTrusted(true);
 
   DispatchEvent(*event);
@@ -142,8 +141,8 @@ const nsTArray<SharedMap::Entry*>& SharedMap::EntryArray() const {
 
     mEntryArray.emplace(mEntries.Count());
     auto& array = mEntryArray.ref();
-    for (auto& entry : IterHash(mEntries)) {
-      array.AppendElement(entry);
+    for (auto& entry : mEntries) {
+      array.AppendElement(entry.GetWeak());
     }
   }
 
@@ -222,11 +221,11 @@ Result<Ok, nsresult> SharedMap::MaybeRebuild() {
     // indicate memory corruption, and are fatal.
     MOZ_RELEASE_ASSERT(!buffer.error());
 
-    // Note: Order of evaluation of function arguments is not guaranteed, so we
-    // can't use entry.release() in place of entry.get() without entry->Name()
-    // sometimes resulting in a null dereference.
-    mEntries.Put(entry->Name(), entry.get());
-    Unused << entry.release();
+    // Note: While the order of evaluation of the arguments to Put doesn't
+    // matter for this (the actual move will only happen within Put), to be
+    // clear about this, we call entry->Name() before calling Put.
+    const auto& name = entry->Name();
+    mEntries.InsertOrUpdate(name, std::move(entry));
   }
 
   return Ok();
@@ -285,11 +284,11 @@ Result<Ok, nsresult> WritableSharedMap::Serialize() {
   size_t headerSize = sizeof(count);
   size_t blobCount = 0;
 
-  for (auto& entry : IterHash(mEntries)) {
-    headerSize += entry->HeaderSize();
-    blobCount += entry->BlobCount();
+  for (const auto& entry : mEntries) {
+    headerSize += entry.GetData()->HeaderSize();
+    blobCount += entry.GetData()->BlobCount();
 
-    dataSize += entry->Size();
+    dataSize += entry.GetData()->Size();
     AlignTo(&dataSize, kStructuredCloneAlign);
   }
 
@@ -309,18 +308,18 @@ Result<Ok, nsresult> WritableSharedMap::Serialize() {
   // as indexes into our blobs array.
   nsTArray<RefPtr<BlobImpl>> blobImpls(blobCount);
 
-  for (auto& entry : IterHash(mEntries)) {
+  for (auto& entry : mEntries) {
     AlignTo(&offset, kStructuredCloneAlign);
 
     size_t blobOffset = blobImpls.Length();
-    if (entry->BlobCount()) {
-      blobImpls.AppendElements(entry->Blobs());
+    if (entry.GetData()->BlobCount()) {
+      blobImpls.AppendElements(entry.GetData()->Blobs());
     }
 
-    entry->ExtractData(&ptr[offset], offset, blobOffset);
-    entry->Code(header);
+    entry.GetData()->ExtractData(&ptr[offset], offset, blobOffset);
+    entry.GetData()->Code(header);
 
-    offset += entry->Size();
+    offset += entry.GetData()->Size();
   }
 
   mBlobImpls = std::move(blobImpls);
@@ -397,7 +396,7 @@ void WritableSharedMap::Set(JSContext* aCx, const nsACString& aName,
     return;
   }
 
-  Entry* entry = mEntries.LookupOrAdd(aName, *this, aName);
+  Entry* entry = mEntries.GetOrInsertNew(aName, *this, aName);
   entry->TakeData(std::move(holder));
 
   KeyChanged(aName);
@@ -459,6 +458,5 @@ NS_INTERFACE_MAP_END_INHERITING(SharedMap)
 NS_IMPL_ADDREF_INHERITED(WritableSharedMap, SharedMap)
 NS_IMPL_RELEASE_INHERITED(WritableSharedMap, SharedMap)
 
-}  // namespace ipc
-}  // namespace dom
+}  // namespace dom::ipc
 }  // namespace mozilla

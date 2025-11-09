@@ -116,8 +116,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Input)
 
 // XXX align=left, hspace, vspace, border? other nav4 attrs
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 // First bits are needed for the control type.
 #define NS_OUTER_ACTIVATE_EVENT (1 << 9)
@@ -1045,8 +1044,13 @@ nsresult HTMLInputElement::Clone(dom::NodeInfo* aNodeInfo,
         nsAutoString value;
         GetNonFileValueInternal(value);
         // SetValueInternal handles setting the VALUE_CHANGED bit for us
-        rv = it->SetValueInternal(value, TextControlState::eSetValue_Notify);
-        NS_ENSURE_SUCCESS(rv, rv);
+        if (NS_WARN_IF(NS_FAILED(
+                rv = it->SetValueInternal(
+                    value,
+                    {ValueSetterOption::
+                         UpdateOverlayTextVisibilityAndInvalidateFrame})))) {
+          return rv;
+        }
       }
       break;
     case VALUE_MODE_FILENAME:
@@ -1088,24 +1092,25 @@ nsresult HTMLInputElement::BeforeSetAttr(int32_t aNameSpaceID, nsAtom* aName,
                                          const nsAttrValueOrString* aValue,
                                          bool aNotify) {
   if (aNameSpaceID == kNameSpaceID_None) {
-    //
-    // When name or type changes, radio should be removed from radio group.
-    // (type changes are handled in the form itself currently)
-    // If we are not done creating the radio, we also should not do it.
-    //
-    if ((aName == nsGkAtoms::name || (aName == nsGkAtoms::type && !mForm)) &&
-        mType == NS_FORM_INPUT_RADIO && (mForm || mDoneCreating)) {
-      WillRemoveFromRadioGroup();
-    } else if (aNotify && aName == nsGkAtoms::disabled) {
+    if (aNotify && aName == nsGkAtoms::disabled) {
       mDisabledChanged = true;
-    } else if (mType == NS_FORM_INPUT_RADIO && aName == nsGkAtoms::required) {
-      nsCOMPtr<nsIRadioGroupContainer> container = GetRadioGroupContainer();
+    }
 
-      if (container && ((aValue && !HasAttr(aNameSpaceID, aName)) ||
-                        (!aValue && HasAttr(aNameSpaceID, aName)))) {
-        nsAutoString name;
-        GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
-        container->RadioRequiredWillChange(name, !!aValue);
+    // When name or type changes, radio should be removed from radio group.
+    // If we are not done creating the radio, we also should not do it.
+    if (mType == NS_FORM_INPUT_RADIO) {
+      if ((aName == nsGkAtoms::name || (aName == nsGkAtoms::type && !mForm)) &&
+          (mForm || mDoneCreating)) {
+        WillRemoveFromRadioGroup();
+      } else if (aName == nsGkAtoms::required) {
+        nsCOMPtr<nsIRadioGroupContainer> container = GetRadioGroupContainer();
+
+        if (container && ((aValue && !HasAttr(aNameSpaceID, aName)) ||
+                          (!aValue && HasAttr(aNameSpaceID, aName)))) {
+          nsAutoString name;
+          GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
+          container->RadioRequiredWillChange(name, !!aValue);
+        }
       }
     }
   }
@@ -1120,17 +1125,6 @@ nsresult HTMLInputElement::AfterSetAttr(int32_t aNameSpaceID, nsAtom* aName,
                                         nsIPrincipal* aSubjectPrincipal,
                                         bool aNotify) {
   if (aNameSpaceID == kNameSpaceID_None) {
-    //
-    // When name or type changes, radio should be added to radio group.
-    // (type changes are handled in the form itself currently)
-    // If we are not done creating the radio, we also should not do it.
-    //
-    if ((aName == nsGkAtoms::name || (aName == nsGkAtoms::type && !mForm)) &&
-        mType == NS_FORM_INPUT_RADIO && (mForm || mDoneCreating)) {
-      AddedToRadioGroup();
-      UpdateValueMissingValidityStateForRadio(false);
-    }
-
     if (aName == nsGkAtoms::src) {
       mSrcTriggeringPrincipal = nsContentUtils::GetAttrTriggeringPrincipal(
           this, aValue ? aValue->GetStringValue() : EmptyString(),
@@ -1187,6 +1181,14 @@ nsresult HTMLInputElement::AfterSetAttr(int32_t aNameSpaceID, nsAtom* aName,
       if (newType != mType) {
         HandleTypeChange(newType, aNotify);
       }
+    }
+
+    // When name or type changes, radio should be added to radio group.
+    // If we are not done creating the radio, we also should not do it.
+    if ((aName == nsGkAtoms::name || (aName == nsGkAtoms::type && !mForm)) &&
+        mType == NS_FORM_INPUT_RADIO && (mForm || mDoneCreating)) {
+      AddedToRadioGroup();
+      UpdateValueMissingValidityStateForRadio(false);
     }
 
     if (aName == nsGkAtoms::required || aName == nsGkAtoms::disabled ||
@@ -1561,9 +1563,9 @@ void HTMLInputElement::SetValue(const nsAString& aValue, CallerType aCallerType,
       // get the unsanitized value?
       nsresult rv = SetValueInternal(
           aValue, SanitizesOnValueGetter() ? nullptr : &currentValue,
-          TextControlState::eSetValue_ByContent |
-              TextControlState::eSetValue_Notify |
-              TextControlState::eSetValue_MoveCursorToEndIfValueChanged);
+          {ValueSetterOption::ByContentAPI,
+           ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame,
+           ValueSetterOption::MoveCursorToEndIfValueChanged});
       if (NS_FAILED(rv)) {
         aRv.Throw(rv);
         return;
@@ -1575,9 +1577,9 @@ void HTMLInputElement::SetValue(const nsAString& aValue, CallerType aCallerType,
     } else {
       nsresult rv = SetValueInternal(
           aValue,
-          TextControlState::eSetValue_ByContent |
-              TextControlState::eSetValue_Notify |
-              TextControlState::eSetValue_MoveCursorToEndIfValueChanged);
+          {ValueSetterOption::ByContentAPI,
+           ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame,
+           ValueSetterOption::MoveCursorToEndIfValueChanged});
       if (NS_FAILED(rv)) {
         aRv.Throw(rv);
         return;
@@ -1610,7 +1612,7 @@ void HTMLInputElement::SetValue(Decimal aValue, CallerType aCallerType) {
   MOZ_ASSERT(!aValue.isInfinity(), "aValue must not be Infinity!");
 
   if (aValue.isNaN()) {
-    SetValue(EmptyString(), aCallerType, IgnoreErrors());
+    SetValue(u""_ns, aCallerType, IgnoreErrors());
     return;
   }
 
@@ -1738,7 +1740,7 @@ void HTMLInputElement::SetValueAsDate(JSContext* aCx,
   // system" as the caller type, since the caller type only matters in the file
   // input case.
   if (IsNaN(milliseconds)) {
-    SetValue(EmptyString(), CallerType::NonSystem, aRv);
+    SetValue(u""_ns, CallerType::NonSystem, aRv);
     return;
   }
 
@@ -1752,7 +1754,7 @@ void HTMLInputElement::SetValueAsDate(JSContext* aCx,
   double month = JS::MonthFromTime(milliseconds);
 
   if (IsNaN(year) || IsNaN(month)) {
-    SetValue(EmptyString(), CallerType::NonSystem, aRv);
+    SetValue(u""_ns, CallerType::NonSystem, aRv);
     return;
   }
 
@@ -2190,9 +2192,9 @@ void HTMLInputElement::SetUserInput(const nsAString& aValue,
       GetValueMode() == VALUE_MODE_VALUE && IsSingleLineTextControl(false);
 
   nsresult rv = SetValueInternal(
-      aValue, TextControlState::eSetValue_BySetUserInput |
-                  TextControlState::eSetValue_Notify |
-                  TextControlState::eSetValue_MoveCursorToEndIfValueChanged);
+      aValue, {ValueSetterOption::BySetUserInputAPI,
+               ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame,
+               ValueSetterOption::MoveCursorToEndIfValueChanged});
   NS_ENSURE_SUCCESS_VOID(rv);
 
   if (!isInputEventDispatchedByTextControlState) {
@@ -2583,9 +2585,9 @@ void HTMLInputElement::UpdateFileList() {
   }
 }
 
-nsresult HTMLInputElement::SetValueInternal(const nsAString& aValue,
-                                            const nsAString* aOldValue,
-                                            uint32_t aFlags) {
+nsresult HTMLInputElement::SetValueInternal(
+    const nsAString& aValue, const nsAString* aOldValue,
+    const ValueSetterOptions& aOptions) {
   MOZ_ASSERT(GetValueMode() != VALUE_MODE_FILENAME,
              "Don't call SetValueInternal for file inputs");
 
@@ -2597,9 +2599,7 @@ nsresult HTMLInputElement::SetValueInternal(const nsAString& aValue,
   // TODO(emilio): Rather than doing this maybe add an attribute instead and
   // read it only on chrome docs or something? That'd allow front-end code to
   // move away from xul without weird side-effects.
-  if (mParent && mParent->IsXULElement()) {
-    aFlags |= TextControlState::eSetValue_PreserveHistory;
-  }
+  const bool forcePreserveUndoHistory = mParent && mParent->IsXULElement();
 
   switch (GetValueMode()) {
     case VALUE_MODE_VALUE: {
@@ -2613,29 +2613,33 @@ nsresult HTMLInputElement::SetValueInternal(const nsAString& aValue,
       }
       // else DoneCreatingElement calls us again once mDoneCreating is true
 
-      bool setValueChanged = !!(aFlags & TextControlState::eSetValue_Notify);
+      const bool setValueChanged = aOptions.contains(
+          ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame);
       if (setValueChanged) {
         SetValueChanged(true);
       }
 
       if (IsSingleLineTextControl(false)) {
-        // Note that if aFlags includes
-        // TextControlState::eSetValue_BySetUserInput, "input" event is
-        // automatically dispatched by TextControlState::SetValue().
-        // If you'd change condition of calling this method, you need to
-        // maintain SetUserInput() too.
-        // FYI: After calling SetValue(), the input type might have been
+        // Note that if aOptions includes
+        // ValueSetterOption::BySetUserInputAPI, "input" event is automatically
+        // dispatched by TextControlState::SetValue(). If you'd change condition
+        // of calling this method, you need to maintain SetUserInput() too. FYI:
+        // After calling SetValue(), the input type might have been
         //      modified so that mInputData may not store TextControlState.
-        if (!mInputData.mState->SetValue(value, aOldValue, aFlags)) {
+        if (!mInputData.mState->SetValue(
+                value, aOldValue,
+                forcePreserveUndoHistory
+                    ? aOptions + ValueSetterOption::PreserveUndoHistory
+                    : aOptions)) {
           return NS_ERROR_OUT_OF_MEMORY;
         }
         // If the caller won't dispatch "input" event via
         // nsContentUtils::DispatchInputEvent(), we need to modify
         // validationMessage value here.
         //
-        // FIXME(emilio): eSetValue_Internal is not supposed to change state,
-        // but maybe we could run this too?
-        if (aFlags & TextControlState::eSetValue_ByContent) {
+        // FIXME(emilio): ValueSetterOption::ByInternalAPI is not supposed to
+        // change state, but maybe we could run this too?
+        if (aOptions.contains(ValueSetterOption::ByContentAPI)) {
           MaybeUpdateAllValidityStates(!mDoneCreating);
         }
       } else {
@@ -2649,9 +2653,8 @@ nsresult HTMLInputElement::SetValueInternal(const nsAString& aValue,
           if (frame) {
             frame->UpdateForValueChange();
           }
-        } else if ((mType == NS_FORM_INPUT_TIME ||
-                    mType == NS_FORM_INPUT_DATE) &&
-                   !(aFlags & TextControlState::eSetValue_BySetUserInput)) {
+        } else if (CreatesDateTimeWidget() &&
+                   !aOptions.contains(ValueSetterOption::BySetUserInputAPI)) {
           if (Element* dateTimeBoxElement = GetDateTimeBoxElement()) {
             AsyncEventDispatcher* dispatcher = new AsyncEventDispatcher(
                 dateTimeBoxElement, u"MozDateTimeValueChanged"_ns,
@@ -2730,7 +2733,7 @@ void HTMLInputElement::DoSetCheckedChanged(bool aCheckedChanged, bool aNotify) {
     if (mCheckedChanged != aCheckedChanged) {
       nsCOMPtr<nsIRadioVisitor> visitor =
           new nsRadioSetCheckedChangedVisitor(aCheckedChanged);
-      VisitGroup(visitor, aNotify);
+      VisitGroup(visitor);
     }
   } else {
     SetCheckedChangedInternal(aCheckedChanged);
@@ -2915,7 +2918,7 @@ void HTMLInputElement::SetCheckedInternal(bool aChecked, bool aNotify) {
   // radios to have the chance to update its states, e.g., :indeterminate.
   if (mType == NS_FORM_INPUT_RADIO) {
     nsCOMPtr<nsIRadioVisitor> visitor = new nsRadioUpdateStateVisitor(this);
-    VisitGroup(visitor, aNotify);
+    VisitGroup(visitor);
   }
 }
 
@@ -3034,7 +3037,7 @@ void HTMLInputElement::SelectAll(nsPresContext* aPresContext) {
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(true);
 
   if (formControlFrame) {
-    formControlFrame->SetFormProperty(nsGkAtoms::select, EmptyString());
+    formControlFrame->SetFormProperty(nsGkAtoms::select, u""_ns);
   }
 }
 
@@ -3338,8 +3341,10 @@ void HTMLInputElement::CancelRangeThumbDrag(bool aIsForUserEvent) {
     mInputType->ConvertNumberToString(mRangeThumbDragStartValue, val);
     // TODO: What should we do if SetValueInternal fails?  (The allocation
     // is small, so we should be fine here.)
-    SetValueInternal(val, TextControlState::eSetValue_BySetUserInput |
-                              TextControlState::eSetValue_Notify);
+    SetValueInternal(
+        val,
+        {ValueSetterOption::BySetUserInputAPI,
+         ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame});
     nsRangeFrame* frame = do_QueryFrame(GetPrimaryFrame());
     if (frame) {
       frame->UpdateForValueChange();
@@ -3359,8 +3364,9 @@ void HTMLInputElement::SetValueOfRangeForUserEvent(Decimal aValue) {
   mInputType->ConvertNumberToString(aValue, val);
   // TODO: What should we do if SetValueInternal fails?  (The allocation
   // is small, so we should be fine here.)
-  SetValueInternal(val, TextControlState::eSetValue_BySetUserInput |
-                            TextControlState::eSetValue_Notify);
+  SetValueInternal(
+      val, {ValueSetterOption::BySetUserInputAPI,
+            ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame});
   nsRangeFrame* frame = do_QueryFrame(GetPrimaryFrame());
   if (frame) {
     frame->UpdateForValueChange();
@@ -3450,8 +3456,10 @@ void HTMLInputElement::StepNumberControlForUserEvent(int32_t aDirection) {
   mInputType->ConvertNumberToString(newValue, newVal);
   // TODO: What should we do if SetValueInternal fails?  (The allocation
   // is small, so we should be fine here.)
-  SetValueInternal(newVal, TextControlState::eSetValue_BySetUserInput |
-                               TextControlState::eSetValue_Notify);
+  SetValueInternal(
+      newVal,
+      {ValueSetterOption::BySetUserInputAPI,
+       ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame});
 }
 
 static bool SelectTextFieldOnFocus() {
@@ -3738,7 +3746,7 @@ nsresult HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor) {
                 // Checkbox and Radio try to submit on Enter press
                 if (keyEvent->mKeyCode != NS_VK_SPACE &&
                     aVisitor.mPresContext) {
-                  MaybeSubmitForm(MOZ_KnownLive(aVisitor.mPresContext));
+                  MaybeSubmitForm(aVisitor.mPresContext);
 
                   break;  // If we are submitting, do not send click event
                 }
@@ -3815,7 +3823,7 @@ nsresult HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor) {
                mType == NS_FORM_INPUT_NUMBER || IsDateTimeInputType(mType))) {
             FireChangeEventIfNeeded();
             if (aVisitor.mPresContext) {
-              rv = MaybeSubmitForm(MOZ_KnownLive(aVisitor.mPresContext));
+              rv = MaybeSubmitForm(aVisitor.mPresContext);
               NS_ENSURE_SUCCESS(rv, rv);
             }
           }
@@ -4223,23 +4231,24 @@ void HTMLInputElement::UnbindFromTree(bool aNullParent) {
 namespace {
 class TypeChangeSelectionRangeFlagDeterminer {
  public:
+  using ValueSetterOption = TextControlState::ValueSetterOption;
+  using ValueSetterOptions = TextControlState::ValueSetterOptions;
+
   // @param aOldType InputElementTypes
   // @param aNewType InputElementTypes
   TypeChangeSelectionRangeFlagDeterminer(uint8_t aOldType, uint8_t aNewType)
       : mOldType(aOldType), mNewType(aNewType) {}
 
-  // @return TextControlState::SetValueFlags
-  uint32_t GetFlag() const {
+  // @return TextControlState::ValueSetterOptions
+  ValueSetterOptions GetValueSetterOptions() const {
     const bool previouslySelectable = DoesSetRangeTextApply(mOldType);
     const bool nowSelectable = DoesSetRangeTextApply(mNewType);
     const bool moveCursorToBeginAndSetDirectionForward =
         !previouslySelectable && nowSelectable;
-    const uint32_t flag =
-        moveCursorToBeginAndSetDirectionForward
-            ? TextControlState::
-                  eSetValue_MoveCursorToBeginSetSelectionDirectionForward
-            : 0;
-    return flag;
+    if (moveCursorToBeginAndSetDirectionForward) {
+      return {ValueSetterOption::MoveCursorToBeginSetSelectionDirectionForward};
+    }
+    return {};
   }
 
  private:
@@ -4344,13 +4353,13 @@ void HTMLInputElement::HandleTypeChange(uint8_t aNewType, bool aNotify) {
 
         const TypeChangeSelectionRangeFlagDeterminer flagDeterminer(oldType,
                                                                     mType);
-        const uint32_t selectionRangeFlag = flagDeterminer.GetFlag();
+        ValueSetterOptions options(flagDeterminer.GetValueSetterOptions());
+        options += ValueSetterOption::ByInternalAPI;
 
         // TODO: What should we do if SetValueInternal fails?  (The allocation
         // may potentially be big, but most likely we've failed to allocate
         // before the type change.)
-        SetValueInternal(
-            value, TextControlState::eSetValue_Internal | selectionRangeFlag);
+        SetValueInternal(value, options);
       }
       break;
     case VALUE_MODE_FILENAME:
@@ -5341,8 +5350,10 @@ void HTMLInputElement::GetValueFromSetRangeText(nsAString& aValue) {
 }
 
 nsresult HTMLInputElement::SetValueFromSetRangeText(const nsAString& aValue) {
-  return SetValueInternal(aValue, TextControlState::eSetValue_ByContent |
-                                      TextControlState::eSetValue_Notify);
+  return SetValueInternal(
+      aValue,
+      {ValueSetterOption::ByContentAPI,
+       ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame});
 }
 
 Nullable<uint32_t> HTMLInputElement::GetSelectionStart(ErrorResult& aRv) {
@@ -5473,7 +5484,7 @@ nsresult HTMLInputElement::SetDefaultValueAsValue() {
 
   // SetValueInternal is going to sanitize the value.
   // TODO(mbrodesser): sanitizing will only happen if `mDoneCreating` is true.
-  return SetValueInternal(resetVal, TextControlState::eSetValue_Internal);
+  return SetValueInternal(resetVal, ValueSetterOption::ByInternalAPI);
 }
 
 void HTMLInputElement::SetDirectionFromValue(bool aNotify) {
@@ -5587,13 +5598,22 @@ HTMLInputElement::SubmitNamesValues(HTMLFormSubmission* aFormSubmission) {
         GetFilesOrDirectoriesInternal();
 
     if (files.IsEmpty()) {
-      aFormSubmission->AddNameBlobOrNullPair(name, nullptr);
-      return NS_OK;
+      NS_ENSURE_STATE(GetOwnerGlobal());
+      ErrorResult rv;
+      RefPtr<Blob> blob = Blob::CreateStringBlob(
+          GetOwnerGlobal(), ""_ns, u"application/octet-stream"_ns);
+      RefPtr<File> file = blob->ToFile(u""_ns, rv);
+
+      if (!rv.Failed()) {
+        aFormSubmission->AddNameBlobPair(name, file);
+      }
+
+      return rv.StealNSResult();
     }
 
     for (uint32_t i = 0; i < files.Length(); ++i) {
       if (files[i].IsFile()) {
-        aFormSubmission->AddNameBlobOrNullPair(name, files[i].GetAsFile());
+        aFormSubmission->AddNameBlobPair(name, files[i].GetAsFile());
       } else {
         MOZ_ASSERT(files[i].IsDirectory());
         aFormSubmission->AddNameDirectoryPair(name, files[i].GetAsDirectory());
@@ -5750,7 +5770,7 @@ void HTMLInputElement::DoneCreatingElement() {
     // TODO: What should we do if SetValueInternal fails?  (The allocation
     // may potentially be big, but most likely we've failed to allocate
     // before the type change.)
-    SetValueInternal(aValue, TextControlState::eSetValue_Internal);
+    SetValueInternal(aValue, ValueSetterOption::ByInternalAPI);
 
     if (IsDateOrTime(mType)) {
       // mFocusedValue has to be set here, so that `FireChangeEventIfNeeded` can
@@ -5924,8 +5944,9 @@ bool HTMLInputElement::RestoreState(PresState* aState) {
         // TODO: What should we do if SetValueInternal fails?  (The allocation
         // may potentially be big, but most likely we've failed to allocate
         // before the type change.)
-        SetValueInternal(inputState.get_TextContentData().value(),
-                         TextControlState::eSetValue_Notify);
+        SetValueInternal(
+            inputState.get_TextContentData().value(),
+            ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame);
         if (inputState.get_TextContentData().lastValueChangeWasInteractive()) {
           mLastValueChangeWasInteractive = true;
           UpdateState(true);
@@ -5985,7 +6006,7 @@ void HTMLInputElement::AddedToRadioGroup() {
 
   nsCOMPtr<nsIRadioVisitor> visitor =
       new nsRadioGetCheckedChangedVisitor(&checkedChanged, this);
-  VisitGroup(visitor, notify);
+  VisitGroup(visitor);
 
   SetCheckedChangedInternal(checkedChanged);
 
@@ -6020,7 +6041,7 @@ void HTMLInputElement::WillRemoveFromRadioGroup() {
     container->SetCurrentRadioButton(name, nullptr);
 
     nsCOMPtr<nsIRadioVisitor> visitor = new nsRadioUpdateStateVisitor(this);
-    VisitGroup(visitor, true);
+    VisitGroup(visitor);
   }
 
   // Remove this radio from its group in the container.
@@ -6054,8 +6075,7 @@ bool HTMLInputElement::IsHTMLFocusable(bool aWithMouse, bool* aIsFocusable,
   const bool defaultFocusable = true;
 #endif
 
-  if (mType == NS_FORM_INPUT_NUMBER || mType == NS_FORM_INPUT_TIME ||
-      mType == NS_FORM_INPUT_DATE) {
+  if (CreatesDateTimeWidget()) {
     if (aTabIndex) {
       // We only want our native anonymous child to be tabable to, not ourself.
       *aTabIndex = -1;
@@ -6107,13 +6127,12 @@ bool HTMLInputElement::IsHTMLFocusable(bool aWithMouse, bool* aIsFocusable,
   return false;
 }
 
-nsresult HTMLInputElement::VisitGroup(nsIRadioVisitor* aVisitor,
-                                      bool aFlushContent) {
+nsresult HTMLInputElement::VisitGroup(nsIRadioVisitor* aVisitor) {
   nsIRadioGroupContainer* container = GetRadioGroupContainer();
   if (container) {
     nsAutoString name;
     GetAttr(kNameSpaceID_None, nsGkAtoms::name, name);
-    return container->WalkRadioGroup(name, aVisitor, aFlushContent);
+    return container->WalkRadioGroup(name, aVisitor);
   }
 
   aVisitor->Visit(this);
@@ -6378,7 +6397,6 @@ void HTMLInputElement::UpdateValueMissingValidityStateForRadio(
   MOZ_ASSERT(mType == NS_FORM_INPUT_RADIO,
              "This should be called only for radio input types");
 
-  bool notify = mDoneCreating;
   HTMLInputElement* selection = GetSelectedRadioButton();
 
   aIgnoreSelf = aIgnoreSelf || !IsMutable();
@@ -6418,8 +6436,8 @@ void HTMLInputElement::UpdateValueMissingValidityStateForRadio(
     // nsRadioSetValueMissingState will call ContentStateChanged while visiting.
     nsAutoScriptBlocker scriptBlocker;
     nsCOMPtr<nsIRadioVisitor> visitor =
-        new nsRadioSetValueMissingState(this, valueMissing, notify);
-    VisitGroup(visitor, notify);
+        new nsRadioSetValueMissingState(this, valueMissing);
+    VisitGroup(visitor);
   }
 }
 
@@ -6662,10 +6680,10 @@ void HTMLInputElement::SetFilePickerFiltersFromAccept(
     } else {
       //... if no image/audio/video filter is found, check mime types filters
       nsCOMPtr<nsIMIMEInfo> mimeInfo;
-      if (NS_FAILED(mimeService->GetFromTypeAndExtension(
-              NS_ConvertUTF16toUTF8(token),
-              EmptyCString(),  // No extension
-              getter_AddRefs(mimeInfo))) ||
+      if (NS_FAILED(
+              mimeService->GetFromTypeAndExtension(NS_ConvertUTF16toUTF8(token),
+                                                   ""_ns,  // No extension
+                                                   getter_AddRefs(mimeInfo))) ||
           !mimeInfo) {
         allMimeTypeFiltersAreValid = false;
         continue;
@@ -6941,7 +6959,6 @@ already_AddRefed<nsINodeList> HTMLInputElement::GetLabels() {
   return nsGenericHTMLElement::Labels();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom
 
 #undef NS_ORIGINAL_CHECKED_VALUE

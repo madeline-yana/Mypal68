@@ -46,8 +46,7 @@
 #  define ASSERT_UNLESS_FUZZING(...) MOZ_ASSERT(false, __VA_ARGS__)
 #endif
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 using namespace mozilla::dom::quota;
 using namespace mozilla::ipc;
@@ -103,8 +102,8 @@ class FileHandleThreadPool::DirectoryInfo {
   RefPtr<FileHandleThreadPool> mOwningFileHandleThreadPool;
   nsTArray<RefPtr<FileHandleQueue>> mFileHandleQueues;
   nsTArray<DelayedEnqueueInfo> mDelayedEnqueueInfos;
-  nsTHashtable<nsStringHashKey> mFilesReading;
-  nsTHashtable<nsStringHashKey> mFilesWriting;
+  nsTHashSet<nsString> mFilesReading;
+  nsTHashSet<nsString> mFilesWriting;
 
  public:
   FileHandleQueue* CreateFileHandleQueue(FileHandle* aFileHandle);
@@ -120,11 +119,11 @@ class FileHandleThreadPool::DirectoryInfo {
                                                bool aFinish);
 
   void LockFileForReading(const nsAString& aFileName) {
-    mFilesReading.PutEntry(aFileName);
+    mFilesReading.Insert(aFileName);
   }
 
   void LockFileForWriting(const nsAString& aFileName) {
-    mFilesWriting.PutEntry(aFileName);
+    mFilesWriting.Insert(aFileName);
   }
 
   bool IsFileLockedForReading(const nsAString& aFileName) {
@@ -655,11 +654,12 @@ void FileHandleThreadPool::Enqueue(FileHandle* aFileHandle,
   const nsAString& fileName = mutableFile->FileName();
   bool modeIsWrite = aFileHandle->Mode() == FileMode::Readwrite;
 
-  DirectoryInfo* directoryInfo;
-  if (!mDirectoryInfos.Get(directoryId, &directoryInfo)) {
-    directoryInfo = new DirectoryInfo(this);
-    mDirectoryInfos.Put(directoryId, directoryInfo);
-  }
+  DirectoryInfo* directoryInfo =
+      mDirectoryInfos
+          .LookupOrInsertWith(
+              directoryId,
+              [&] { return UniquePtr<DirectoryInfo>(new DirectoryInfo(this)); })
+          .get();
 
   FileHandleQueue* existingFileHandleQueue =
       directoryInfo->GetFileHandleQueue(aFileHandle);
@@ -745,7 +745,7 @@ nsresult FileHandleThreadPool::Init() {
 
   mThreadPool = new nsThreadPool();
 
-  nsresult rv = mThreadPool->SetName(NS_LITERAL_CSTRING("FileHandles"));
+  nsresult rv = mThreadPool->SetName("FileHandles"_ns);
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
   }
@@ -1059,8 +1059,7 @@ void BackgroundMutableFileParentBase::Invalidate() {
 
   class MOZ_STACK_CLASS Helper final {
    public:
-    static bool InvalidateFileHandles(
-        nsTHashtable<nsPtrHashKey<FileHandle>>& aTable) {
+    static bool InvalidateFileHandles(nsTHashSet<FileHandle*>& aTable) {
       AssertIsOnBackgroundThread();
 
       const uint32_t count = aTable.Count();
@@ -1068,25 +1067,19 @@ void BackgroundMutableFileParentBase::Invalidate() {
         return true;
       }
 
-      FallibleTArray<RefPtr<FileHandle>> fileHandles;
+      nsTArray<RefPtr<FileHandle>> fileHandles;
       if (NS_WARN_IF(!fileHandles.SetCapacity(count, fallible))) {
         return false;
       }
 
-      for (auto iter = aTable.Iter(); !iter.Done(); iter.Next()) {
-        if (NS_WARN_IF(
-                !fileHandles.AppendElement(iter.Get()->GetKey(), fallible))) {
-          return false;
-        }
-      }
+      // This can't fail, since we already reserved the required capacity.
+      std::copy(aTable.cbegin(), aTable.cend(), MakeBackInserter(fileHandles));
 
-      if (count) {
-        for (uint32_t index = 0; index < count; index++) {
-          RefPtr<FileHandle> fileHandle = std::move(fileHandles[index]);
-          MOZ_ASSERT(fileHandle);
+      for (uint32_t index = 0; index < count; index++) {
+        RefPtr<FileHandle> fileHandle = std::move(fileHandles[index]);
+        MOZ_ASSERT(fileHandle);
 
-          fileHandle->Invalidate();
-        }
+        fileHandle->Invalidate();
       }
 
       return true;
@@ -1108,10 +1101,10 @@ bool BackgroundMutableFileParentBase::RegisterFileHandle(
     FileHandle* aFileHandle) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aFileHandle);
-  MOZ_ASSERT(!mFileHandles.GetEntry(aFileHandle));
+  MOZ_ASSERT(!mFileHandles.Contains(aFileHandle));
   MOZ_ASSERT(!mInvalidated);
 
-  if (NS_WARN_IF(!mFileHandles.PutEntry(aFileHandle, fallible))) {
+  if (NS_WARN_IF(!mFileHandles.Insert(aFileHandle, fallible))) {
     return false;
   }
 
@@ -1126,9 +1119,9 @@ void BackgroundMutableFileParentBase::UnregisterFileHandle(
     FileHandle* aFileHandle) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aFileHandle);
-  MOZ_ASSERT(mFileHandles.GetEntry(aFileHandle));
+  MOZ_ASSERT(mFileHandles.Contains(aFileHandle));
 
-  mFileHandles.RemoveEntry(aFileHandle);
+  mFileHandles.Remove(aFileHandle);
 
   if (!mFileHandles.Count()) {
     NoteInactiveState();
@@ -1904,6 +1897,10 @@ nsresult CopyFileHandleOp::DoFileWork(FileHandle* aFileHandle) {
     mOwningEventTarget->Dispatch(runnable, NS_DISPATCH_NORMAL);
   } while (true);
 
+  if (mOffset < mSize) {
+    // end-of-file reached
+    return NS_ERROR_FAILURE;
+  }
   MOZ_ASSERT(mOffset == mSize);
 
   if (mRead) {
@@ -2113,6 +2110,25 @@ nsresult TruncateOp::DoFileWork(FileHandle* aFileHandle) {
   nsCOMPtr<nsISeekableStream> sstream = do_QueryInterface(mFileStream);
   MOZ_ASSERT(sstream);
 
+  if (mParams.offset()) {
+    nsCOMPtr<nsIFileMetadata> fileMetadata = do_QueryInterface(mFileStream);
+    MOZ_ASSERT(fileMetadata);
+
+    int64_t size;
+    nsresult rv = fileMetadata->GetSize(&size);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      return rv;
+    }
+    MOZ_ASSERT(size >= 0);
+
+    if (mParams.offset() > static_cast<uint64_t>(size)) {
+      // Cannot extend the size of a file through truncate.
+      return NS_ERROR_DOM_INVALID_MODIFICATION_ERR;
+    }
+  }
+
+  // XXX If we allowed truncate to extend the file size, we would to ensure that
+  // the quota limit is checked, e.g. by making FileQuotaStream override Seek.
   nsresult rv = sstream->Seek(nsISeekableStream::NS_SEEK_SET, mParams.offset());
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
@@ -2156,5 +2172,4 @@ void FlushOp::GetResponse(FileRequestResponse& aResponse) {
   aResponse = FileRequestFlushResponse();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

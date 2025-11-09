@@ -811,7 +811,7 @@ class nsAutoAnimationMutationBatch {
   }
 
   Entry* AddEntry(mozilla::dom::Animation* aAnimation, nsINode* aTarget) {
-    EntryArray* entries = sCurrentBatch->mEntryTable.LookupOrAdd(aTarget);
+    EntryArray* entries = sCurrentBatch->mEntryTable.GetOrInsertNew(aTarget);
     if (entries->IsEmpty()) {
       sCurrentBatch->mBatchTargets.AppendElement(aTarget);
     }

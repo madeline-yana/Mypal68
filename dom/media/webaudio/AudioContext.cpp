@@ -663,12 +663,12 @@ void AudioContext::RemoveFromDecodeQueue(WebAudioDecodeJob* aDecodeJob) {
 
 void AudioContext::RegisterActiveNode(AudioNode* aNode) {
   if (!mCloseCalled) {
-    mActiveNodes.PutEntry(aNode);
+    mActiveNodes.Insert(aNode);
   }
 }
 
 void AudioContext::UnregisterActiveNode(AudioNode* aNode) {
-  mActiveNodes.RemoveEntry(aNode);
+  mActiveNodes.Remove(aNode);
 }
 
 uint32_t AudioContext::MaxChannelCount() const {
@@ -785,7 +785,7 @@ class OnStateChangeTask final : public Runnable {
 
     return nsContentUtils::DispatchTrustedEvent(
         doc, static_cast<DOMEventTargetHelper*>(mAudioContext),
-        NS_LITERAL_STRING("statechange"), CanBubble::eNo, Cancelable::eNo);
+        u"statechange"_ns, CanBubble::eNo, Cancelable::eNo);
   }
 
  private:
@@ -880,8 +880,7 @@ void AudioContext::OnStateChanged(void* aPromise, AudioContextState aNewState) {
 
 nsTArray<mozilla::MediaTrack*> AudioContext::GetAllTracks() const {
   nsTArray<mozilla::MediaTrack*> tracks;
-  for (auto iter = mAllNodes.ConstIter(); !iter.Done(); iter.Next()) {
-    AudioNode* node = iter.Get()->GetKey();
+  for (AudioNode* node : mAllNodes) {
     mozilla::MediaTrack* t = node->GetTrack();
     if (t) {
       tracks.AppendElement(t);
@@ -1056,8 +1055,8 @@ void AudioContext::ReportBlocked() {
         AUTOPLAY_LOG("Dispatch `blocked` event for AudioContext %p",
                      self.get());
         nsContentUtils::DispatchTrustedEvent(
-            doc, static_cast<DOMEventTargetHelper*>(self),
-            NS_LITERAL_STRING("blocked"), CanBubble::eNo, Cancelable::eNo);
+            doc, static_cast<DOMEventTargetHelper*>(self), u"blocked"_ns,
+            CanBubble::eNo, Cancelable::eNo);
       });
   Dispatch(r.forget());
 }
@@ -1131,12 +1130,12 @@ void AudioContext::CloseInternal(void* aPromise,
 
 void AudioContext::RegisterNode(AudioNode* aNode) {
   MOZ_ASSERT(!mAllNodes.Contains(aNode));
-  mAllNodes.PutEntry(aNode);
+  mAllNodes.Insert(aNode);
 }
 
 void AudioContext::UnregisterNode(AudioNode* aNode) {
   MOZ_ASSERT(mAllNodes.Contains(aNode));
-  mAllNodes.RemoveEntry(aNode);
+  mAllNodes.Remove(aNode);
 }
 
 already_AddRefed<Promise> AudioContext::StartRendering(ErrorResult& aRv) {
@@ -1181,9 +1180,9 @@ void AudioContext::Unmute() const {
 
 void AudioContext::SetParamMapForWorkletName(
     const nsAString& aName, AudioParamDescriptorMap* aParamMap) {
-  MOZ_ASSERT(!mWorkletParamDescriptors.GetValue(aName));
-  Unused << mWorkletParamDescriptors.Put(aName, std::move(*aParamMap),
-                                         fallible);
+  MOZ_ASSERT(!mWorkletParamDescriptors.Contains(aName));
+  Unused << mWorkletParamDescriptors.InsertOrUpdate(aName, std::move(*aParamMap),
+                                                    fallible);
 }
 
 size_t AudioContext::SizeOfIncludingThis(
@@ -1209,13 +1208,12 @@ AudioContext::CollectReports(nsIHandleReportCallback* aHandleReport,
                              nsISupports* aData, bool aAnonymize) {
   const nsLiteralCString nodeDescription(
       "Memory used by AudioNode DOM objects (Web Audio).");
-  for (auto iter = mAllNodes.ConstIter(); !iter.Done(); iter.Next()) {
-    AudioNode* node = iter.Get()->GetKey();
+  for (AudioNode* node : mAllNodes) {
     int64_t amount = node->SizeOfIncludingThis(MallocSizeOf);
     nsPrintfCString domNodePath("explicit/webaudio/audio-node/%s/dom-nodes",
                                 node->NodeType());
-    aHandleReport->Callback(EmptyCString(), domNodePath, KIND_HEAP, UNITS_BYTES,
-                            amount, nodeDescription, aData);
+    aHandleReport->Callback(""_ns, domNodePath, KIND_HEAP, UNITS_BYTES, amount,
+                            nodeDescription, aData);
   }
 
   int64_t amount = SizeOfIncludingThis(MallocSizeOf);
@@ -1239,7 +1237,7 @@ void AudioContext::ReportToConsole(uint32_t aErrorFlags,
   MOZ_ASSERT(aMsg);
   Document* doc =
       GetParentObject() ? GetParentObject()->GetExtantDoc() : nullptr;
-  nsContentUtils::ReportToConsole(aErrorFlags, NS_LITERAL_CSTRING("Media"), doc,
+  nsContentUtils::ReportToConsole(aErrorFlags, "Media"_ns, doc,
                                   nsContentUtils::eDOM_PROPERTIES, aMsg);
 }
 

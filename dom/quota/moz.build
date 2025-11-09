@@ -5,86 +5,78 @@
 with Files("**"):
     BUG_COMPONENT = ("Core", "Storage: Quota Manager")
 
-MOCHITEST_MANIFESTS += ['test/mochitest.ini']
-
-BROWSER_CHROME_MANIFESTS += ['test/browser.ini']
-
-XPCSHELL_TESTS_MANIFESTS += [
-    'test/unit/upgrades/xpcshell.ini',
-    'test/unit/xpcshell.ini'
-]
-
-TEST_HARNESS_FILES.xpcshell.dom.quota.test += [
-    'test/head-shared.js',
-]
-
-TEST_HARNESS_FILES.xpcshell.dom.quota.test.unit += [
-    'test/unit/head-shared.js',
-]
-
-TEST_DIRS += ['test/gtest']
+DIRS += ["test"]
 
 XPIDL_SOURCES += [
-    'nsIQuotaCallbacks.idl',
-    'nsIQuotaManagerService.idl',
-    'nsIQuotaRequests.idl',
-    'nsIQuotaResults.idl',
+    "nsIQuotaCallbacks.idl",
+    "nsIQuotaManagerService.idl",
+    "nsIQuotaRequests.idl",
+    "nsIQuotaResults.idl",
 ]
 
-XPIDL_MODULE = 'dom_quota'
+XPIDL_MODULE = "dom_quota"
 
 EXPORTS.mozilla.dom += [
-  'StorageManager.h',
+    "StorageManager.h",
 ]
 
 EXPORTS.mozilla.dom.quota += [
-    'ActorsParent.h',
-    'CheckedUnsafePtr.h',
-    'Client.h',
-    'FileStreams.h',
-    'MemoryOutputStream.h',
-    'OriginScope.h',
-    'PersistenceType.h',
-    'QuotaCommon.h',
-    'QuotaManager.h',
-    'QuotaManagerService.h',
-    'QuotaObject.h',
-    'SerializationHelpers.h',
-    'UsageInfo.h',
+    "ActorsParent.h",
+    "CachingDatabaseConnection.h",
+    "CheckedUnsafePtr.h",
+    "Client.h",
+    "ClientImpl.h",
+    "CommonMetadata.h",
+    "DirectoryLock.h",
+    "FileStreams.h",
+    "MemoryOutputStream.h",
+    "OriginScope.h",
+    "PersistenceType.h",
+    "QuotaCommon.h",
+    "QuotaManager.h",
+    "QuotaManagerService.h",
+    "QuotaObject.h",
+    "SerializationHelpers.h",
+    "UsageInfo.h",
 ]
 
 XPCOM_MANIFESTS += [
-    'components.conf',
+    "components.conf",
 ]
 
 UNIFIED_SOURCES += [
-    'ActorsChild.cpp',
-    'ActorsParent.cpp',
-    'Client.cpp',
-    'FileStreams.cpp',
-    'MemoryOutputStream.cpp',
-    'nsIndexedDBProtocolHandler.cpp',
-    'PersistenceType.cpp',
-    'QuotaCommon.cpp',
-    'QuotaManagerService.cpp',
-    'QuotaRequests.cpp',
-    'QuotaResults.cpp',
-    'StorageManager.cpp',
+    "ActorsChild.cpp",
+    "ActorsParent.cpp",
+    "CachingDatabaseConnection.cpp",
+    "Client.cpp",
+    "DirectoryLockImpl.cpp",
+    "FileStreams.cpp",
+    "MemoryOutputStream.cpp",
+    "nsIndexedDBProtocolHandler.cpp",
+    "PersistenceType.cpp",
+    "QuotaCommon.cpp",
+    "QuotaManagerService.cpp",
+    "QuotaRequests.cpp",
+    "QuotaResults.cpp",
+    "StorageManager.cpp",
 ]
 
 IPDL_SOURCES += [
-    'PQuota.ipdl',
-    'PQuotaRequest.ipdl',
-    'PQuotaUsageRequest.ipdl',
+    "PQuotaUsageRequest.ipdl",
 ]
 
-include('/ipc/chromium/chromium-config.mozbuild')
+PREPROCESSED_IPDL_SOURCES += [
+    "PQuota.ipdl",
+    "PQuotaRequest.ipdl",
+]
 
-FINAL_LIBRARY = 'xul'
+include("/ipc/chromium/chromium-config.mozbuild")
+
+FINAL_LIBRARY = "xul"
 
 LOCAL_INCLUDES += [
-    '/caps',
+    "/caps",
 ]
 
-if CONFIG['CC_TYPE'] in ('clang', 'gcc'):
-    CXXFLAGS += ['-Wno-error=shadow']
+if CONFIG["CC_TYPE"] in ("clang", "gcc"):
+    CXXFLAGS += ["-Wno-error=shadow"]

@@ -16,8 +16,7 @@
 // Helper Classes
 #include "nsCOMPtr.h"
 #include "nsWeakReference.h"
-#include "nsDataHashtable.h"
-#include "nsJSThingHashtable.h"
+#include "nsTHashMap.h"
 #include "nsCycleCollectionParticipant.h"
 
 // Interfaces Needed
@@ -93,7 +92,9 @@ class DocGroup;
 class Document;
 class External;
 class Function;
+#ifdef MOZ_GAMEPAD
 class Gamepad;
+#endif
 enum class ImageBitmapFormat : uint8_t;
 class IncrementalRunnable;
 class IntlUtils;
@@ -167,7 +168,7 @@ class nsGlobalWindowOuter final : public mozilla::dom::EventTarget,
                                   public PRCListStr,
                                   public nsIObserver {
  public:
-  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindowOuter*>
+  typedef nsTHashMap<nsUint64HashKey, nsGlobalWindowOuter*>
       OuterWindowByIdTable;
 
   static void AssertIsOnMainThread()
@@ -300,7 +301,8 @@ class nsGlobalWindowOuter final : public mozilla::dom::EventTarget,
       nsIContentSecurityPolicy* aCSP) override;
 
   virtual already_AddRefed<nsISupports> SaveWindowState() override;
-  virtual nsresult RestoreWindowState(nsISupports* aState) override;
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY virtual nsresult RestoreWindowState(
+      nsISupports* aState) override;
 
   virtual bool IsSuspended() const override;
   virtual bool IsFrozen() const override;
@@ -910,8 +912,8 @@ class nsGlobalWindowOuter final : public mozilla::dom::EventTarget,
                                            nsIBaseWindow* aWindow);
 
   void SetFocusedElement(mozilla::dom::Element* aElement,
-                         uint32_t aFocusMethod = 0, bool aNeedsFocus = false,
-                         bool aWillShowOutline = false) override;
+                         uint32_t aFocusMethod = 0,
+                         bool aNeedsFocus = false) override;
 
   uint32_t GetFocusMethod() override;
 

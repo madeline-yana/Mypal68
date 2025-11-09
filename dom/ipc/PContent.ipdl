@@ -34,7 +34,6 @@ include protocol PTestShell;
 include protocol PRemoteSpellcheckEngine;
 include protocol PWebBrowserPersistDocument;
 include protocol PWebrtcGlobal;
-include protocol PPresentation;
 include protocol PURLClassifier;
 include protocol PURLClassifierLocal;
 #ifdef MOZ_VR
@@ -59,6 +58,11 @@ include HangTypes;
 include PrefsTypes;
 include NeckoChannelParams;
 
+include "mozilla/dom/CSPMessageUtils.h";
+include "mozilla/dom/ReferrerInfoUtils.h";
+include "mozilla/ipc/ByteBufUtils.h";
+include "mozilla/ipc/URIUtils.h";
+
 using refcounted class nsIDOMGeoPosition from "nsGeoPositionIPCSerialiser.h";
 using refcounted class nsIAlertNotification from "mozilla/AlertNotificationIPCSerializer.h";
 
@@ -69,7 +73,7 @@ using base::ProcessId from "base/process.h";
 using struct IPC::Permission from "mozilla/net/NeckoMessageUtils.h";
 using class IPC::Principal from "mozilla/dom/PermissionMessageUtils.h";
 using mozilla::a11y::IHandlerControlHolder from "mozilla/a11y/IPCTypes.h";
-using mozilla::dom::NativeThreadId from "mozilla/dom/TabMessageUtils.h";
+using mozilla::dom::NativeThreadId from "mozilla/dom/NativeThreadId.h";
 using mozilla::hal::ProcessPriority from "mozilla/HalTypes.h";
 using mozilla::gfx::IntSize from "mozilla/gfx/2D.h";
 using mozilla::dom::TabId from "mozilla/dom/ipc/IdType.h";
@@ -101,6 +105,7 @@ using base::SharedMemoryHandle from "base/shared_memory.h";
 using mozilla::ipc::SharedMemoryBasic::Handle from "mozilla/ipc/SharedMemoryBasic.h";
 using mozilla::fontlist::Pointer from "SharedFontList.h";
 using gfxSparseBitSet from "gfxFontUtils.h";
+using FontVisibility from "gfxFontEntry.h";
 using mozilla::dom::MediaControlKeysEvent from "ipc/MediaControlIPC.h";
 using mozilla::dom::ControlledMediaState from "ipc/MediaControlIPC.h";
 
@@ -118,7 +123,7 @@ namespace dom {
 // but each platform needs different details so we have platform-specific
 // versions of the SystemFontListEntry type:
 #if defined(ANDROID)
-// Used on Android/B2G to pass the list of fonts on the device
+// Used on Android to pass the list of fonts on the device
 // to the child process
 struct SystemFontListEntry {
     nsCString familyName;
@@ -128,6 +133,7 @@ struct SystemFontListEntry {
     uint32_t  stretchRange;
     uint32_t  styleRange;
     uint8_t   index;
+    FontVisibility visibility;
 };
 #elif defined(XP_MACOSX)
 // Used on Mac OS X to pass the list of font families (not faces)
@@ -136,6 +142,7 @@ struct SystemFontListEntry {
 // record; see gfxMacPlatformFontList.h for values and meaning.
 struct SystemFontListEntry {
     nsCString familyName;
+    FontVisibility visibility;
     uint8_t   entryType;
 };
 #else
@@ -222,14 +229,14 @@ struct JSWindowActorEventDecl
 
 struct JSWindowActorInfo
 {
-  nsString name;
+  nsCString name;
   bool allFrames;
   nsCString? url;
 
   JSWindowActorEventDecl[] events;
   nsCString[] observers;
   nsString[] matches;
-  nsString[] remoteTypes;
+  nsCString[] remoteTypes;
 };
 
 struct GMPAPITags
@@ -361,7 +368,6 @@ nested(upto inside_cpow) sync protocol PContent
     manages PRemoteSpellcheckEngine;
     manages PWebBrowserPersistDocument;
     manages PWebrtcGlobal;
-    manages PPresentation;
     manages PURLClassifier;
     manages PURLClassifierLocal;
     manages PScriptCache;
@@ -567,7 +573,7 @@ child:
     /**
      * Send the remote type associated with the content process.
      */
-    async RemoteType(nsString aRemoteType);
+    async RemoteType(nsCString aRemoteType);
 
     /**
      * Send ServiceWorkerRegistrationData to child process.
@@ -587,7 +593,7 @@ child:
     /**
      * Unregister a previously registered JSWindowActor in the child process.
      */
-    async UnregisterJSWindowActor(nsString name);
+    async UnregisterJSWindowActor(nsCString name);
 
     async SetXPCOMProcessAttributes(XPCOMInitData xpcomInit,
                                     StructuredCloneData initialData,
@@ -635,18 +641,6 @@ child:
      * a Windows specific call.
      */
     async UpdateWindow(uintptr_t aChildId);
-
-    /**
-     * Notify the child that presentation receiver has been launched with the
-     * correspondent iframe.
-     */
-    async NotifyPresentationReceiverLaunched(PBrowser aIframe, nsString aSessionId);
-
-    /**
-     * Notify the child that the info about a presentation receiver needs to be
-     * cleaned up.
-     */
-    async NotifyPresentationReceiverCleanUp(nsString aSessionId);
 
     /**
      * Notify the child that cache is emptied.
@@ -886,8 +880,6 @@ parent:
 
     async PWebrtcGlobal();
 
-    async PPresentation();
-
     async CreateAudioIPCConnection() returns (FileDescriptor fd);
 
     sync PURLClassifier(Principal principal)
@@ -913,7 +905,7 @@ parent:
 
     async ShowAlert(nsIAlertNotification alert);
 
-    async CloseAlert(nsString name, Principal principal);
+    async CloseAlert(nsString name);
 
     async DisableNotifications(Principal principal);
 
@@ -993,9 +985,6 @@ parent:
 
     sync GetIconForExtension(nsCString aFileExt, uint32_t aIconSize)
         returns (uint8_t[] bits);
-
-    sync GetShowPasswordSetting()
-        returns (bool showPassword);
 
     // Notify the parent of the presence or absence of private docshells
     async PrivateDocShellsExist(bool aExist);
@@ -1208,6 +1197,9 @@ parent:
      * @param aFamilyIndex
      *   The 0-based index of the Family within the font-list that a content
      *   process needs to use.
+     * @param aLoadCmaps
+     *   If true, the parent should eagerly load character maps for the faces
+     *   in the family.
      *
      * This is a sync message because the content process cannot complete its
      * font-matching until the family is fully populated with Face records.
@@ -1215,7 +1207,8 @@ parent:
      * and then have to reflow again once all the font information needed
      * becomes available.
      */
-    sync InitializeFamily(uint32_t aGeneration, uint32_t aFamilyIndex);
+    sync InitializeFamily(uint32_t aGeneration, uint32_t aFamilyIndex,
+                          bool aLoadCmaps);
 
     /**
      * Record the character map of a given Face in the font list.
@@ -1356,7 +1349,7 @@ parent:
      async StoreAndBroadcastBlobURLRegistration(nsCString url, IPCBlob blob,
                                                 Principal principal);
 
-     async UnstoreAndBroadcastBlobURLUnregistration(nsCString url);
+     async UnstoreAndBroadcastBlobURLUnregistration(nsCString url, Principal principal);
 
     /**
      * Messages for communicating child Telemetry to the parent process

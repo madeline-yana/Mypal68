@@ -26,7 +26,7 @@ enum TCPReadyState {
   "closed",
 };
 
-[NoInterfaceObject,
+[LegacyNoInterfaceObject,
  Exposed=Window]
 interface LegacyMozTCPSocket {
   /**

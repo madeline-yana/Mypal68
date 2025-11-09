@@ -24,6 +24,7 @@
 #include "PermissionMessageUtils.h"
 #include "PuppetWidget.h"
 #include "StructuredCloneData.h"
+#include "TabMessageTypes.h" //MY
 #include "UnitTransforms.h"
 #include "ipc/nsGUIEventIPC.h"
 #include "js/JSON.h"
@@ -159,7 +160,7 @@ static const char BEFORE_FIRST_PAINT[] = "before-first-paint";
 
 nsTHashtable<nsPtrHashKey<BrowserChild>>* BrowserChild::sVisibleTabs;
 
-typedef nsDataHashtable<nsUint64HashKey, BrowserChild*> BrowserChildMap;
+typedef nsTHashMap<nsUint64HashKey, BrowserChild*> BrowserChildMap;
 static BrowserChildMap* sBrowserChildren;
 StaticMutex sBrowserChildrenMutex;
 
@@ -1475,7 +1476,7 @@ mozilla::ipc::IPCResult BrowserChild::RecvRealMouseMoveEvent(
     const uint64_t& aInputBlockId) {
   if (mCoalesceMouseMoveEvents && mCoalescedMouseEventFlusher) {
     CoalescedMouseData* data =
-        mCoalescedMouseData.LookupOrAdd(aEvent.pointerId);
+        mCoalescedMouseData.GetOrInsertNew(aEvent.pointerId);
     MOZ_ASSERT(data);
     if (data->CanCoalesce(aEvent, aGuid, aInputBlockId)) {
       data->Coalesce(aEvent, aGuid, aInputBlockId);
@@ -1492,8 +1493,10 @@ mozilla::ipc::IPCResult BrowserChild::RecvRealMouseMoveEvent(
     mToBeDispatchedMouseData.Push(dispatchData.release());
 
     // Put new data to replace the old one in the hash table.
-    CoalescedMouseData* newData = new CoalescedMouseData();
-    mCoalescedMouseData.Put(aEvent.pointerId, newData);
+    CoalescedMouseData* newData =
+        mCoalescedMouseData
+            .InsertOrUpdate(aEvent.pointerId, MakeUnique<CoalescedMouseData>())
+            .get();
     newData->Coalesce(aEvent, aGuid, aInputBlockId);
 
     // Dispatch all pending mouse events.
@@ -2583,8 +2586,8 @@ void BrowserChild::InitRenderingState(
     if (!sBrowserChildren) {
       sBrowserChildren = new BrowserChildMap;
     }
-    MOZ_ASSERT(!sBrowserChildren->Get(uint64_t(aLayersId)));
-    sBrowserChildren->Put(uint64_t(aLayersId), this);
+    MOZ_ASSERT(!sBrowserChildren->Contains(uint64_t(aLayersId)));
+    sBrowserChildren->InsertOrUpdate(uint64_t(aLayersId), this);
     mLayersId = aLayersId;
   }
 

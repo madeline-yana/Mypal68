@@ -45,6 +45,7 @@
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/ToJSValue.h"
 #include "nsIXPConnect.h"
+#include "nsMemory.h"
 
 #include <prinrval.h>
 

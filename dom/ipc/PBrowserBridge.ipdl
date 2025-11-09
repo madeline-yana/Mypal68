@@ -8,7 +8,7 @@ include DOMTypes;
 
 using mozilla::layers::LayersObserverEpoch from "mozilla/layers/LayersTypes.h";
 using mozilla::layers::LayersId from "mozilla/layers/LayersTypes.h";
-using mozilla::WidgetMouseEvent from "ipc/nsGUIEventIPC.h";
+using class mozilla::WidgetMouseEvent from "ipc/nsGUIEventIPC.h";
 
 namespace mozilla {
 namespace dom {

@@ -4,9 +4,7 @@
 
 #include "mozilla/dom/cache/StreamControl.h"
 
-namespace mozilla {
-namespace dom {
-namespace cache {
+namespace mozilla::dom::cache {
 
 void StreamControl::AddReadStream(ReadStream::Controllable* aReadStream) {
   AssertOwningThread();
@@ -32,28 +30,14 @@ StreamControl::~StreamControl() {
   MOZ_DIAGNOSTIC_ASSERT(mReadStreamList.IsEmpty());
 }
 
-void StreamControl::CloseReadStreams(const nsID& aId) {
-  AssertOwningThread();
-#ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
-  uint32_t closedCount = 0;
-#endif
-
-  for (const auto& stream : mReadStreamList.ForwardRange()) {
-    if (stream->MatchId(aId)) {
-      const auto pinnedStream = stream;
-      pinnedStream->CloseStream();
-#ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
-      closedCount += 1;
-#endif
-    }
-  }
-
-  MOZ_DIAGNOSTIC_ASSERT(closedCount > 0);
-}
-
 void StreamControl::CloseAllReadStreams() {
   AssertOwningThread();
 
+  // A copy of mReadStreamList is necessary here for two reasons:
+  // 1. mReadStreamList is modified in StreamControl::ForgetReadStream (called
+  //    transitively)
+  // 2. the this pointer is deleted by CacheStreamControlParent::Shutdown
+  //    (called transitively)
   auto readStreamList = mReadStreamList;
   for (const auto& stream : readStreamList.ForwardRange()) {
     stream->CloseStream();
@@ -78,6 +62,4 @@ bool StreamControl::HasEverBeenRead() const {
   });
 }
 
-}  // namespace cache
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom::cache

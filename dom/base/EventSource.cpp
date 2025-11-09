@@ -2,12 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/EventSource.h"
-
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/LoadInfo.h"
 #include "mozilla/DOMEventTargetHelper.h"
+#include "mozilla/dom/EventSource.h"
 #include "mozilla/dom/EventSourceBinding.h"
 #include "mozilla/dom/MessageEvent.h"
 #include "mozilla/dom/MessageEventBinding.h"
@@ -49,7 +48,9 @@
 
 namespace mozilla::dom {
 
+#ifdef DEBUG
 static LazyLogModule gEventSourceLog("EventSource");
+#endif
 
 #define SPACE_CHAR (char16_t)0x0020
 #define CR_CHAR (char16_t)0x000D
@@ -253,7 +254,7 @@ class EventSourceImpl final : public nsIObserver,
   // EventSourceImpl on target thread but should only be used on target thread.
   nsString mLastEventID;
   UniquePtr<Message> mCurrentMessage;
-  nsDeque mMessagesToDispatch;
+  nsDeque<Message> mMessagesToDispatch;
   ParserStatus mStatus;
   mozilla::UniquePtr<mozilla::Decoder> mUnicodeDecoder;
   nsString mLastFieldName;
@@ -422,7 +423,7 @@ void EventSourceImpl::CloseInternal() {
   }
 
   while (mMessagesToDispatch.GetSize() != 0) {
-    delete static_cast<Message*>(mMessagesToDispatch.PopFront());
+    delete mMessagesToDispatch.PopFront();
   }
   SetFrozen(false);
   ResetDecoder();
@@ -728,10 +729,8 @@ void EventSourceImpl::ParseSegment(const char* aBuffer, uint32_t aLength) {
     uint32_t result;
     size_t read;
     size_t written;
-    bool hadErrors;
-    Tie(result, read, written, hadErrors) =
+    std::tie(result, read, written, std::ignore) =
         mUnicodeDecoder->DecodeToUTF16(src, dst, false);
-    Unused << hadErrors;
     for (auto c : dst.To(written)) {
       nsresult rv = ParseCharacter(c);
       NS_ENSURE_SUCCESS_VOID(rv);
@@ -1407,8 +1406,7 @@ void EventSourceImpl::DispatchAllMessageEvents() {
   JSContext* cx = jsapi.cx();
 
   while (mMessagesToDispatch.GetSize() > 0) {
-    UniquePtr<Message> message(
-        static_cast<Message*>(mMessagesToDispatch.PopFront()));
+    UniquePtr<Message> message(mMessagesToDispatch.PopFront());
     // Now we can turn our string into a jsval
     JS::Rooted<JS::Value> jsData(cx);
     {

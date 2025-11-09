@@ -5,9 +5,9 @@
 #ifndef nsXULPrototypeCache_h__
 #define nsXULPrototypeCache_h__
 
+#include "nsBaseHashtable.h"
 #include "nsCOMPtr.h"
 #include "nsIObserver.h"
-#include "nsJSThingHashtable.h"
 #include "nsInterfaceHashtable.h"
 #include "nsRefPtrHashtable.h"
 #include "nsURIHashKey.h"
@@ -15,6 +15,8 @@
 #include "nsIStorageStream.h"
 
 #include "mozilla/scache/StartupCache.h"
+#include "js/experimental/JSStencil.h"
+#include "mozilla/RefPtr.h"
 
 class nsIHandleReportCallback;
 namespace mozilla {
@@ -31,6 +33,8 @@ class StyleSheet;
  */
 class nsXULPrototypeCache : public nsIObserver {
  public:
+  enum class CacheType { Prototype, Script };
+
   // nsISupports
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
@@ -55,8 +59,8 @@ class nsXULPrototypeCache : public nsIObserver {
   nsXULPrototypeDocument* GetPrototype(nsIURI* aURI);
   nsresult PutPrototype(nsXULPrototypeDocument* aDocument);
 
-  JSScript* GetScript(nsIURI* aURI);
-  nsresult PutScript(nsIURI* aURI, JS::Handle<JSScript*> aScriptObject);
+  JS::Stencil* GetStencil(nsIURI* aURI);
+  nsresult PutStencil(nsIURI* aURI, JS::Stencil* aStencil);
 
   /**
    * Get a style sheet by URI. If the style sheet is not in the cache,
@@ -80,20 +84,58 @@ class nsXULPrototypeCache : public nsIObserver {
    * This interface allows partial reads and writes from the buffers in the
    * startupCache.
    */
-  nsresult GetInputStream(nsIURI* aURI, nsIObjectInputStream** objectInput);
-  nsresult FinishInputStream(nsIURI* aURI);
-  nsresult GetOutputStream(nsIURI* aURI, nsIObjectOutputStream** objectOutput);
-  nsresult FinishOutputStream(nsIURI* aURI);
-  nsresult HasData(nsIURI* aURI, bool* exists);
 
+  inline nsresult GetPrototypeInputStream(nsIURI* aURI,
+                                          nsIObjectInputStream** objectInput) {
+    return GetInputStream(CacheType::Prototype, aURI, objectInput);
+  }
+  inline nsresult GetScriptInputStream(nsIURI* aURI,
+                                       nsIObjectInputStream** objectInput) {
+    return GetInputStream(CacheType::Script, aURI, objectInput);
+  }
+  inline nsresult FinishScriptInputStream(nsIURI* aURI) {
+    return FinishInputStream(aURI);
+  }
+
+  inline nsresult GetPrototypeOutputStream(
+      nsIURI* aURI, nsIObjectOutputStream** objectOutput) {
+    return GetOutputStream(aURI, objectOutput);
+  }
+  inline nsresult GetScriptOutputStream(nsIURI* aURI,
+                                        nsIObjectOutputStream** objectOutput) {
+    return GetOutputStream(aURI, objectOutput);
+  }
+
+  inline nsresult FinishPrototypeOutputStream(nsIURI* aURI) {
+    return FinishOutputStream(CacheType::Prototype, aURI);
+  }
+  inline nsresult FinishScriptOutputStream(nsIURI* aURI) {
+    return FinishOutputStream(CacheType::Script, aURI);
+  }
+
+  inline nsresult HasPrototype(nsIURI* aURI, bool* exists) {
+    return HasData(CacheType::Prototype, aURI, exists);
+  }
+  inline nsresult HasScript(nsIURI* aURI, bool* exists) {
+    return HasData(CacheType::Script, aURI, exists);
+  }
+
+ private:
+  nsresult GetInputStream(CacheType cacheType, nsIURI* uri,
+                          nsIObjectInputStream** stream);
+  nsresult FinishInputStream(nsIURI* aURI);
+
+  nsresult GetOutputStream(nsIURI* aURI, nsIObjectOutputStream** objectOutput);
+  nsresult FinishOutputStream(CacheType cacheType, nsIURI* aURI);
+  nsresult HasData(CacheType cacheType, nsIURI* aURI, bool* exists);
+
+ public:
   static nsXULPrototypeCache* GetInstance();
   static nsXULPrototypeCache* MaybeGetInstance() { return sInstance; }
 
   static void ReleaseGlobals() { NS_IF_RELEASE(sInstance); }
 
   void MarkInCCGeneration(uint32_t aGeneration);
-  void MarkInGC(JSTracer* aTrc);
-  void FlushScripts();
 
   static void CollectMemoryReports(nsIHandleReportCallback* aHandleReport,
                                    nsISupports* aData);
@@ -103,7 +145,7 @@ class nsXULPrototypeCache : public nsIObserver {
                                           void** aResult);
 
   nsXULPrototypeCache();
-  virtual ~nsXULPrototypeCache();
+  virtual ~nsXULPrototypeCache() = default;
 
   static nsXULPrototypeCache* sInstance;
 
@@ -112,7 +154,16 @@ class nsXULPrototypeCache : public nsIObserver {
   nsRefPtrHashtable<nsURIHashKey, nsXULPrototypeDocument>
       mPrototypeTable;  // owns the prototypes
   StyleSheetTable mStyleSheetTable;
-  nsJSThingHashtable<nsURIHashKey, JSScript*> mScriptTable;
+
+  class StencilHashKey : public nsURIHashKey {
+   public:
+    explicit StencilHashKey(const nsIURI* aKey) : nsURIHashKey(aKey) {}
+    StencilHashKey(StencilHashKey&&) = default;
+
+    RefPtr<JS::Stencil> mStencil;
+  };
+
+  nsTHashtable<StencilHashKey> mStencilTable;
 
   // URIs already written to the startup cache, to prevent double-caching.
   nsTHashtable<nsURIHashKey> mStartupCacheURITable;

@@ -1383,7 +1383,7 @@ nsAtom* SVGElement::GetEventNameForAttr(nsAtom* aAttr) {
   if (aAttr == nsGkAtoms::onrepeat) return nsGkAtoms::onrepeatEvent;
   if (aAttr == nsGkAtoms::onend) return nsGkAtoms::onendEvent;
 
-  return aAttr;
+  return SVGElementBase::GetEventNameForAttr(aAttr);
 }
 
 SVGViewportElement* SVGElement::GetCtx() const {

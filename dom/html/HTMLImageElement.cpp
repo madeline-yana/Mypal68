@@ -62,8 +62,7 @@ static bool IsPreviousSibling(nsINode* aSubject, nsINode* aNode) {
 }
 #endif
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 // Calls LoadSelectedImage on host element unless it has been superseded or
 // canceled -- this is the synchronous section of "update the image data".
@@ -97,7 +96,7 @@ class ImageLoadTask : public MicroTaskRunnable {
   bool AlwaysLoad() { return mAlwaysLoad; }
 
  private:
-  ~ImageLoadTask() {}
+  ~ImageLoadTask() = default;
   RefPtr<HTMLImageElement> mElement;
   nsCOMPtr<Document> mDocument;
   bool mAlwaysLoad;
@@ -1212,5 +1211,4 @@ void HTMLImageElement::MediaFeatureValuesChanged() {
   QueueImageLoadTask(false);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

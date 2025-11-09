@@ -33,8 +33,7 @@
 #  undef CreateFile
 #endif
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 namespace {
 
@@ -394,7 +393,8 @@ class FileCreationHandler final : public PromiseNativeHandler {
     aPromise->AppendNativeHandler(handler);
   }
 
-  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     AssertIsOnMainThread();
 
     if (NS_WARN_IF(!aValue.isObject())) {
@@ -411,7 +411,8 @@ class FileCreationHandler final : public PromiseNativeHandler {
     mConsumer->OnBlobResult(blob->Impl(), mWorkerRef);
   }
 
-  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     AssertIsOnMainThread();
 
     mConsumer->OnBlobResult(nullptr, mWorkerRef);
@@ -805,7 +806,7 @@ NS_IMETHODIMP BodyConsumer::Observe(nsISupports* aSubject, const char* aTopic,
   return NS_OK;
 }
 
-void BodyConsumer::Abort() {
+void BodyConsumer::RunAbortAlgorithm() {
   AssertIsOnTargetThread();
   ShutDownMainThreadConsuming();
   ContinueConsumeBody(NS_ERROR_DOM_ABORT_ERR, 0, nullptr);
@@ -813,5 +814,4 @@ void BodyConsumer::Abort() {
 
 NS_IMPL_ISUPPORTS(BodyConsumer, nsIObserver, nsISupportsWeakReference)
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

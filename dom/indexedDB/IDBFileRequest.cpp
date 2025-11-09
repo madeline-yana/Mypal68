@@ -17,8 +17,7 @@
 #include "nsError.h"
 #include "nsLiteralString.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 using namespace mozilla::dom::indexedDB;
 
@@ -88,5 +87,4 @@ JSObject* IDBFileRequest::WrapObject(JSContext* aCx,
   return IDBFileRequest_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

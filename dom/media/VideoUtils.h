@@ -9,8 +9,6 @@
 #include "MediaInfo.h"
 #include "TimeUnits.h"
 #include "VideoLimits.h"
-#include "mozilla/gfx/Point.h"  // for gfx::IntSize
-#include "mozilla/gfx/Types.h"
 #include "mozilla/AbstractThread.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/CheckedInt.h"
@@ -18,12 +16,14 @@
 #include "mozilla/ReentrantMonitor.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/SharedThreadPool.h"
+#include "mozilla/TaskQueue.h"
 #include "mozilla/UniquePtr.h"
+#include "mozilla/gfx/Point.h"  // for gfx::IntSize
+#include "mozilla/gfx/Types.h"
 #include "nsCOMPtr.h"
 #include "nsINamed.h"
 #include "nsIThread.h"
 #include "nsITimer.h"
-
 #include "nsThreadUtils.h"
 #include "prtime.h"
 
@@ -536,7 +536,7 @@ static bool StringListContains(const ListString& aList,
 
 inline void AppendStringIfNotEmpty(nsACString& aDest, nsACString&& aSrc) {
   if (!aSrc.IsEmpty()) {
-    aDest.Append(NS_LITERAL_CSTRING("\n"));
+    aDest.Append("\n"_ns);
     aDest.Append(aSrc);
   }
 }

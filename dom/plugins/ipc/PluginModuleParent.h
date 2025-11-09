@@ -19,7 +19,6 @@
 #include "npapi.h"
 #include "npfunctions.h"
 #include "nsExceptionHandler.h"
-#include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "nsIObserver.h"
 #ifdef XP_WIN

@@ -343,9 +343,7 @@ function assertThrowsInstanceOf(f, ctor, msg) {
   }
 
   if (fullmsg === undefined) {
-    fullmsg = `Assertion failed: expected exception ${
-      ctor.name
-    }, no exception thrown`;
+    fullmsg = `Assertion failed: expected exception ${ctor.name}, no exception thrown`;
   }
   if (msg !== undefined) {
     fullmsg += " - " + msg;
@@ -391,6 +389,24 @@ function expectingUpgrade(request) {
     };
     request.onsuccess = function(event) {
       ok(false, "Got success, but did not expect it!");
+      reject(event);
+    };
+  });
+}
+
+function expectingError(request, errorName) {
+  return new Promise(function(resolve, reject) {
+    request.onerror = function(event) {
+      is(errorName, event.target.error.name, "Correct exception type");
+      event.stopPropagation();
+      resolve(event);
+    };
+    request.onsuccess = function(event) {
+      ok(false, "Got success, but did not expect it!");
+      reject(event);
+    };
+    request.onupgradeneeded = function(event) {
+      ok(false, "Got upgrade, but did not expect it!");
       reject(event);
     };
   });

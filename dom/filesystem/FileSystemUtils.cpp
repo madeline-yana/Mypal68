@@ -3,15 +3,11 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/FileSystemUtils.h"
+#include "nsCharSeparatedTokenizer.h"
+#include "nsIEventTarget.h"
+#include "nsThreadUtils.h"
 
-namespace mozilla {
-namespace dom {
-
-namespace {
-
-bool TokenizerIgnoreNothing(char16_t /* aChar */) { return false; }
-
-}  // anonymous namespace
+namespace mozilla::dom {
 
 /* static */
 bool FileSystemUtils::IsDescendantPath(const nsAString& aPath,
@@ -39,15 +35,14 @@ bool FileSystemUtils::IsValidRelativeDOMPath(const nsAString& aPath,
     return false;
   }
 
-  NS_NAMED_LITERAL_STRING(kCurrentDir, ".");
-  NS_NAMED_LITERAL_STRING(kParentDir, "..");
+  constexpr auto kCurrentDir = u"."_ns;
+  constexpr auto kParentDir = u".."_ns;
 
   // Split path and check each path component.
-  nsCharSeparatedTokenizerTemplate<TokenizerIgnoreNothing> tokenizer(
-      aPath, FILESYSTEM_DOM_PATH_SEPARATOR_CHAR);
-
-  while (tokenizer.hasMoreTokens()) {
-    nsDependentSubstring pathComponent = tokenizer.nextToken();
+  for (const nsAString& pathComponent :
+       nsCharSeparatedTokenizerTemplate<NS_TokenizerIgnoreNothing>{
+           aPath, FILESYSTEM_DOM_PATH_SEPARATOR_CHAR}
+           .ToRange()) {
     // The path containing empty components, such as "foo//bar", is invalid.
     // We don't allow paths, such as "../foo", "foo/./bar" and "foo/../bar",
     // to walk up the directory.
@@ -84,5 +79,4 @@ nsresult FileSystemUtils::DispatchRunnable(
   return NS_OK;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

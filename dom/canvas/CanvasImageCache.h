@@ -22,7 +22,7 @@ class imgIContainer;
 namespace mozilla {
 
 class CanvasImageCache {
-  typedef mozilla::gfx::SourceSurface SourceSurface;
+  using SourceSurface = mozilla::gfx::SourceSurface;
 
  public:
   /**

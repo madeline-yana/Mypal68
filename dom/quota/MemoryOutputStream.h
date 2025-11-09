@@ -5,7 +5,12 @@
 #ifndef mozilla_dom_quota_MemoryOutputStream_h
 #define mozilla_dom_quota_MemoryOutputStream_h
 
+#include <cstdint>
+#include "mozilla/AlreadyAddRefed.h"
 #include "nsIOutputStream.h"
+#include "nsISupports.h"
+
+class nsIInputStream;
 
 namespace mozilla {
 namespace dom {

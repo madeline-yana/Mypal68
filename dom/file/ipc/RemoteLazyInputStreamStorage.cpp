@@ -9,6 +9,7 @@
 #include "nsIObserverService.h" //MY
 #include "nsIPropertyBag2.h"
 #include "nsStreamUtils.h"
+#include "RemoteLazyInputStreamParent.h"
 #include "RemoteLazyInputStreamStorage.h"
 
 namespace mozilla {
@@ -75,7 +76,7 @@ RemoteLazyInputStreamStorage::Observe(nsISupports* aSubject, const char* aTopic,
   }
 
   uint64_t childID = CONTENT_PROCESS_ID_UNKNOWN;
-  props->GetPropertyAsUint64(NS_LITERAL_STRING("childID"), &childID);
+  props->GetPropertyAsUint64(u"childID"_ns, &childID);
   if (NS_WARN_IF(childID == CONTENT_PROCESS_ID_UNKNOWN)) {
     return NS_ERROR_FAILURE;
   }
@@ -96,13 +97,13 @@ void RemoteLazyInputStreamStorage::AddStream(nsIInputStream* aInputStream,
                                              uint64_t aChildID) {
   MOZ_ASSERT(aInputStream);
 
-  StreamData* data = new StreamData();
+  UniquePtr<StreamData> data = MakeUnique<StreamData>();
   data->mInputStream = aInputStream;
   data->mChildID = aChildID;
   data->mSize = aSize;
 
   mozilla::StaticMutexAutoLock lock(gMutex);
-  mStorage.Put(aID, data);
+  mStorage.InsertOrUpdate(aID, std::move(data));
 }
 
 void RemoteLazyInputStreamStorage::ForgetStream(const nsID& aID) {

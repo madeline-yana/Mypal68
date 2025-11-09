@@ -8,6 +8,7 @@
 #include "nsIContentPermissionPrompt.h"
 #include "nsTArray.h"
 #include "nsIMutableArray.h"
+#include "nsIWeakReferenceUtils.h" //MY
 #include "mozilla/dom/PContentPermissionRequestChild.h"
 #include "mozilla/dom/ipc/IdType.h"
 #include "PermissionDelegateHandler.h"

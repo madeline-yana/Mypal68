@@ -616,7 +616,8 @@ mozilla::ipc::IPCResult PluginInstanceParent::RecvInitDXGISurface(
 
   RefPtr<D3D11SurfaceHolder> holder =
       new D3D11SurfaceHolder(back, format, size);
-  mD3D11Surfaces.Put(reinterpret_cast<void*>(sharedHandle), std::move(holder));
+  mD3D11Surfaces.InsertOrUpdate(reinterpret_cast<void*>(sharedHandle),
+                                std::move(holder));
 
   *outHandle = reinterpret_cast<uintptr_t>(sharedHandle);
   *outError = NPERR_NO_ERROR;
@@ -1707,14 +1708,14 @@ void PluginInstanceParent::NPP_URLNotify(const char* url, NPReason reason,
 bool PluginInstanceParent::RegisterNPObjectForActor(
     NPObject* aObject, PluginScriptableObjectParent* aActor) {
   NS_ASSERTION(aObject && aActor, "Null pointers!");
-  NS_ASSERTION(!mScriptableObjects.Get(aObject, nullptr), "Duplicate entry!");
-  mScriptableObjects.Put(aObject, aActor);
+  NS_ASSERTION(!mScriptableObjects.Contains(aObject), "Duplicate entry!");
+  mScriptableObjects.InsertOrUpdate(aObject, aActor);
   return true;
 }
 
 void PluginInstanceParent::UnregisterNPObject(NPObject* aObject) {
   NS_ASSERTION(aObject, "Null pointer!");
-  NS_ASSERTION(mScriptableObjects.Get(aObject, nullptr), "Unknown entry!");
+  NS_ASSERTION(mScriptableObjects.Contains(aObject), "Unknown entry!");
   mScriptableObjects.Remove(aObject);
 }
 
@@ -1914,7 +1915,8 @@ void PluginInstanceParent::SubclassPluginWindow(HWND aWnd) {
     mPluginWndProc = nullptr;
     // Note sPluginInstanceList wil delete 'this' if we do not remove
     // it on shutdown.
-    sPluginInstanceList->Put((void*)mPluginHWND, this);
+    sPluginInstanceList->InsertOrUpdate((void*)mPluginHWND,
+                                        UniquePtr<PluginInstanceParent>(this));
     return;
   }
 
@@ -2053,7 +2055,7 @@ mozilla::ipc::IPCResult PluginInstanceParent::AnswerPluginFocusChange(
   if (gotFocus) {
     nsPluginInstanceOwner* owner = GetOwner();
     if (owner) {
-      nsFocusManager* fm = nsFocusManager::GetFocusManager();
+      RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager();
       RefPtr<dom::Element> element;
       owner->GetDOMElement(getter_AddRefs(element));
       if (fm && element) {

@@ -26,6 +26,7 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/ErrorNames.h"
 #include "mozilla/LoadContext.h"
+#include "mozilla/MozPromise.h"
 #include "mozilla/Result.h"
 #include "mozilla/ResultExtensions.h"
 #include "mozilla/SystemGroup.h"
@@ -425,76 +426,83 @@ RefPtr<GenericErrorResultPromise> ServiceWorkerManager::StartControllingClient(
     bool aControlClientHandle) {
   MOZ_DIAGNOSTIC_ASSERT(aRegistrationInfo->GetActive());
 
-  RefPtr<GenericErrorResultPromise> promise;
-  RefPtr<ServiceWorkerManager> self(this);
+  // XXX We can't use a generic lambda (accepting auto&& entry) like elsewhere
+  // with WithEntryHandle, since we get linker errors then using clang+lld. This
+  // might be a toolchain issue?
+  return mControlledClients.WithEntryHandle(
+      aClientInfo.Id(),
+      [&](decltype(mControlledClients)::EntryHandle&& entry)
+          -> RefPtr<GenericErrorResultPromise> {
+        const RefPtr<ServiceWorkerManager> self = this;
 
-  const ServiceWorkerDescriptor& active =
-      aRegistrationInfo->GetActive()->Descriptor();
+        const ServiceWorkerDescriptor& active =
+            aRegistrationInfo->GetActive()->Descriptor();
 
-  auto entry = mControlledClients.LookupForAdd(aClientInfo.Id());
-  if (entry) {
-    RefPtr<ServiceWorkerRegistrationInfo> old =
-        entry.Data()->mRegistrationInfo.forget();
+        if (entry) {
+          const RefPtr<ServiceWorkerRegistrationInfo> old =
+              std::move(entry.Data()->mRegistrationInfo);
 
-    if (aControlClientHandle) {
-      promise = entry.Data()->mClientHandle->Control(active);
-    } else {
-      promise = GenericErrorResultPromise::CreateAndResolve(false, __func__);
-    }
+          const RefPtr<GenericErrorResultPromise> promise =
+              aControlClientHandle
+                  ? entry.Data()->mClientHandle->Control(active)
+                  : GenericErrorResultPromise::CreateAndResolve(false,
+                                                                __func__);
 
-    entry.Data()->mRegistrationInfo = aRegistrationInfo;
+          entry.Data()->mRegistrationInfo = aRegistrationInfo;
 
-    if (old != aRegistrationInfo) {
-      StopControllingRegistration(old);
-      aRegistrationInfo->StartControllingClient();
-    }
+          if (old != aRegistrationInfo) {
+            StopControllingRegistration(old);
+            aRegistrationInfo->StartControllingClient();
+          }
 
-    // Always check to see if we failed to actually control the client.  In
-    // that case removed the client from our list of controlled clients.
-    return promise->Then(
-        SystemGroup::EventTargetFor(TaskCategory::Other), __func__,
-        [](bool) {
-          // do nothing on success
-          return GenericErrorResultPromise::CreateAndResolve(true, __func__);
-        },
-        [self, aClientInfo](const CopyableErrorResult& aRv) {
-          // failed to control, forget about this client
-          self->StopControllingClient(aClientInfo);
-          return GenericErrorResultPromise::CreateAndReject(aRv, __func__);
-        });
-  }
+          // Always check to see if we failed to actually control the client. In
+          // that case removed the client from our list of controlled clients.
+          return promise->Then(
+              SystemGroup::EventTargetFor(TaskCategory::Other), __func__,
+              [](bool) {
+                // do nothing on success
+                return GenericErrorResultPromise::CreateAndResolve(true,
+                                                                   __func__);
+              },
+              [self, aClientInfo](const CopyableErrorResult& aRv) {
+                // failed to control, forget about this client
+                self->StopControllingClient(aClientInfo);
+                return GenericErrorResultPromise::CreateAndReject(aRv,
+                                                                  __func__);
+              });
+        }
 
-  RefPtr<ClientHandle> clientHandle = ClientManager::CreateHandle(
-      aClientInfo, SystemGroup::EventTargetFor(TaskCategory::Other));
+        RefPtr<ClientHandle> clientHandle = ClientManager::CreateHandle(
+            aClientInfo, SystemGroup::EventTargetFor(TaskCategory::Other));
 
-  if (aControlClientHandle) {
-    promise = clientHandle->Control(active);
-  } else {
-    promise = GenericErrorResultPromise::CreateAndResolve(false, __func__);
-  }
+        const RefPtr<GenericErrorResultPromise> promise =
+            aControlClientHandle
+                ? clientHandle->Control(active)
+                : GenericErrorResultPromise::CreateAndResolve(false, __func__);
 
-  aRegistrationInfo->StartControllingClient();
+        aRegistrationInfo->StartControllingClient();
 
-  entry.OrInsert([&] {
-    return new ControlledClientData(clientHandle, aRegistrationInfo);
-  });
+        entry.Insert(
+            MakeUnique<ControlledClientData>(clientHandle, aRegistrationInfo));
 
-  clientHandle->OnDetach()->Then(
-      SystemGroup::EventTargetFor(TaskCategory::Other), __func__,
-      [self, aClientInfo] { self->StopControllingClient(aClientInfo); });
+        clientHandle->OnDetach()->Then(
+            SystemGroup::EventTargetFor(TaskCategory::Other), __func__,
+            [self, aClientInfo] { self->StopControllingClient(aClientInfo); });
 
-  // Always check to see if we failed to actually control the client.  In
-  // that case removed the client from our list of controlled clients.
-  return promise->Then(
-      SystemGroup::EventTargetFor(TaskCategory::Other), __func__,
-      [](bool) {
-        // do nothing on success
-        return GenericErrorResultPromise::CreateAndResolve(true, __func__);
-      },
-      [self, aClientInfo](const CopyableErrorResult& aRv) {
-        // failed to control, forget about this client
-        self->StopControllingClient(aClientInfo);
-        return GenericErrorResultPromise::CreateAndReject(aRv, __func__);
+        // Always check to see if we failed to actually control the client.  In
+        // that case removed the client from our list of controlled clients.
+        return promise->Then(
+            SystemGroup::EventTargetFor(TaskCategory::Other), __func__,
+            [](bool) {
+              // do nothing on success
+              return GenericErrorResultPromise::CreateAndResolve(true,
+                                                                 __func__);
+            },
+            [self, aClientInfo](const CopyableErrorResult& aRv) {
+              // failed to control, forget about this client
+              self->StopControllingClient(aClientInfo);
+              return GenericErrorResultPromise::CreateAndReject(aRv, __func__);
+            });
       });
 }
 
@@ -506,7 +514,7 @@ void ServiceWorkerManager::StopControllingClient(
   }
 
   RefPtr<ServiceWorkerRegistrationInfo> reg =
-      entry.Data()->mRegistrationInfo.forget();
+      std::move(entry.Data()->mRegistrationInfo);
 
   entry.Remove();
 
@@ -1436,17 +1444,15 @@ ServiceWorkerManager::GetOrCreateJobQueue(const nsACString& aKey,
                                           const nsACString& aScope) {
   MOZ_ASSERT(!aKey.IsEmpty());
   ServiceWorkerManager::RegistrationDataPerPrincipal* data;
-  // XXX we could use LookupForAdd here to avoid a hashtable lookup, except that
-  // leads to a false positive assertion, see bug 1370674 comment 7.
+  // XXX we could use WithEntryHandle here to avoid a hashtable lookup, except
+  // that leads to a false positive assertion, see bug 1370674 comment 7.
   if (!mRegistrationInfos.Get(aKey, &data)) {
-    data = new RegistrationDataPerPrincipal();
-    mRegistrationInfos.Put(aKey, data);
+    data = mRegistrationInfos
+               .InsertOrUpdate(aKey, MakeUnique<RegistrationDataPerPrincipal>())
+               .get();
   }
 
-  RefPtr<ServiceWorkerJobQueue> queue =
-      data->mJobQueues.LookupForAdd(aScope).OrInsert(
-          []() { return new ServiceWorkerJobQueue(); });
-
+  RefPtr queue = data->mJobQueues.GetOrInsertNew(aScope);
   return queue.forget();
 }
 
@@ -1747,11 +1753,10 @@ void ServiceWorkerManager::AddScopeAndRegistration(
 
   MOZ_ASSERT(!scopeKey.IsEmpty());
 
-  const auto& data = swm->mRegistrationInfos.LookupForAdd(scopeKey).OrInsert(
-      []() { return new RegistrationDataPerPrincipal(); });
+  auto* const data = swm->mRegistrationInfos.GetOrInsertNew(scopeKey);
 
   data->mScopeContainer.InsertScope(aScope);
-  data->mInfos.Put(aScope, RefPtr{aInfo});
+  data->mInfos.InsertOrUpdate(aScope, RefPtr{aInfo});
   swm->NotifyListenersOnRegister(aInfo);
 }
 
@@ -3076,31 +3081,36 @@ void ServiceWorkerManager::ScheduleUpdateTimer(nsIPrincipal* aPrincipal,
     return;
   }
 
-  nsCOMPtr<nsITimer>& timer = data->mUpdateTimers.GetOrInsert(aScope);
-  if (timer) {
-    // There is already a timer scheduled.  In this case just use the original
-    // schedule time.  We don't want to push it out to a later time since that
-    // could allow updates to be starved forever if events are continuously
-    // fired.
-    return;
-  }
+  data->mUpdateTimers.WithEntryHandle(
+      aScope, [&aPrincipal, &aScope](auto&& entry) {
+        if (entry) {
+          // In case there is already a timer scheduled, just use the original
+          // schedule time.  We don't want to push it out to a later time since
+          // that could allow updates to be starved forever if events are
+          // continuously fired.
+          return;
+        }
 
-  nsCOMPtr<nsITimerCallback> callback =
-      new UpdateTimerCallback(aPrincipal, aScope);
+        nsCOMPtr<nsITimerCallback> callback =
+            new UpdateTimerCallback(aPrincipal, aScope);
 
-  const uint32_t UPDATE_DELAY_MS = 1000;
+        const uint32_t UPDATE_DELAY_MS = 1000;
 
-  // Label with SystemGroup because UpdateTimerCallback only sends an IPC
-  // message (PServiceWorkerUpdaterConstructor) without touching any web
-  // contents.
-  rv = NS_NewTimerWithCallback(
-      getter_AddRefs(timer), callback, UPDATE_DELAY_MS, nsITimer::TYPE_ONE_SHOT,
-      SystemGroup::EventTargetFor(TaskCategory::Other));
+        nsCOMPtr<nsITimer> timer;
 
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    data->mUpdateTimers.Remove(aScope);  // another lookup, but very rare
-    return;
-  }
+        // Label with SystemGroup because UpdateTimerCallback only sends an IPC
+        // message (PServiceWorkerUpdaterConstructor) without touching any web
+        // contents.
+        const nsresult rv = NS_NewTimerWithCallback(
+            getter_AddRefs(timer), callback, UPDATE_DELAY_MS, nsITimer::TYPE_ONE_SHOT,
+            SystemGroup::EventTargetFor(TaskCategory::Other));
+
+        if (NS_WARN_IF(NS_FAILED(rv))) {
+          return;
+        }
+
+        entry.Insert(std::move(timer));
+      });
 }
 
 void ServiceWorkerManager::UpdateTimerFired(nsIPrincipal* aPrincipal,

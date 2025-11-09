@@ -90,7 +90,7 @@ JSWindowActorInfo JSWindowActorProtocol::ToIPC() {
 }
 
 already_AddRefed<JSWindowActorProtocol>
-JSWindowActorProtocol::FromWebIDLOptions(const nsAString& aName,
+JSWindowActorProtocol::FromWebIDLOptions(const nsACString& aName,
                                          const WindowActorOptions& aOptions,
                                          ErrorResult& aRv) {
   MOZ_DIAGNOSTIC_ASSERT(XRE_IsParentProcess());
@@ -299,7 +299,7 @@ extensions::MatchPatternSet* JSWindowActorProtocol::GetURIMatcher() {
 
 bool JSWindowActorProtocol::Matches(BrowsingContext* aBrowsingContext,
                                     nsIURI* aURI,
-                                    const nsAString& aRemoteType) {
+                                    const nsACString& aRemoteType) {
   MOZ_ASSERT(aBrowsingContext, "DocShell without a BrowsingContext!");
   MOZ_ASSERT(aURI, "Must have URI!");
 
@@ -341,25 +341,34 @@ already_AddRefed<JSWindowActorService> JSWindowActorService::GetSingleton() {
 }
 
 void JSWindowActorService::RegisterWindowActor(
-    const nsAString& aName, const WindowActorOptions& aOptions,
+    const nsACString& aName, const WindowActorOptions& aOptions,
     ErrorResult& aRv) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(XRE_IsParentProcess());
 
-  auto entry = mDescriptors.LookupForAdd(aName);
-  if (entry) {
-    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+  const auto proto = mDescriptors.WithEntryHandle(
+      aName, [&](auto&& entry) -> RefPtr<JSWindowActorProtocol> {
+        if (entry) {
+          aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+          return nullptr;
+        }
+
+        // Insert a new entry for the protocol.
+        RefPtr<JSWindowActorProtocol> protocol =
+            JSWindowActorProtocol::FromWebIDLOptions(aName, aOptions, aRv);
+        if (NS_WARN_IF(aRv.Failed())) {
+          return nullptr;
+        }
+
+        entry.Insert(protocol);
+
+        return protocol;
+      });
+
+  if (!proto) {
+    MOZ_ASSERT(aRv.Failed());
     return;
   }
-
-  // Insert a new entry for the protocol.
-  RefPtr<JSWindowActorProtocol> proto =
-      JSWindowActorProtocol::FromWebIDLOptions(aName, aOptions, aRv);
-  if (NS_WARN_IF(aRv.Failed())) {
-    return;
-  }
-
-  entry.OrInsert([&] { return proto; });
 
   // Send information about the newly added entry to every existing content
   // process.
@@ -377,8 +386,8 @@ void JSWindowActorService::RegisterWindowActor(
   proto->AddObservers();
 }
 
-void JSWindowActorService::UnregisterWindowActor(const nsAString& aName) {
-  nsAutoString name(aName);
+void JSWindowActorService::UnregisterWindowActor(const nsACString& aName) {
+  nsAutoCString name(aName);
 
   RefPtr<JSWindowActorProtocol> proto;
   if (mDescriptors.Remove(aName, getter_AddRefs(proto))) {
@@ -409,7 +418,7 @@ void JSWindowActorService::LoadJSWindowActorInfos(
     // Create our JSWindowActorProtocol, register it in mDescriptors.
     RefPtr<JSWindowActorProtocol> proto =
         JSWindowActorProtocol::FromIPC(aInfos[i]);
-    mDescriptors.Put(aInfos[i].name(), RefPtr{proto});
+    mDescriptors.InsertOrUpdate(aInfos[i].name(), RefPtr{proto});
 
     // Register listeners for each window root.
     for (EventTarget* root : mRoots) {
@@ -450,7 +459,7 @@ void JSWindowActorService::UnregisterWindowRoot(EventTarget* aRoot) {
 }
 
 already_AddRefed<JSWindowActorProtocol> JSWindowActorService::GetProtocol(
-    const nsAString& aName) {
+    const nsACString& aName) {
   return mDescriptors.Get(aName);
 }
 

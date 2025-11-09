@@ -45,6 +45,7 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/BasePrincipal.h"
+#include "mozilla/ContentBlockingAllowList.h"
 #include "mozilla/CSSEnabledState.h"
 #include "mozilla/CycleCollectedJSContext.h"
 #include "mozilla/DebugOnly.h"
@@ -101,6 +102,7 @@
 #include "mozilla/Span.h"
 #include "mozilla/Sprintf.h"
 #include "mozilla/StaticAnalysisFunctions.h"
+#include "mozilla/StaticPrefs_apz.h"
 #include "mozilla/StaticPrefs_browser.h"
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/StaticPrefs_full_screen_api.h"
@@ -496,7 +498,7 @@ void IdentifierMapEntry::FireChangeCallbacks(Element* aOldElement,
                                              bool aImageOnly) {
   if (!mChangeCallbacks) return;
 
-  for (auto iter = mChangeCallbacks->ConstIter(); !iter.Done(); iter.Next()) {
+  for (auto iter = mChangeCallbacks->Iter(); !iter.Done(); iter.Next()) {
     IdentifierMapEntry::ChangeCallbackEntry* entry = iter.Get();
     // Don't fire image changes for non-image observers, and don't fire element
     // changes for image observers when an image override is active.
@@ -663,7 +665,7 @@ void IdentifierMapEntry::RemoveNameElement(Element* aElement) {
   }
 }
 
-bool IdentifierMapEntry::HasIdElementExposedAsHTMLDocumentProperty() {
+bool IdentifierMapEntry::HasIdElementExposedAsHTMLDocumentProperty() const {
   Element* idElement = GetIdElement();
   return idElement &&
          nsGenericHTMLElement::ShouldExposeIdAsHTMLDocumentProperty(idElement);
@@ -772,22 +774,27 @@ Document* ExternalResourceMap::RequestResource(
     return resource->mDocument;
   }
 
-  RefPtr<PendingLoad>& loadEntry = mPendingLoads.GetOrInsert(clone);
-  if (loadEntry) {
-    RefPtr<PendingLoad> load(loadEntry);
-    load.forget(aPendingLoad);
-    return nullptr;
-  }
+  bool loadStartSucceeded =
+      mPendingLoads.WithEntryHandle(clone, [&](auto&& loadEntry) {
+        if (!loadEntry) {
+          loadEntry.Insert(MakeRefPtr<PendingLoad>(aDisplayDocument));
 
-  RefPtr<PendingLoad> load(new PendingLoad(aDisplayDocument));
-  loadEntry = load;
+          if (NS_FAILED(loadEntry.Data()->StartLoad(clone, aReferrerInfo,
+                                                    aRequestingNode))) {
+            return false;
+          }
+        }
 
-  if (NS_FAILED(load->StartLoad(clone, aReferrerInfo, aRequestingNode))) {
+        RefPtr<PendingLoad> load(loadEntry.Data());
+        load.forget(aPendingLoad);
+        return true;
+      });
+  if (!loadStartSucceeded) {
     // Make sure we don't thrash things by trying this load again, since
     // chances are it failed for good reasons (security check, etc).
+    // This must be done outside the WithEntryHandle functor, as it accesses
+    // mPendingLoads.
     AddExternalResource(clone, nullptr, nullptr, aDisplayDocument);
-  } else {
-    load.forget(aPendingLoad);
   }
 
   return nullptr;
@@ -812,8 +819,8 @@ void ExternalResourceMap::Traverse(
     nsCycleCollectionTraversalCallback* aCallback) const {
   // mPendingLoads will get cleared out as the requests complete, so
   // no need to worry about those here.
-  for (auto iter = mMap.ConstIter(); !iter.Done(); iter.Next()) {
-    ExternalResourceMap::ExternalResource* resource = iter.UserData();
+  for (const auto& entry : mMap) {
+    ExternalResourceMap::ExternalResource* resource = entry.GetWeak();
 
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
                                        "mExternalResourceMap.mMap entry"
@@ -833,8 +840,8 @@ void ExternalResourceMap::Traverse(
 }
 
 void ExternalResourceMap::HideViewers() {
-  for (auto iter = mMap.Iter(); !iter.Done(); iter.Next()) {
-    nsCOMPtr<nsIContentViewer> viewer = iter.UserData()->mViewer;
+  for (const auto& entry : mMap) {
+    nsCOMPtr<nsIContentViewer> viewer = entry.GetData()->mViewer;
     if (viewer) {
       viewer->Hide();
     }
@@ -842,8 +849,8 @@ void ExternalResourceMap::HideViewers() {
 }
 
 void ExternalResourceMap::ShowViewers() {
-  for (auto iter = mMap.Iter(); !iter.Done(); iter.Next()) {
-    nsCOMPtr<nsIContentViewer> viewer = iter.UserData()->mViewer;
+  for (const auto& entry : mMap) {
+    nsCOMPtr<nsIContentViewer> viewer = entry.GetData()->mViewer;
     if (viewer) {
       viewer->Show();
     }
@@ -907,8 +914,8 @@ nsresult ExternalResourceMap::AddExternalResource(nsIURI* aURI,
     }
   }
 
-  ExternalResource* newResource = new ExternalResource();
-  mMap.Put(aURI, newResource);
+  ExternalResource* newResource =
+      mMap.InsertOrUpdate(aURI, MakeUnique<ExternalResource>()).get();
 
   newResource->mDocument = doc;
   newResource->mViewer = aViewer;
@@ -1304,6 +1311,7 @@ Document::Document(const char* aContentType)
       mBFCacheDisallowed(false),
       mHasHadDefaultView(false),
       mStyleSheetChangeEventsEnabled(false),
+      mShadowRootAttachedEventEnabled(false),
       mIsSrcdocDocument(false),
       mFontFaceSetDirty(true),
       mDidFireDOMContentLoaded(true),
@@ -1351,6 +1359,7 @@ Document::Document(const char* aContentType)
       mTooDeepWriteRecursion(false),
       mPendingMaybeEditingStateChanged(false),
       mHasBeenEditable(false),
+      mIsRunningExecCommand(false),
       mPendingFullscreenRequests(0),
       mXMLDeclarationBits(0),
       mOnloadBlockCount(0),
@@ -1721,10 +1730,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(Document)
   }
 
   // XXX: This should be not needed once bug 1569185 lands.
-  for (auto it = tmp->mL10nProtoElements.ConstIter(); !it.Done(); it.Next()) {
+  for (const auto& entry : tmp->mL10nProtoElements) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mL10nProtoElements key");
-    cb.NoteXPCOMChild(it.Key());
-    CycleCollectionNoteChild(cb, it.UserData(), "mL10nProtoElements value");
+    cb.NoteXPCOMChild(entry.GetKey());
+    CycleCollectionNoteChild(cb, entry.GetWeak(), "mL10nProtoElements value");
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -3192,7 +3201,7 @@ void Document::SetPrincipals(nsIPrincipal* aNewPrincipal,
   mNodeInfoManager->SetDocumentPrincipal(aNewPrincipal);
   mIntrinsicStoragePrincipal = aNewStoragePrincipal;
 
-  AntiTrackingCommon::ComputeContentBlockingAllowListPrincipal(
+  ContentBlockingAllowList::ComputePrincipal(
       aNewPrincipal, getter_AddRefs(mContentBlockingAllowListPrincipal));
 
 #ifdef DEBUG
@@ -3254,7 +3263,7 @@ AbstractThread* Document::AbstractMainThreadFor(
 void Document::NoteScriptTrackingStatus(const nsACString& aURL,
                                         bool aIsTracking) {
   if (aIsTracking) {
-    mTrackingScripts.PutEntry(aURL);
+    mTrackingScripts.Insert(aURL);
   } else {
     MOZ_ASSERT(!mTrackingScripts.Contains(aURL));
   }
@@ -3576,349 +3585,349 @@ void Document::EnsureInitializeInternalCommandDataHashtable() {
   }
   sInternalCommandDataHashtable = new InternalCommandDataHashtable();
   // clang-format off
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"bold"_ns,
       InternalCommandData(
           "cmd_bold",
           Command::FormatBold,
           ExecCommandParam::Ignore,
           StyleUpdatingCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"italic"_ns,
       InternalCommandData(
           "cmd_italic",
           Command::FormatItalic,
           ExecCommandParam::Ignore,
           StyleUpdatingCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"underline"_ns,
       InternalCommandData(
           "cmd_underline",
           Command::FormatUnderline,
           ExecCommandParam::Ignore,
           StyleUpdatingCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"strikethrough"_ns,
       InternalCommandData(
           "cmd_strikethrough",
           Command::FormatStrikeThrough,
           ExecCommandParam::Ignore,
           StyleUpdatingCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"subscript"_ns,
       InternalCommandData(
           "cmd_subscript",
           Command::FormatSubscript,
           ExecCommandParam::Ignore,
           StyleUpdatingCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"superscript"_ns,
       InternalCommandData(
           "cmd_superscript",
           Command::FormatSuperscript,
           ExecCommandParam::Ignore,
           StyleUpdatingCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"cut"_ns,
       InternalCommandData(
           "cmd_cut",
           Command::Cut,
           ExecCommandParam::Ignore,
           CutCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"copy"_ns,
       InternalCommandData(
           "cmd_copy",
           Command::Copy,
           ExecCommandParam::Ignore,
           CopyCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"paste"_ns,
       InternalCommandData(
           "cmd_paste",
           Command::Paste,
           ExecCommandParam::Ignore,
           PasteCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"delete"_ns,
       InternalCommandData(
           "cmd_deleteCharBackward",
           Command::DeleteCharBackward,
           ExecCommandParam::Ignore,
           DeleteCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"forwarddelete"_ns,
       InternalCommandData(
           "cmd_deleteCharForward",
           Command::DeleteCharForward,
           ExecCommandParam::Ignore,
           DeleteCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"selectall"_ns,
       InternalCommandData(
           "cmd_selectAll",
           Command::SelectAll,
           ExecCommandParam::Ignore,
           SelectAllCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"undo"_ns,
       InternalCommandData(
           "cmd_undo",
           Command::HistoryUndo,
           ExecCommandParam::Ignore,
           UndoCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"redo"_ns,
       InternalCommandData(
           "cmd_redo",
           Command::HistoryRedo,
           ExecCommandParam::Ignore,
           RedoCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"indent"_ns,
       InternalCommandData("cmd_indent",
           Command::FormatIndent,
           ExecCommandParam::Ignore,
           IndentCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"outdent"_ns,
       InternalCommandData(
           "cmd_outdent",
           Command::FormatOutdent,
           ExecCommandParam::Ignore,
           OutdentCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"backcolor"_ns,
       InternalCommandData(
           "cmd_highlight",
           Command::FormatBackColor,
           ExecCommandParam::String,
           HighlightColorStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"hilitecolor"_ns,
       InternalCommandData(
           "cmd_highlight",
           Command::FormatBackColor,
           ExecCommandParam::String,
           HighlightColorStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"forecolor"_ns,
       InternalCommandData(
           "cmd_fontColor",
           Command::FormatFontColor,
           ExecCommandParam::String,
           FontColorStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"fontname"_ns,
       InternalCommandData(
           "cmd_fontFace",
           Command::FormatFontName,
           ExecCommandParam::String,
           FontFaceStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"fontsize"_ns,
       InternalCommandData(
           "cmd_fontSize",
           Command::FormatFontSize,
           ExecCommandParam::String,
           FontSizeStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"increasefontsize"_ns,
       InternalCommandData(
           "cmd_increaseFont",
           Command::FormatIncreaseFontSize,
           ExecCommandParam::Ignore,
           IncreaseFontSizeCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"decreasefontsize"_ns,
       InternalCommandData(
           "cmd_decreaseFont",
           Command::FormatDecreaseFontSize,
           ExecCommandParam::Ignore,
           DecreaseFontSizeCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"inserthorizontalrule"_ns,
       InternalCommandData(
           "cmd_insertHR",
           Command::InsertHorizontalRule,
           ExecCommandParam::Ignore,
           InsertTagCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"createlink"_ns,
       InternalCommandData(
           "cmd_insertLinkNoUI",
           Command::InsertLink,
           ExecCommandParam::String,
           InsertTagCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"insertimage"_ns,
       InternalCommandData(
           "cmd_insertImageNoUI",
           Command::InsertImage,
           ExecCommandParam::String,
           InsertTagCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"inserthtml"_ns,
       InternalCommandData(
           "cmd_insertHTML",
           Command::InsertHTML,
           ExecCommandParam::String,
           InsertHTMLCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"inserttext"_ns,
       InternalCommandData(
           "cmd_insertText",
           Command::InsertText,
           ExecCommandParam::String,
           InsertPlaintextCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"gethtml"_ns,
       InternalCommandData(
           "cmd_getContents",
           Command::GetHTML,
           ExecCommandParam::Ignore,
           nullptr));  // Not defined in EditorCommands.h
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"justifyleft"_ns,
       InternalCommandData(
           "cmd_align",
           Command::FormatJustifyLeft,
           ExecCommandParam::Ignore,  // Will be set to "left"
           AlignCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"justifyright"_ns,
       InternalCommandData(
           "cmd_align",
           Command::FormatJustifyRight,
           ExecCommandParam::Ignore,  // Will be set to "right"
           AlignCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"justifycenter"_ns,
       InternalCommandData(
           "cmd_align",
           Command::FormatJustifyCenter,
           ExecCommandParam::Ignore,  // Will be set to "center"
           AlignCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"justifyfull"_ns,
       InternalCommandData(
           "cmd_align",
           Command::FormatJustifyFull,
           ExecCommandParam::Ignore,  // Will be set to "justify"
           AlignCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"removeformat"_ns,
       InternalCommandData(
           "cmd_removeStyles",
           Command::FormatRemove,
           ExecCommandParam::Ignore,
           RemoveStylesCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"unlink"_ns,
       InternalCommandData(
           "cmd_removeLinks",
           Command::FormatRemoveLink,
           ExecCommandParam::Ignore,
           StyleUpdatingCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"insertorderedlist"_ns,
       InternalCommandData(
           "cmd_ol",
           Command::InsertOrderedList,
           ExecCommandParam::Ignore,
           ListCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"insertunorderedlist"_ns,
       InternalCommandData(
           "cmd_ul",
           Command::InsertUnorderedList,
           ExecCommandParam::Ignore,
           ListCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"insertparagraph"_ns,
       InternalCommandData(
           "cmd_insertParagraph",
           Command::InsertParagraph,
           ExecCommandParam::Ignore,
           InsertParagraphCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"insertlinebreak"_ns,
       InternalCommandData(
           "cmd_insertLineBreak",
           Command::InsertLineBreak,
           ExecCommandParam::Ignore,
           InsertLineBreakCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"formatblock"_ns,
       InternalCommandData(
           "cmd_paragraphState",
           Command::FormatBlock,
           ExecCommandParam::String,
           ParagraphStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"heading"_ns,
       InternalCommandData(
           "cmd_paragraphState",
           Command::FormatBlock,
           ExecCommandParam::String,
           ParagraphStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"styleWithCSS"_ns,
       InternalCommandData(
           "cmd_setDocumentUseCSS",
           Command::SetDocumentUseCSS,
           ExecCommandParam::Boolean,
           SetDocumentStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"usecss"_ns,  // Legacy command
       InternalCommandData(
           "cmd_setDocumentUseCSS",
           Command::SetDocumentUseCSS,
           ExecCommandParam::InvertedBoolean,
           SetDocumentStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"contentReadOnly"_ns,
       InternalCommandData(
           "cmd_setDocumentReadOnly",
           Command::SetDocumentReadOnly,
           ExecCommandParam::Boolean,
           SetDocumentStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"readonly"_ns,  // Legacy command
       InternalCommandData(
           "cmd_setDocumentReadOnly",
           Command::SetDocumentReadOnly,
           ExecCommandParam::InvertedBoolean,
           SetDocumentStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"insertBrOnReturn"_ns,
       InternalCommandData(
           "cmd_insertBrOnReturn",
           Command::SetDocumentInsertBROnEnterKeyPress,
           ExecCommandParam::Boolean,
           SetDocumentStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"defaultParagraphSeparator"_ns,
       InternalCommandData(
           "cmd_defaultParagraphSeparator",
           Command::SetDocumentDefaultParagraphSeparator,
           ExecCommandParam::String,
           SetDocumentStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"enableObjectResizing"_ns,
       InternalCommandData(
           "cmd_enableObjectResizing",
           Command::ToggleObjectResizers,
           ExecCommandParam::Boolean,
           SetDocumentStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"enableInlineTableEditing"_ns,
       InternalCommandData(
           "cmd_enableInlineTableEditing",
           Command::ToggleInlineTableEditor,
           ExecCommandParam::Boolean,
           SetDocumentStateCommand::GetInstance));
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"enableAbsolutePositionEditing"_ns,
       InternalCommandData(
           "cmd_enableAbsolutePositionEditing",
@@ -3927,7 +3936,7 @@ void Document::EnsureInitializeInternalCommandDataHashtable() {
           SetDocumentStateCommand::GetInstance));
 #if 0
   // with empty string
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"justifynone"_ns,
       InternalCommandData(
           "cmd_align",
@@ -3935,7 +3944,7 @@ void Document::EnsureInitializeInternalCommandDataHashtable() {
           ExecCommandParam::Ignore,
           nullptr));  // Not implemented yet.
   // REQUIRED SPECIAL REVIEW special review
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"saveas"_ns,
       InternalCommandData(
           "cmd_saveAs",
@@ -3943,7 +3952,7 @@ void Document::EnsureInitializeInternalCommandDataHashtable() {
           ExecCommandParam::Boolean,
           nullptr));  // Not implemented yet.
   // REQUIRED SPECIAL REVIEW special review
-  sInternalCommandDataHashtable->Put(
+  sInternalCommandDataHashtable->InsertOrUpdate(
       u"print"_ns,
       InternalCommandData(
           "cmd_print",
@@ -4111,6 +4120,13 @@ bool Document::ExecCommand(const nsAString& aHTMLCommandName, bool aShowUI,
     return false;
   }
 
+  // If we're running an execCommand, we should just return false.
+  // https://github.com/w3c/editing/issues/200#issuecomment-575241816
+  if (!StaticPrefs::dom_document_exec_command_nested_calls_allowed() &&
+      mIsRunningExecCommand) {
+    return false;
+  }
+
   //  for optional parameters see dom/src/base/nsHistory.cpp: HistoryImpl::Go()
   //  this might add some ugly JS dependencies?
 
@@ -4205,6 +4221,8 @@ bool Document::ExecCommand(const nsAString& aHTMLCommandName, bool aShowUI,
       editorCommand = nullptr;
     }
   }
+
+  AutoRunningExecCommandMarker markRunningExecCommand(*this);
 
   // If we cannot use EditorCommand instance directly, we need to handle the
   // command with traditional path (i.e., with DocShell or nsCommandManager).
@@ -6407,6 +6425,11 @@ void Document::SetScriptGlobalObject(
     mTemplateContentsOwner->SetScriptGlobalObject(aScriptGlobalObject);
   }
 
+  // Tell the script loader about the new global object.
+  if (mScriptLoader && !IsTemplateContentsOwner()) {
+    mScriptLoader->SetGlobalObject(mScriptGlobalObject);
+  }
+
   if (!mMaybeServiceWorkerControlled && mDocumentContainer &&
       mScriptGlobalObject && GetChannel()) {
     // If we are shift-reloaded, don't associate with a ServiceWorker.
@@ -6682,8 +6705,9 @@ void Document::DispatchContentLoadedEvents() {
           nsEventStatus status = nsEventStatus_eIgnore;
 
           if (RefPtr<nsPresContext> context = parent->GetPresContext()) {
-            EventDispatcher::Dispatch(ToSupports(parent), context, innerEvent,
-                                      event, &status);
+            // TODO: Bug 1506441
+            EventDispatcher::Dispatch(MOZ_KnownLive(ToSupports(parent)),
+                                      context, innerEvent, event, &status);
           }
         }
       }
@@ -7263,8 +7287,7 @@ already_AddRefed<Attr> Document::CreateAttributeNS(
 }
 
 void Document::ResolveScheduledSVGPresAttrs() {
-  for (auto iter = mLazySVGPresElements.Iter(); !iter.Done(); iter.Next()) {
-    SVGElement* svg = iter.Get()->GetKey();
+  for (SVGElement* svg : mLazySVGPresElements) {
     svg->UpdateContentDeclarationBlock();
   }
   mLazySVGPresElements.Clear();
@@ -10376,10 +10399,7 @@ void Document::RefreshLinkHrefs() {
   // Get a list of all links we know about.  We will reset them, which will
   // remove them from the document, so we need a copy of what is in the
   // hashtable.
-  LinkArray linksToNotify(mStyledLinks.Count());
-  for (auto iter = mStyledLinks.ConstIter(); !iter.Done(); iter.Next()) {
-    linksToNotify.AppendElement(iter.Get()->GetKey());
-  }
+  const LinkArray linksToNotify = ToArray(mStyledLinks);
 
   // Reset all of our styled links.
   nsAutoScriptBlocker scriptBlocker;
@@ -10418,6 +10438,16 @@ nsresult Document::CloneDocHelper(Document* clone) const {
     }
 
     clone->SetContainer(mDocumentContainer);
+
+    // Setup the navigation time. This will be needed by any animations in the
+    // document, even if they are only paused.
+    MOZ_ASSERT(!clone->GetNavigationTiming(),
+               "Navigation time was already set?");
+    MOZ_ASSERT(mTiming,
+               "Timing should have been setup before making a static clone");
+    RefPtr<nsDOMNavigationTiming> timing =
+        mTiming->CloneNavigationTime(nsDocShell::Cast(clone->GetDocShell()));
+    clone->SetNavigationTiming(timing);
   }
 
   // Now ensure that our clone has the same URI, base URI, and principal as us.
@@ -10716,7 +10746,7 @@ void Document::PreLoadImage(nsIURI* aUri, const nsAString& aCrossOriginAttr,
   // the "real" load occurs. Unpinned in DispatchContentLoadedEvents and
   // unlink
   if (!aLinkPreload && NS_SUCCEEDED(rv)) {
-    mPreloadingImages.Put(aUri, std::move(request));
+    mPreloadingImages.InsertOrUpdate(aUri, std::move(request));
   }
 }
 
@@ -10730,7 +10760,7 @@ void Document::MaybePreLoadImage(nsIURI* aUri,
     PreloadHashKey key = PreloadHashKey::CreateAsImage(
         aUri, NodePrincipal(), dom::Element::StringToCORSMode(aCrossOriginAttr),
         aReferrerPolicy);
-    if (!mPreloadService.PreloadExists(&key)) {
+    if (!mPreloadService.PreloadExists(key)) {
       PreLoadImage(aUri, aCrossOriginAttr, aReferrerPolicy, aIsImgSet,
                    aLinkPreload);
     }
@@ -10774,11 +10804,17 @@ void Document::MaybePreconnect(nsIURI* aOrigURI, mozilla::CORSMode aCORSMode) {
     return;
   }
 
-  auto entry = mPreloadedPreconnects.LookupForAdd(uri);
-  if (entry) {
-    return;  // we found an existing entry
+  const bool existingEntryFound =
+      mPreloadedPreconnects.WithEntryHandle(uri, [](auto&& entry) {
+        if (entry) {
+          return true;
+        }
+        entry.Insert(true);
+        return false;
+      });
+  if (existingEntryFound) {
+    return;
   }
-  entry.OrInsert([]() { return true; });
 
   nsCOMPtr<nsISpeculativeConnect> speculator(
       do_QueryInterface(nsContentUtils::GetIOService()));
@@ -10992,6 +11028,10 @@ void Document::UnsuppressEventHandlingAndFireEvents(bool aFireEvents) {
   }
 }
 
+bool Document::AreClipboardCommandsUnconditionallyEnabled() const {
+  return IsHTMLOrXHTML() && !nsContentUtils::IsChromeDoc(this);
+}
+
 void Document::AddSuspendedChannelEventQueue(net::ChannelEventQueue* aQueue) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(EventHandlingSuppressed());
@@ -11064,6 +11104,7 @@ Document* Document::GetTemplateContentsOwner() {
     mTemplateContentsOwner->mTemplateContentsOwner = mTemplateContentsOwner;
   }
 
+  MOZ_ASSERT(mTemplateContentsOwner->IsTemplateContentsOwner());
   return mTemplateContentsOwner;
 }
 
@@ -11275,21 +11316,16 @@ void Document::ScrollToRef() {
 
 void Document::RegisterActivityObserver(nsISupports* aSupports) {
   if (!mActivityObservers) {
-    mActivityObservers = MakeUnique<nsTHashtable<nsPtrHashKey<nsISupports>>>();
+    mActivityObservers = MakeUnique<nsTHashSet<nsISupports*>>();
   }
-  mActivityObservers->PutEntry(aSupports);
+  mActivityObservers->Insert(aSupports);
 }
 
 bool Document::UnregisterActivityObserver(nsISupports* aSupports) {
   if (!mActivityObservers) {
     return false;
   }
-  nsPtrHashKey<nsISupports>* entry = mActivityObservers->GetEntry(aSupports);
-  if (!entry) {
-    return false;
-  }
-  mActivityObservers->RemoveEntry(entry);
-  return true;
+  return mActivityObservers->EnsureRemoved(aSupports);
 }
 
 void Document::EnumerateActivityObservers(
@@ -11298,12 +11334,9 @@ void Document::EnumerateActivityObservers(
     return;
   }
 
-  nsTArray<nsCOMPtr<nsISupports>> observers(mActivityObservers->Count());
-  for (auto iter = mActivityObservers->ConstIter(); !iter.Done(); iter.Next()) {
-    observers.AppendElement(iter.Get()->GetKey());
-  }
-
-  for (auto& observer : observers) {
+  const auto keyArray =
+      ToTArray<nsTArray<nsCOMPtr<nsISupports>>>(*mActivityObservers);
+  for (auto& observer : keyArray) {
     aEnumerator(observer.get());
   }
 }
@@ -11567,10 +11600,7 @@ mozilla::dom::ImageTracker* Document::ImageTracker() {
 }
 
 void Document::GetPlugins(nsTArray<nsIObjectLoadingContent*>& aPlugins) {
-  aPlugins.SetCapacity(aPlugins.Length() + mPlugins.Count());
-  for (auto iter = mPlugins.ConstIter(); !iter.Done(); iter.Next()) {
-    aPlugins.AppendElement(iter.Get()->GetKey());
-  }
+  aPlugins.AppendElements(ToArray(mPlugins));
   auto recurse = [&aPlugins] (Document& aSubDoc) {
     aSubDoc.GetPlugins(aPlugins);
     return true;
@@ -11582,7 +11612,7 @@ void Document::ScheduleSVGUseElementShadowTreeUpdate(
     SVGUseElement& aUseElement) {
   MOZ_ASSERT(aUseElement.IsInComposedDoc());
 
-  mSVGUseElementsNeedingShadowTreeUpdate.PutEntry(&aUseElement);
+  mSVGUseElementsNeedingShadowTreeUpdate.Insert(&aUseElement);
 
   if (PresShell* presShell = GetPresShell()) {
     presShell->EnsureStyleFlush();
@@ -11591,22 +11621,13 @@ void Document::ScheduleSVGUseElementShadowTreeUpdate(
 
 void Document::DoUpdateSVGUseElementShadowTrees() {
   MOZ_ASSERT(!mSVGUseElementsNeedingShadowTreeUpdate.IsEmpty());
-  nsTArray<RefPtr<SVGUseElement>> useElementsToUpdate;
 
   do {
-    useElementsToUpdate.Clear();
-    useElementsToUpdate.SetCapacity(
-        mSVGUseElementsNeedingShadowTreeUpdate.Count());
+    const auto useElementsToUpdate = ToTArray<nsTArray<RefPtr<SVGUseElement>>>(
+        mSVGUseElementsNeedingShadowTreeUpdate);
+    mSVGUseElementsNeedingShadowTreeUpdate.Clear();
 
-    {
-      for (auto iter = mSVGUseElementsNeedingShadowTreeUpdate.ConstIter();
-           !iter.Done(); iter.Next()) {
-        useElementsToUpdate.AppendElement(iter.Get()->GetKey());
-      }
-      mSVGUseElementsNeedingShadowTreeUpdate.Clear();
-    }
-
-    for (auto& useElement : useElementsToUpdate) {
+    for (const auto& useElement : useElementsToUpdate) {
       if (MOZ_UNLIKELY(!useElement->IsInComposedDoc())) {
         // The element was in another <use> shadow tree which we processed
         // already and also needed an update, and is removed from the document
@@ -11620,8 +11641,7 @@ void Document::DoUpdateSVGUseElementShadowTrees() {
 }
 
 void Document::NotifyMediaFeatureValuesChanged() {
-  for (auto iter = mResponsiveContent.ConstIter(); !iter.Done(); iter.Next()) {
-    RefPtr<HTMLImageElement> imageElement = iter.Get()->GetKey();
+  for (RefPtr<HTMLImageElement> imageElement : mResponsiveContent) {
     imageElement->MediaFeatureValuesChanged();
   }
 }
@@ -11820,13 +11840,15 @@ class UnblockParsingPromiseHandler final : public PromiseNativeHandler {
     }
   }
 
-  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     MaybeUnblockParser();
 
     mPromise->MaybeResolve(aValue);
   }
 
-  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     MaybeUnblockParser();
 
     mPromise->MaybeReject(aValue);
@@ -13823,11 +13845,8 @@ void Document::UpdateIntersectionObservations(TimeStamp aNowTime) {
     }
   }
 
-  nsTArray<RefPtr<DOMIntersectionObserver>> observers(
-      mIntersectionObservers.Count());
-  for (auto& observer : mIntersectionObservers) {
-    observers.AppendElement(observer.GetKey());
-  }
+  const auto observers = ToTArray<nsTArray<RefPtr<DOMIntersectionObserver>>>(
+      mIntersectionObservers);
   for (const auto& observer : observers) {
     if (observer) {
       observer->Update(this, time);
@@ -13847,21 +13866,12 @@ void Document::ScheduleIntersectionObserverNotification() {
 }
 
 void Document::NotifyIntersectionObservers() {
-  nsTArray<RefPtr<DOMIntersectionObserver>> observers(
-      mIntersectionObservers.Count());
-  for (auto iter = mIntersectionObservers.Iter(); !iter.Done(); iter.Next()) {
-    DOMIntersectionObserver* observer = iter.Get()->GetKey();
-    observers.AppendElement(observer);
-  }
+  const auto observers = ToTArray<nsTArray<RefPtr<DOMIntersectionObserver>>>(
+      mIntersectionObservers);
   for (const auto& observer : observers) {
     if (observer) {
-      // MOZ_KnownLive because 'observers' is guaranteed to
-      // keep it alive.
-      //
-      // Even with https://bugzilla.mozilla.org/show_bug.cgi?id=1620312 fixed
-      // this might need to stay, because 'observers' is not const, so it's not
-      // obvious how to prove via static analysis that it won't change and
-      // release us.
+      // MOZ_KnownLive because the 'observers' array guarantees to keep it
+      // alive.
       MOZ_KnownLive(observer)->Notify();
     }
   }
@@ -14396,12 +14406,6 @@ Document* Document::GetSameTypeParentDocument() {
   return parent->GetDocument();
 }
 
-void Document::TraceProtos(JSTracer* aTrc) {
-  if (mPrototypeDocument) {
-    mPrototypeDocument->TraceProtos(aTrc);
-  }
-}
-
 void Document::AddResizeObserver(ResizeObserver& aObserver) {
   if (!mResizeObserverController) {
     mResizeObserverController = MakeUnique<ResizeObserverController>(this);
@@ -14586,11 +14590,10 @@ already_AddRefed<Promise> Document::RequestStorageAccess(ErrorResult& aRv) {
       // Note: If this has returned true, the top-level document is guaranteed
       // to not be on the Content Blocking allow list.
       DebugOnly<bool> isOnAllowList = false;
-      MOZ_ASSERT_IF(
-          NS_SUCCEEDED(AntiTrackingCommon::IsOnContentBlockingAllowList(
-              parent->GetContentBlockingAllowListPrincipal(), false,
-              isOnAllowList)),
-          !isOnAllowList);
+      MOZ_ASSERT_IF(NS_SUCCEEDED(ContentBlockingAllowList::Check(
+                        parent->GetContentBlockingAllowListPrincipal(), false,
+                        isOnAllowList)),
+                    !isOnAllowList);
 
       RefPtr<Document> self(this);
 
@@ -14855,6 +14858,11 @@ bool Document::ModuleScriptsEnabled() {
          StaticPrefs::dom_moduleScripts_enabled();
 }
 
+bool Document::ImportMapsEnabled() {
+  return nsContentUtils::IsChromeDoc(this) ||
+         StaticPrefs::dom_importMaps_enabled();
+}
+
 void Document::ReportShadowDOMUsage() {
   if (mHasReportedShadowDOMUsage) {
     return;
@@ -14935,8 +14943,8 @@ void Document::DoCacheAllKnownLangPrefs() {
   data->GetFontPrefsForLang(nsGkAtoms::x_math);
   // https://bugzilla.mozilla.org/show_bug.cgi?id=1362599#c12
   data->GetFontPrefsForLang(nsGkAtoms::Unicode);
-  for (auto iter = mLanguagesUsed.Iter(); !iter.Done(); iter.Next()) {
-    data->GetFontPrefsForLang(iter.Get()->GetKey());
+  for (const auto& key : mLanguagesUsed) {
+    data->GetFontPrefsForLang(key);
   }
   mMayNeedFontPrefsUpdate = false;
 }
@@ -15085,15 +15093,9 @@ bool Document::HasRecentlyStartedForegroundLoads() {
   return false;
 }
 
-already_AddRefed<nsIPrincipal>
-Document::RecomputeContentBlockingAllowListPrincipal(
-    nsIURI* aURIBeingLoaded, const OriginAttributes& aAttrs) {
-  AntiTrackingCommon::RecomputeContentBlockingAllowListPrincipal(
-      aURIBeingLoaded, aAttrs,
-      getter_AddRefs(mContentBlockingAllowListPrincipal));
-
-  nsCOMPtr<nsIPrincipal> copy = mContentBlockingAllowListPrincipal;
-  return copy.forget();
+void Document::GetConnectedShadowRoots(
+    nsTArray<RefPtr<ShadowRoot>>& aOut) const {
+  AppendToArray(aOut, mComposedShadowRoots);
 }
 
 }  // namespace mozilla::dom

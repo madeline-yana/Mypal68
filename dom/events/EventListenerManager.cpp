@@ -5,6 +5,7 @@
 // Microsoft's API Name hackery sucks
 #undef CreateEvent
 
+#include "js/loader/LoadedScript.h"
 #include "mozilla/BasicEvents.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
 #include "mozilla/DOMEventTargetHelper.h"
@@ -17,17 +18,18 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/PresShell.h"
+#include "mozilla/dom/AbortSignal.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/EventCallbackDebuggerNotification.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/EventTargetBinding.h"
-#include "mozilla/dom/LoadedScript.h"
 #include "mozilla/dom/PopupBlocker.h"
 #include "mozilla/dom/ScriptLoader.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/TouchEvent.h"
 #include "mozilla/dom/UserActivation.h"
+#include "mozilla/ScopeExit.h"
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/TimelineConsumers.h"
 #include "mozilla/EventTimelineMarker.h"
@@ -167,6 +169,9 @@ inline void ImplCycleCollectionTraverse(
     CycleCollectionNoteChild(aCallback, aField.mListener.GetISupports(), aName,
                              aFlags);
   }
+
+  CycleCollectionNoteChild(aCallback, aField.mSignalFollower.get(),
+                           "mSignalFollower", aFlags);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(EventListenerManager)
@@ -200,11 +205,15 @@ EventListenerManager::GetTargetAsInnerWindow() const {
 void EventListenerManager::AddEventListenerInternal(
     EventListenerHolder aListenerHolder, EventMessage aEventMessage,
     nsAtom* aTypeAtom, const EventListenerFlags& aFlags, bool aHandler,
-    bool aAllEvents) {
+    bool aAllEvents, AbortSignal* aSignal) {
   MOZ_ASSERT((aEventMessage && aTypeAtom) || aAllEvents,  // all-events listener
              "Missing type");
 
   if (!aListenerHolder || mClearingListeners) {
+    return;
+  }
+
+  if (aSignal && aSignal->Aborted()) {
     return;
   }
 
@@ -250,6 +259,11 @@ void EventListenerManager::AddEventListenerInternal(
   }
   listener->mListener = std::move(aListenerHolder);
 
+  if (aSignal) {
+    listener->mSignalFollower = new ListenerSignalFollower(this, listener);
+    listener->mSignalFollower->Follow(aSignal);
+  }
+
   if (aFlags.mInSystemGroup) {
     mMayHaveSystemGroupListeners = true;
   }
@@ -286,9 +300,6 @@ void EventListenerManager::AddEventListenerInternal(
     EnableDevice(eDeviceOrientation);
   } else if (aTypeAtom == nsGkAtoms::onabsolutedeviceorientation) {
     EnableDevice(eAbsoluteDeviceOrientation);
-  } else if (aTypeAtom == nsGkAtoms::ondeviceproximity ||
-             aTypeAtom == nsGkAtoms::onuserproximity) {
-    EnableDevice(eDeviceProximity);
   } else if (aTypeAtom == nsGkAtoms::ondevicelight) {
     EnableDevice(eDeviceLight);
   } else if (aTypeAtom == nsGkAtoms::ondevicemotion) {
@@ -338,11 +349,13 @@ void EventListenerManager::AddEventListenerInternal(
 #endif
       window->SetHasMouseEnterLeaveEventListeners();
     }
+#ifdef MOZ_GAMEPAD
   } else if (aEventMessage >= eGamepadEventFirst &&
              aEventMessage <= eGamepadEventLast) {
     if (nsPIDOMWindowInner* window = GetInnerWindowForTarget()) {
       window->SetHasGamepadEventListener();
     }
+#endif
   } else if (aTypeAtom == nsGkAtoms::onkeydown ||
              aTypeAtom == nsGkAtoms::onkeypress ||
              aTypeAtom == nsGkAtoms::onkeyup) {
@@ -427,8 +440,6 @@ bool EventListenerManager::IsDeviceType(EventMessage aEventMessage) {
     case eAbsoluteDeviceOrientation:
     case eDeviceMotion:
     case eDeviceLight:
-    case eDeviceProximity:
-    case eUserProximity:
 #if defined(MOZ_WIDGET_ANDROID)
     case eOrientationChange:
 #endif
@@ -463,10 +474,6 @@ void EventListenerManager::EnableDevice(EventMessage aEventMessage) {
 #else
       window->EnableDeviceSensor(SENSOR_ORIENTATION);
 #endif
-      break;
-    case eDeviceProximity:
-    case eUserProximity:
-      window->EnableDeviceSensor(SENSOR_PROXIMITY);
       break;
     case eDeviceLight:
       window->EnableDeviceSensor(SENSOR_LIGHT);
@@ -512,10 +519,6 @@ void EventListenerManager::DisableDevice(EventMessage aEventMessage) {
       window->DisableDeviceSensor(SENSOR_ACCELERATION);
       window->DisableDeviceSensor(SENSOR_LINEAR_ACCELERATION);
       window->DisableDeviceSensor(SENSOR_GYROSCOPE);
-      break;
-    case eDeviceProximity:
-    case eUserProximity:
-      window->DisableDeviceSensor(SENSOR_PROXIMITY);
       break;
     case eDeviceLight:
       window->DisableDeviceSensor(SENSOR_LIGHT);
@@ -641,7 +644,8 @@ void EventListenerManager::MaybeMarkPassive(EventMessage aMessage,
 
 void EventListenerManager::AddEventListenerByType(
     EventListenerHolder aListenerHolder, const nsAString& aType,
-    const EventListenerFlags& aFlags, const Optional<bool>& aPassive) {
+    const EventListenerFlags& aFlags, const Optional<bool>& aPassive,
+    AbortSignal* aSignal) {
   RefPtr<nsAtom> atom;
   EventMessage message =
       GetEventMessageAndAtomForListener(aType, getter_AddRefs(atom));
@@ -653,7 +657,8 @@ void EventListenerManager::AddEventListenerByType(
     MaybeMarkPassive(message, flags);
   }
 
-  AddEventListenerInternal(std::move(aListenerHolder), message, atom, flags);
+  AddEventListenerInternal(std::move(aListenerHolder), message, atom, flags,
+                           false, false, aSignal);
 }
 
 void EventListenerManager::RemoveEventListenerByType(
@@ -879,6 +884,14 @@ nsresult EventListenerManager::CompileEventHandlerInternal(
       attrName = nsGkAtoms::onrepeat;
     } else if (aListener->mTypeAtom == nsGkAtoms::onendEvent) {
       attrName = nsGkAtoms::onend;
+    } else if (aListener->mTypeAtom == nsGkAtoms::onwebkitAnimationEnd) {
+      attrName = nsGkAtoms::onwebkitanimationend;
+    } else if (aListener->mTypeAtom == nsGkAtoms::onwebkitAnimationIteration) {
+      attrName = nsGkAtoms::onwebkitanimationiteration;
+    } else if (aListener->mTypeAtom == nsGkAtoms::onwebkitAnimationStart) {
+      attrName = nsGkAtoms::onwebkitanimationstart;
+    } else if (aListener->mTypeAtom == nsGkAtoms::onwebkitTransitionEnd) {
+      attrName = nsGkAtoms::onwebkittransitionend;
     }
 
     element->GetAttr(kNameSpaceID_None, attrName, handlerBody);
@@ -944,17 +957,19 @@ nsresult EventListenerManager::CompileEventHandlerInternal(
     return NS_ERROR_FAILURE;
   }
 
-  RefPtr<ScriptFetchOptions> fetchOptions = new ScriptFetchOptions(
-      CORS_NONE, aElement->OwnerDoc()->GetReferrerPolicy(), aElement,
-      aElement->OwnerDoc()->NodePrincipal(), nullptr);
+  RefPtr<JS::loader::ScriptFetchOptions> fetchOptions =
+      new JS::loader::ScriptFetchOptions(
+          CORS_NONE, aElement->OwnerDoc()->GetReferrerPolicy(),
+          aElement->OwnerDoc()->NodePrincipal());
 
-  RefPtr<EventScript> eventScript = new EventScript(fetchOptions, uri);
+  RefPtr<JS::loader::EventScript> eventScript =
+      new JS::loader::EventScript(fetchOptions, uri);
 
   JS::CompileOptions options(cx);
   // Use line 0 to make the function body starts from line 1.
   options.setIntroductionType("eventHandler")
       .setFileAndLine(url.get(), 0)
-      .setdeferDebugMetadata(true);
+      .setDeferDebugMetadata(true);
 
   JS::Rooted<JSObject*> handler(cx);
   result = nsJSUtils::CompileFunction(jsapi, scopeChain, options,
@@ -1314,6 +1329,7 @@ void EventListenerManager::AddEventListener(
     bool aWantsUntrusted) {
   EventListenerFlags flags;
   Optional<bool> passive;
+  AbortSignal* signal = nullptr;
   if (aOptions.IsBoolean()) {
     flags.mCapture = aOptions.GetAsBoolean();
   } else {
@@ -1324,10 +1340,15 @@ void EventListenerManager::AddEventListener(
     if (options.mPassive.WasPassed()) {
       passive.Construct(options.mPassive.Value());
     }
+
+    if (options.mSignal.WasPassed()) {
+      signal = options.mSignal.Value();
+    }
   }
+
   flags.mAllowUntrustedEvents = aWantsUntrusted;
   return AddEventListenerByType(std::move(aListenerHolder), aType, flags,
-                                passive);
+                                passive, signal);
 }
 
 void EventListenerManager::RemoveEventListener(
@@ -1721,6 +1742,47 @@ EventListenerManager::GetScriptGlobalAndDocument(Document** aDoc) {
 
   doc.forget(aDoc);
   return global.forget();
+}
+
+EventListenerManager::ListenerSignalFollower::ListenerSignalFollower(
+    EventListenerManager* aListenerManager,
+    EventListenerManager::Listener* aListener)
+    : dom::AbortFollower(),
+      mListenerManager(aListenerManager),
+      mListener(aListener->mListener.Clone()),
+      mTypeAtom(aListener->mTypeAtom),
+      mEventMessage(aListener->mEventMessage),
+      mAllEvents(aListener->mAllEvents),
+      mFlags(aListener->mFlags){};
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(EventListenerManager::ListenerSignalFollower)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(EventListenerManager::ListenerSignalFollower)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(EventListenerManager::ListenerSignalFollower)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(
+    EventListenerManager::ListenerSignalFollower)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mListener)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(
+    EventListenerManager::ListenerSignalFollower)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mListener)
+  tmp->mListenerManager = nullptr;
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(
+    EventListenerManager::ListenerSignalFollower)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
+
+void EventListenerManager::ListenerSignalFollower::RunAbortAlgorithm() {
+  if (mListenerManager) {
+    RefPtr<EventListenerManager> elm = mListenerManager;
+    mListenerManager = nullptr;
+    elm->RemoveEventListenerInternal(std::move(mListener), mEventMessage,
+                                     mTypeAtom, mFlags, mAllEvents);
+  }
 }
 
 }  // namespace mozilla

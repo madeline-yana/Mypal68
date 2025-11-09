@@ -15,6 +15,7 @@
 #include "mozilla/css/Loader.h"
 #include "mozilla/dom/MutationObservers.h"
 #include "mozilla/dom/SRILogHelper.h"
+#include "mozilla/StoragePrincipalHelper.h"
 #include "nsIDocShell.h"
 #include "nsILoadContext.h"
 #include "nsIPrefetchService.h"
@@ -251,40 +252,6 @@ nsresult nsContentSink::ProcessHeaderData(nsAtom* aHeader,
   // necko doesn't process headers coming in from the parser
 
   mDocument->SetHeaderData(aHeader, aValue);
-
-  if (aHeader == nsGkAtoms::setcookie &&
-      StaticPrefs::dom_metaElement_setCookie_allowed()) {
-    // Note: Necko already handles cookies set via the channel.  We can't just
-    // call SetCookie on the channel because we want to do some security checks
-    // here.
-    nsCOMPtr<nsICookieService> cookieServ =
-        do_GetService(NS_COOKIESERVICE_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-
-    // Get a URI from the document principal
-
-    // We use the original codebase in case the codebase was changed
-    // by SetDomain
-
-    // Note that a non-codebase principal (eg the system principal) will return
-    // a null URI.
-    nsCOMPtr<nsIURI> codebaseURI;
-    rv = mDocument->NodePrincipal()->GetURI(getter_AddRefs(codebaseURI));
-    NS_ENSURE_TRUE(codebaseURI, rv);
-
-    nsCOMPtr<nsIChannel> channel;
-    if (mParser) {
-      mParser->GetChannel(getter_AddRefs(channel));
-    }
-
-    rv = cookieServ->SetCookieString(codebaseURI, NS_ConvertUTF16toUTF8(aValue),
-                                     channel);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-  }
 
   return rv;
 }
@@ -781,13 +748,6 @@ nsresult nsContentSink::ProcessMETATag(nsIContent* aContent) {
       return NS_OK;
     }
 
-    // Don't allow setting cookies in <meta http-equiv> in cookie averse
-    // documents.
-    if (nsGkAtoms::setcookie->Equals(header) && mDocument->IsCookieAverse() &&
-        StaticPrefs::dom_metaElement_setCookie_allowed()) {
-      return NS_OK;
-    }
-
     nsAutoString result;
     element->GetAttr(kNameSpaceID_None, nsGkAtoms::content, result);
     if (!result.IsEmpty()) {
@@ -834,33 +794,33 @@ void nsContentSink::PreloadHref(const nsAString& aHref, const nsAString& aAs,
                                 const nsAString& aSrcset,
                                 const nsAString& aSizes, const nsAString& aCORS,
                                 const nsAString& aReferrerPolicy) {
-  nsAttrValue asAttr;
-  HTMLLinkElement::ParseAsValue(aAs, asAttr);
-  auto policyType = HTMLLinkElement::AsValueToContentPolicy(asAttr);
-
-  if (policyType == nsIContentPolicy::TYPE_INVALID) {
-    // Ignore preload with a wrong or empty as attribute.
+  auto encoding = mDocument->GetDocumentCharacterSet();
+  nsCOMPtr<nsIURI> uri;
+  NS_NewURI(getter_AddRefs(uri), aHref, encoding, mDocument->GetDocBaseURI());
+  if (!uri) {
+    // URL parsing failed.
     return;
   }
+
+  nsAttrValue asAttr;
+  HTMLLinkElement::ParseAsValue(aAs, asAttr);
 
   nsAutoString mimeType;
   nsAutoString notUsed;
   nsContentUtils::SplitMimeType(aType, mimeType, notUsed);
-  if (!HTMLLinkElement::CheckPreloadAttrs(asAttr, mimeType, aMedia,
+
+  auto policyType = HTMLLinkElement::AsValueToContentPolicy(asAttr);
+  if (policyType == nsIContentPolicy::TYPE_INVALID ||
+      !HTMLLinkElement::CheckPreloadAttrs(asAttr, mimeType, aMedia,
                                           mDocument)) {
-    policyType = nsIContentPolicy::TYPE_INVALID;
+    // Ignore preload wrong or empty attributes.
+    HTMLLinkElement::WarnIgnoredPreload(*mDocument, *uri);
+    return;
   }
-
-  auto encoding = mDocument->GetDocumentCharacterSet();
-  nsCOMPtr<nsIURI> uri;
-  NS_NewURI(getter_AddRefs(uri), aHref, encoding, mDocument->GetDocBaseURI());
-
-  auto referrerInfo = MakeRefPtr<ReferrerInfo>(*mDocument);
-  referrerInfo = referrerInfo->CloneWithNewOriginalReferrer(mDocumentURI);
 
   RefPtr<PreloaderBase> preload = mDocument->Preloads().PreloadLinkHeader(
       uri, aHref, policyType, aAs, aType, aIntegrity, aSrcset, aSizes, aCORS,
-      aReferrerPolicy, referrerInfo);
+      aReferrerPolicy);
 }
 
 void nsContentSink::PrefetchDNS(const nsAString& aHref) {
@@ -888,8 +848,11 @@ void nsContentSink::PrefetchDNS(const nsAString& aHref) {
   }
 
   if (!hostname.IsEmpty() && nsHTMLDNSPrefetch::IsAllowed(mDocument)) {
-    nsHTMLDNSPrefetch::PrefetchLow(
-        hostname, isHttps, mDocument->NodePrincipal()->OriginAttributesRef());
+    OriginAttributes oa;
+    StoragePrincipalHelper::GetOriginAttributesForNetworkState(mDocument, oa);
+
+    nsHTMLDNSPrefetch::Prefetch(hostname, isHttps, oa,
+                                nsHTMLDNSPrefetch::Priority::Low);
   }
 }
 

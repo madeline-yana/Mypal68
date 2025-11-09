@@ -2,11 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+include "mozilla/ipc/URIUtils.h";
+
 include protocol PBrowser;
 include protocol PInProcess;
 include protocol PBrowserBridge;
 
 include DOMTypes;
+
+include "mozilla/layers/LayersMessageUtils.h";
 
 using JSWindowActorMessageKind from "mozilla/dom/JSWindowActor.h";
 
@@ -14,7 +18,7 @@ namespace mozilla {
 namespace dom {
 
 struct JSWindowActorMessageMeta {
-  nsString actorName;
+  nsCString actorName;
   nsString messageName;
   uint64_t queryId;
   JSWindowActorMessageKind kind;
@@ -34,7 +38,7 @@ child:
   async __delete__();
 
   async ChangeFrameRemoteness(BrowsingContext aFrameContext,
-                              nsString aRemoteType,
+                              nsCString aRemoteType,
                               uint64_t aSwitchId)
       returns (nsresult rv, nullable PBrowserBridge bridge);
 

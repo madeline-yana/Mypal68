@@ -54,8 +54,7 @@ using namespace mozilla::gfx;
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Canvas)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 class RequestedFrameRefreshObserver : public nsARefreshObserver {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RequestedFrameRefreshObserver, override)
@@ -487,7 +486,6 @@ nsresult HTMLCanvasElement::DispatchPrintCallback(nsITimerCallback* aCallback) {
   return OwnerDoc()->Dispatch(TaskCategory::Other, renderEvent.forget());
 }
 
-MOZ_CAN_RUN_SCRIPT
 void HTMLCanvasElement::CallPrintCallback() {
   RefPtr<PrintCallback> callback = GetMozPrintCallback();
   RefPtr<HTMLCanvasPrintState> state = mPrintState;
@@ -747,7 +745,7 @@ nsresult HTMLCanvasElement::ToDataURLImpl(JSContext* aCx,
   // If there are unrecognized custom parse options, we should fall back to
   // the default values for the encoder without any options at all.
   if (rv == NS_ERROR_INVALID_ARG && usingCustomParseOptions) {
-    rv = ExtractData(aCx, aSubjectPrincipal, type, EmptyString(),
+    rv = ExtractData(aCx, aSubjectPrincipal, type, u""_ns,
                      getter_AddRefs(stream));
   }
 
@@ -863,7 +861,7 @@ nsresult HTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
   nsAutoString type(aType);
   nsresult rv =
       ExtractData(nsContentUtils::GetCurrentJSContext(), aSubjectPrincipal,
-                  type, EmptyString(), getter_AddRefs(stream));
+                  type, u""_ns, getter_AddRefs(stream));
   NS_ENSURE_SUCCESS(rv, rv);
 
   uint64_t imgSize;
@@ -875,8 +873,8 @@ nsresult HTMLCanvasElement::MozGetAsFileImpl(const nsAString& aName,
       do_QueryInterface(OwnerDoc()->GetScopeObject());
 
   // The File takes ownership of the buffer
-  RefPtr<File> file = File::CreateMemoryFile(win->AsGlobal(), imgData, imgSize,
-                                             aName, type, PR_Now());
+  RefPtr<File> file = File::CreateMemoryFileWithLastModifiedNow(
+      win->AsGlobal(), imgData, imgSize, aName, type);
   if (NS_WARN_IF(!file)) {
     return NS_ERROR_FAILURE;
   }
@@ -1433,5 +1431,4 @@ HTMLCanvasElement::GetVRFrame() {
 }
 #endif
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

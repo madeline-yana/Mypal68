@@ -209,10 +209,9 @@ void ClientSource::WorkerExecutionReady(WorkerPrivate* aWorkerPrivate) {
   // execution ready.  We can't reliably determine what our storage policy
   // is before execution ready, unfortunately.
   if (mController.isSome()) {
-    MOZ_DIAGNOSTIC_ASSERT(aWorkerPrivate->StorageAccess() >
-                              StorageAccess::ePrivateBrowsing ||
-                          StringBeginsWith(aWorkerPrivate->ScriptURL(),
-                                           NS_LITERAL_STRING("blob:")));
+    MOZ_DIAGNOSTIC_ASSERT(
+        aWorkerPrivate->StorageAccess() > StorageAccess::ePrivateBrowsing ||
+        StringBeginsWith(aWorkerPrivate->ScriptURL(), u"blob:"_ns));
   }
 
   // Its safe to store the WorkerPrivate* here because the ClientSource
@@ -260,7 +259,7 @@ nsresult ClientSource::WindowExecutionReady(nsPIDOMWindowInner* aInnerWindow) {
   // assertion in this corner case.
   if (mController.isSome()) {
     MOZ_DIAGNOSTIC_ASSERT(spec.LowerCaseEqualsLiteral("about:blank") ||
-                          StringBeginsWith(spec, NS_LITERAL_CSTRING("blob:")) ||
+                          StringBeginsWith(spec, "blob:"_ns) ||
                           StorageAllowedForWindow(aInnerWindow) ==
                               StorageAccess::eAllow);
   }
@@ -323,8 +322,7 @@ nsresult ClientSource::DocShellExecutionReady(nsIDocShell* aDocShell) {
   // nsDocShell::Destroy() deletes the ClientSource.
   mOwner = AsVariant(nsCOMPtr<nsIDocShell>(aDocShell));
 
-  ClientSourceExecutionReadyArgs args(NS_LITERAL_CSTRING("about:blank"),
-                                      frameType);
+  ClientSourceExecutionReadyArgs args("about:blank"_ns, frameType);
   ExecutionReady(args);
 
   return NS_OK;
@@ -380,15 +378,14 @@ void ClientSource::SetController(
   // service workers from their parent.  This basically means blob: URLs
   // and about:blank windows.
   if (GetInnerWindow()) {
-    MOZ_DIAGNOSTIC_ASSERT(
-        Info().URL().LowerCaseEqualsLiteral("about:blank") ||
-        StringBeginsWith(Info().URL(), NS_LITERAL_CSTRING("blob:")) ||
-        StorageAllowedForWindow(GetInnerWindow()) == StorageAccess::eAllow);
+    MOZ_DIAGNOSTIC_ASSERT(Info().URL().LowerCaseEqualsLiteral("about:blank") ||
+                          StringBeginsWith(Info().URL(), "blob:"_ns) ||
+                          StorageAllowedForWindow(GetInnerWindow()) ==
+                              StorageAccess::eAllow);
   } else if (GetWorkerPrivate()) {
-    MOZ_DIAGNOSTIC_ASSERT(GetWorkerPrivate()->StorageAccess() >
-                              StorageAccess::ePrivateBrowsing ||
-                          StringBeginsWith(GetWorkerPrivate()->ScriptURL(),
-                                           NS_LITERAL_STRING("blob:")));
+    MOZ_DIAGNOSTIC_ASSERT(
+        GetWorkerPrivate()->StorageAccess() > StorageAccess::ePrivateBrowsing ||
+        StringBeginsWith(GetWorkerPrivate()->ScriptURL(), u"blob:"_ns));
   }
 
   if (mController.isSome() && mController.ref() == aServiceWorker) {
@@ -436,14 +433,13 @@ RefPtr<ClientOpPromise> ClientSource::Control(
     // Local URL windows and windows with access to storage can be controlled.
     controlAllowed =
         Info().URL().LowerCaseEqualsLiteral("about:blank") ||
-        StringBeginsWith(Info().URL(), NS_LITERAL_CSTRING("blob:")) ||
+        StringBeginsWith(Info().URL(), "blob:"_ns) ||
         StorageAllowedForWindow(GetInnerWindow()) == StorageAccess::eAllow;
   } else if (GetWorkerPrivate()) {
     // Local URL workers and workers with access to storage cna be controlled.
     controlAllowed =
         GetWorkerPrivate()->StorageAccess() > StorageAccess::ePrivateBrowsing ||
-        StringBeginsWith(GetWorkerPrivate()->ScriptURL(),
-                         NS_LITERAL_STRING("blob:"));
+        StringBeginsWith(GetWorkerPrivate()->ScriptURL(), u"blob:"_ns);
   }
 
   if (NS_WARN_IF(!controlAllowed)) {
@@ -652,7 +648,7 @@ RefPtr<ClientOpPromise> ClientSource::Claim(const ClientClaimArgs& aArgs) {
           })
       ->Track(*holder);
 
-  return outerPromise.forget();
+  return outerPromise;
 }
 
 RefPtr<ClientOpPromise> ClientSource::GetInfoAndState(

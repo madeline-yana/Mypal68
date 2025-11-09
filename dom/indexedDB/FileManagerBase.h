@@ -8,7 +8,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/StaticMutex.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsHashKeys.h"
 #include "nsISupportsImpl.h"
 #include "FileInfoT.h"
@@ -26,47 +26,22 @@ class FileManagerBase {
   using AutoLock = StaticMutexAutoLock;
 
   [[nodiscard]] SafeRefPtr<FileInfo> GetFileInfo(int64_t aId) const {
-    if (!AssertValid()) {
-      // In release, the assertions are disabled.
-      return nullptr;
-    }
-
-    // TODO: We cannot simply change this to SafeRefPtr<FileInfo>, because
-    // FileInfo::AddRef also acquires the FileManager::Mutex.
-    // This looks quirky at least.
-    FileInfo* fileInfo;
-    {
-      AutoLock lock(FileManager::Mutex());
-      fileInfo = mFileInfos.Get(aId);
-    }
-
-    return {fileInfo, AcquireStrongRefFromRawPtr{}};
+    return AcquireFileInfo([this, aId] { return mFileInfos.MaybeGet(aId); });
   }
 
   [[nodiscard]] SafeRefPtr<FileInfo> CreateFileInfo() {
-    if (!AssertValid()) {
-      // In release, the assertions are disabled.
-      return nullptr;
-    }
-
-    // TODO: We cannot simply change this to SafeRefPtr<FileInfo>, because
-    // FileInfo::AddRef also acquires the FileManager::Mutex.
-    // This looks quirky at least.
-    FileInfo* fileInfo;
-    {
-      AutoLock lock(FileManager::Mutex());
-
+    return AcquireFileInfo([this] {
       const int64_t id = ++mLastFileId;
 
-      fileInfo = new FileInfo(FileManagerGuard{},
-                              SafeRefPtr{static_cast<FileManager*>(this),
-                                         AcquireStrongRefFromRawPtr{}},
-                              id);
+      auto fileInfo =
+          MakeNotNull<FileInfo*>(FileManagerGuard{},
+                                 SafeRefPtr{static_cast<FileManager*>(this),
+                                            AcquireStrongRefFromRawPtr{}},
+                                 id);
 
-      mFileInfos.Put(id, fileInfo);
-    }
-
-    return {fileInfo, AcquireStrongRefFromRawPtr{}};
+      mFileInfos.InsertOrUpdate(id, fileInfo);
+      return Some(fileInfo);
+    });
   }
 
   void RemoveFileInfo(const int64_t aId, const AutoLock& aFileMutexLock) {
@@ -97,6 +72,36 @@ class FileManagerBase {
     FileManagerGuard() = default;
   };
 
+ private:
+  // Runs the given aFileInfoTableOp operation, which must return a FileInfo*,
+  // under the file manager lock, acquires a strong reference to the returned
+  // object under the lock, and returns the strong reference.
+  template <typename FileInfoTableOp>
+  [[nodiscard]] SafeRefPtr<FileInfo> AcquireFileInfo(
+      const FileInfoTableOp& aFileInfoTableOp) const {
+    if (!AssertValid()) {
+      // In release, the assertions are disabled.
+      return nullptr;
+    }
+
+    // We cannot simply change this to SafeRefPtr<FileInfo>, because
+    // FileInfo::AddRef also acquires the FileManager::Mutex.
+    auto fileInfo = [&aFileInfoTableOp]() -> RefPtr<FileInfo> {
+      AutoLock lock(FileManager::Mutex());
+
+      const auto maybeFileInfo = aFileInfoTableOp();
+      if (maybeFileInfo) {
+        const auto& fileInfo = maybeFileInfo.ref();
+        fileInfo->LockedAddRef();
+        return dont_AddRef(fileInfo.get());
+      }
+
+      return {};
+    }();
+
+    return SafeRefPtr{std::move(fileInfo)};
+  }
+
  protected:
   bool AssertValid() const {
     if (NS_WARN_IF(static_cast<const FileManager*>(this)->Invalidated())) {
@@ -116,7 +121,7 @@ class FileManagerBase {
   // Access to the following fields must be protected by
   // FileManager::Mutex()
   int64_t mLastFileId = 0;
-  nsDataHashtable<nsUint64HashKey, FileInfo*> mFileInfos;
+  nsTHashMap<nsUint64HashKey, NotNull<FileInfo*>> mFileInfos;
 
   FlippedOnce<false> mInvalidated;
 };

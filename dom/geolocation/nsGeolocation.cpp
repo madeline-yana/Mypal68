@@ -9,8 +9,8 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/FeaturePolicyUtils.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
-#include "mozilla/dom/PositionError.h"
-#include "mozilla/dom/PositionErrorBinding.h"
+#include "mozilla/dom/GeolocationPositionError.h"
+#include "mozilla/dom/GeolocationPositionErrorBinding.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPrefs_geo.h"
@@ -226,7 +226,7 @@ NS_IMPL_CYCLE_COLLECTION_INHERITED(nsGeolocationRequest,
 
 void nsGeolocationRequest::Notify() {
   SetTimeoutTimer();
-  NotifyErrorAndShutdown(PositionError_Binding::TIMEOUT);
+  NotifyErrorAndShutdown(GeolocationPositionError_Binding::TIMEOUT);
 }
 
 void nsGeolocationRequest::NotifyErrorAndShutdown(uint16_t aErrorCode) {
@@ -253,7 +253,7 @@ nsGeolocationRequest::Cancel() {
     return NS_OK;
   }
 
-  NotifyError(PositionError_Binding::PERMISSION_DENIED);
+  NotifyError(GeolocationPositionError_Binding::PERMISSION_DENIED);
   return NS_OK;
 }
 
@@ -328,7 +328,7 @@ nsGeolocationRequest::Allow(JS::HandleValue aChoices) {
     // if it is not a watch request and timeout is 0,
     // invoke the errorCallback (if present) with TIMEOUT code
     if (mOptions && mOptions->mTimeout == 0 && !mIsWatchPositionRequest) {
-      NotifyError(PositionError_Binding::TIMEOUT);
+      NotifyError(GeolocationPositionError_Binding::TIMEOUT);
       return NS_OK;
     }
   }
@@ -339,7 +339,7 @@ nsGeolocationRequest::Allow(JS::HandleValue aChoices) {
 
   if (NS_FAILED(rv)) {
     // Location provider error
-    NotifyError(PositionError_Binding::POSITION_UNAVAILABLE);
+    NotifyError(GeolocationPositionError_Binding::POSITION_UNAVAILABLE);
     return NS_OK;
   }
 
@@ -390,18 +390,19 @@ void nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition) {
     }
   }
 
-  RefPtr<mozilla::dom::Position> wrapped;
+  RefPtr<mozilla::dom::GeolocationPosition> wrapped;
 
   if (aPosition) {
     nsCOMPtr<nsIDOMGeoPositionCoords> coords;
     aPosition->GetCoords(getter_AddRefs(coords));
     if (coords) {
-      wrapped = new mozilla::dom::Position(ToSupports(mLocator), aPosition);
+      wrapped = new mozilla::dom::GeolocationPosition(ToSupports(mLocator),
+                                                      aPosition);
     }
   }
 
   if (!wrapped) {
-    NotifyError(PositionError_Binding::POSITION_UNAVAILABLE);
+    NotifyError(GeolocationPositionError_Binding::POSITION_UNAVAILABLE);
     return;
   }
 
@@ -447,7 +448,8 @@ nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition) {
 NS_IMETHODIMP
 nsGeolocationRequest::NotifyError(uint16_t aErrorCode) {
   MOZ_ASSERT(NS_IsMainThread());
-  RefPtr<PositionError> positionError = new PositionError(mLocator, aErrorCode);
+  RefPtr<GeolocationPositionError> positionError =
+      new GeolocationPositionError(mLocator, aErrorCode);
   positionError->NotifyCallback(mErrorCallback);
   return NS_OK;
 }
@@ -662,7 +664,7 @@ nsresult nsGeolocationService::StartDevice(nsIPrincipal* aPrincipal) {
 
   if (NS_FAILED(rv = mProvider->Startup()) ||
       NS_FAILED(rv = mProvider->Watch(this))) {
-    NotifyError(PositionError_Binding::POSITION_UNAVAILABLE);
+    NotifyError(GeolocationPositionError_Binding::POSITION_UNAVAILABLE);
     return rv;
   }
 

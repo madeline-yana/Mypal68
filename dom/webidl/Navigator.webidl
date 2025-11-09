@@ -143,7 +143,7 @@ partial interface Navigator {
 
 // http://www.w3.org/TR/pointerevents/#extensions-to-the-navigator-interface
 partial interface Navigator {
-    [Pref="dom.w3c_pointer_events.enabled", NeedsCallerType]
+    [NeedsCallerType]
     readonly attribute long maxTouchPoints;
 };
 
@@ -199,6 +199,7 @@ partial interface Navigator {
 };
 
 // https://dvcs.w3.org/hg/gamepad/raw-file/default/gamepad.html#navigator-interface-extension
+#ifdef MOZ_GAMEPAD
 partial interface Navigator {
   [Throws, Pref="dom.gamepad.enabled"]
   sequence<Gamepad?> getGamepads();
@@ -207,7 +208,7 @@ partial interface Navigator {
   [Pref="dom.gamepad.test.enabled"]
   GamepadServiceTest requestGamepadServiceTest();
 };
-
+#endif
 #ifdef MOZ_VR
 partial interface Navigator {
   [Throws, Pref="dom.vr.enabled"]
@@ -279,11 +280,6 @@ partial interface Navigator {
   [Throws]
   boolean sendBeacon(DOMString url,
                      optional BodyInit? data = null);
-};
-
-partial interface Navigator {
-  [Throws, Pref="dom.presentation.enabled", SameObject]
-  readonly attribute Presentation? presentation;
 };
 
 partial interface Navigator {

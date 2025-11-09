@@ -4,15 +4,22 @@
 
 #include "PersistenceType.h"
 
-namespace mozilla {
-namespace dom {
-namespace quota {
+#include <utility>
+#include "nsIFile.h"
+#include "nsLiteralString.h"
+#include "nsString.h"
+
+namespace mozilla::dom::quota {
 
 namespace {
 
-constexpr auto kPersistentCString = NS_LITERAL_CSTRING("persistent");
-constexpr auto kTemporaryCString = NS_LITERAL_CSTRING("temporary");
-constexpr auto kDefaultCString = NS_LITERAL_CSTRING("default");
+constexpr auto kPersistentCString = "persistent"_ns;
+constexpr auto kTemporaryCString = "temporary"_ns;
+constexpr auto kDefaultCString = "default"_ns;
+
+constexpr auto kPermanentString = u"permanent"_ns;
+constexpr auto kTemporaryString = u"temporary"_ns;
+constexpr auto kDefaultString = u"default"_ns;
 
 static_assert(PERSISTENCE_TYPE_PERSISTENT == 0 &&
                   PERSISTENCE_TYPE_TEMPORARY == 1 &&
@@ -37,6 +44,12 @@ struct PersistenceTypeTraits<PERSISTENCE_TYPE_PERSISTENT> {
   }
 
   static bool From(const int32_t aInt32) { return aInt32 == 0; }
+
+  static bool From(nsIFile& aFile) {
+    nsAutoString leafName;
+    MOZ_ALWAYS_SUCCEEDS(aFile.GetLeafName(leafName));
+    return leafName == kPermanentString;
+  }
 };
 
 template <>
@@ -65,6 +78,12 @@ struct PersistenceTypeTraits<PERSISTENCE_TYPE_TEMPORARY> {
   }
 
   static bool From(const int32_t aInt32) { return aInt32 == 1; }
+
+  static bool From(nsIFile& aFile) {
+    nsAutoString leafName;
+    MOZ_ALWAYS_SUCCEEDS(aFile.GetLeafName(leafName));
+    return leafName == kTemporaryString;
+  }
 };
 
 template <>
@@ -93,6 +112,12 @@ struct PersistenceTypeTraits<PERSISTENCE_TYPE_DEFAULT> {
   }
 
   static bool From(const int32_t aInt32) { return aInt32 == 2; }
+
+  static bool From(nsIFile& aFile) {
+    nsAutoString leafName;
+    MOZ_ALWAYS_SUCCEEDS(aFile.GetLeafName(leafName));
+    return leafName == kDefaultString;
+  }
 };
 
 template <>
@@ -124,7 +149,7 @@ Maybe<T> TypeTo_impl(const PersistenceType aPersistenceType) {
 }
 
 template <typename T>
-Maybe<PersistenceType> TypeFrom_impl(const T& aData) {
+Maybe<PersistenceType> TypeFrom_impl(T& aData) {
   if (PersistenceTypeTraits<PERSISTENCE_TYPE_PERSISTENT>::From(aData)) {
     return Some(PERSISTENCE_TYPE_PERSISTENT);
   }
@@ -151,6 +176,19 @@ bool IsValidPersistenceType(const PersistenceType aPersistenceType) {
     case PERSISTENCE_TYPE_DEFAULT:
       return true;
 
+    default:
+      return false;
+  }
+}
+
+bool IsBestEffortPersistenceType(const PersistenceType aPersistenceType) {
+  switch (aPersistenceType) {
+    case PERSISTENCE_TYPE_TEMPORARY:
+    case PERSISTENCE_TYPE_DEFAULT:
+      return true;
+
+    case PERSISTENCE_TYPE_PERSISTENT:
+    case PERSISTENCE_TYPE_INVALID:
     default:
       return false;
   }
@@ -200,6 +238,9 @@ Maybe<PersistenceType> PersistenceTypeFromInt32(const int32_t aInt32,
   return TypeFrom_impl(aInt32);
 }
 
-}  // namespace quota
-}  // namespace dom
-}  // namespace mozilla
+Maybe<PersistenceType> PersistenceTypeFromFile(nsIFile& aFile,
+                                               const fallible_t&) {
+  return TypeFrom_impl(aFile);
+}
+
+}  // namespace mozilla::dom::quota

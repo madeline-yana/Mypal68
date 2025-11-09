@@ -8,7 +8,7 @@
 #include "nsISupportsImpl.h"
 #include "nsHashKeys.h"
 #include "nsTArray.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 
 namespace mozilla {
 
@@ -59,7 +59,7 @@ class ServiceWorkerManagerService final {
   ServiceWorkerManagerService();
   ~ServiceWorkerManagerService();
 
-  nsTHashtable<nsPtrHashKey<ServiceWorkerManagerParent>> mAgents;
+  nsTHashSet<ServiceWorkerManagerParent*> mAgents;
 
   struct PendingUpdaterActor {
     nsCString mScope;

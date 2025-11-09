@@ -120,10 +120,9 @@ class MOZ_STACK_CLASS FormDataParser {
     }
 
     if (headerName.LowerCaseEqualsLiteral("content-disposition")) {
-      nsCCharSeparatedTokenizer tokenizer(headerValue, ';');
       bool seenFormData = false;
-      while (tokenizer.hasMoreTokens()) {
-        const nsDependentCSubstring& token = tokenizer.nextToken();
+      for (const nsACString& token :
+           nsCCharSeparatedTokenizer(headerValue, ';').ToRange()) {
         if (token.IsEmpty()) {
           continue;
         }
@@ -228,7 +227,7 @@ class MOZ_STACK_CLASS FormDataParser {
       }
       p = nullptr;
 
-      RefPtr<Blob> file = File::CreateMemoryFile(
+      RefPtr<Blob> file = File::CreateMemoryFileWithCustomLastModified(
           mParentObject, reinterpret_cast<void*>(copy), body.Length(),
           NS_ConvertUTF8toUTF16(mFilename), NS_ConvertUTF8toUTF16(mContentType),
           /* aLastModifiedDate */ 0);

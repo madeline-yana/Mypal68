@@ -294,8 +294,8 @@ function waitForLocationChange(browser, locationChangeNum) {
         }
       },
       QueryInterface: ChromeUtils.generateQI([
-        Ci.nsIWebProgressListener,
-        Ci.nsISupportsWeakReference,
+        "nsIWebProgressListener",
+        "nsISupportsWeakReference",
       ]),
     };
     browser.addProgressListener(locationChangeListener);

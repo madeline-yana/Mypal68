@@ -7,8 +7,7 @@
 #include "mozilla/dom/GamepadPlatformService.h"
 #include "mozilla/Unused.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 mozilla::ipc::IPCResult GamepadTestChannelParent::RecvGamepadTestEvent(
     const uint32_t& aID, const GamepadChangeEvent& aEvent) {
@@ -61,5 +60,4 @@ mozilla::ipc::IPCResult GamepadTestChannelParent::RecvShutdownChannel() {
   return IPC_OK();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

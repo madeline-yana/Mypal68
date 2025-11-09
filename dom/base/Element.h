@@ -43,7 +43,7 @@
 #include "nsAttrValueInlines.h"
 #include "nsCaseTreatment.h"
 #include "nsChangeHint.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsDebug.h"
 #include "nsError.h"
 #include "nsGkAtoms.h"
@@ -130,7 +130,7 @@ template <typename T>
 class Optional;
 enum class CallerType : uint32_t;
 enum class ReferrerPolicy : uint8_t;
-typedef nsDataHashtable<nsRefPtrHashKey<DOMIntersectionObserver>, int32_t>
+typedef nsTHashMap<nsRefPtrHashKey<DOMIntersectionObserver>, int32_t>
     IntersectionObserverList;
 }  // namespace dom
 }  // namespace mozilla
@@ -251,6 +251,11 @@ class Element : public FragmentOrElement {
    */
   void UpdateLinkState(EventStates aState);
 
+  /**
+   * Returns the current disabled state of the element.
+   */
+  bool IsDisabled() const { return State().HasState(NS_EVENT_STATE_DISABLED); }
+
   virtual int32_t TabIndexDefault() { return -1; }
 
   /**
@@ -279,7 +284,8 @@ class Element : public FragmentOrElement {
   /**
    * Make focus on this element.
    */
-  virtual void Focus(const FocusOptions& aOptions, ErrorResult& aError);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY virtual void Focus(const FocusOptions& aOptions,
+                                                 ErrorResult& aError);
 
   /**
    * Show blur and clear focus.
@@ -555,7 +561,7 @@ class Element : public FragmentOrElement {
    *
    * @param aData The custom element data.
    */
-  void SetCustomElementData(CustomElementData* aData);
+  void SetCustomElementData(UniquePtr<CustomElementData> aData);
 
   /**
    * Gets the custom element definition used by web components custom element.
@@ -974,7 +980,7 @@ class Element : public FragmentOrElement {
     return GetParsedAttr(nsGkAtoms::_class);
   }
 
-#ifdef DEBUG
+#ifdef MOZ_DOM_LIST
   virtual void List(FILE* out = stdout, int32_t aIndent = 0) const override {
     List(out, aIndent, ""_ns);
   }
@@ -1104,8 +1110,8 @@ class Element : public FragmentOrElement {
   bool HasAttributeNS(const nsAString& aNamespaceURI,
                       const nsAString& aLocalName) const;
   bool HasAttributes() const { return HasAttrs(); }
-  Element* Closest(const nsAString& aSelector, ErrorResult& aResult);
-  bool Matches(const nsAString& aSelector, ErrorResult& aError);
+  Element* Closest(const nsACString& aSelector, ErrorResult& aResult);
+  bool Matches(const nsACString& aSelector, ErrorResult& aError);
   already_AddRefed<nsIHTMLCollection> GetElementsByTagName(
       const nsAString& aQualifiedName);
   already_AddRefed<nsIHTMLCollection> GetElementsByTagNameNS(
@@ -1182,7 +1188,8 @@ class Element : public FragmentOrElement {
   bool CanAttachShadowDOM() const;
 
   already_AddRefed<ShadowRoot> AttachShadowWithoutNameChecks(
-      ShadowRootMode aMode);
+      ShadowRootMode aMode,
+      SlotAssignmentMode aSlotAssignmentMode = SlotAssignmentMode::Named);
 
   // Attach UA Shadow Root if it is not attached.
   enum class NotifyUAWidgetSetup : bool { No, Yes };
@@ -1284,6 +1291,8 @@ class Element : public FragmentOrElement {
   static void GetAnimationsUnsorted(Element* aElement,
                                     PseudoStyleType aPseudoType,
                                     nsTArray<RefPtr<Animation>>& aAnimations);
+
+  void CloneAnimationsFrom(const Element& aOther);
 
   virtual void GetInnerHTML(nsAString& aInnerHTML, OOMReporter& aError);
   virtual void SetInnerHTML(const nsAString& aInnerHTML,
@@ -1842,6 +1851,14 @@ class Element : public FragmentOrElement {
    */
   nsresult CopyInnerTo(Element* aDest,
                        ReparseAttributes = ReparseAttributes::Yes);
+
+  /**
+   * Some event handler content attributes have a different name (e.g. different
+   * case) from the actual event name.  This function takes an event handler
+   * content attribute name and returns the corresponding event name, to be used
+   * for adding the actual event listener.
+   */
+  static nsAtom* GetEventNameForAttr(nsAtom* aAttr);
 
  private:
 #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED

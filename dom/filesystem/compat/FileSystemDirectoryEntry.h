@@ -40,7 +40,7 @@ class FileSystemDirectoryEntry : public FileSystemEntry {
       const Optional<nsAString>& aPath, const FileSystemFlags& aFlag,
       const Optional<OwningNonNull<FileSystemEntryCallback>>& aSuccessCallback,
       const Optional<OwningNonNull<ErrorCallback>>& aErrorCallback) {
-    GetInternal(aPath.WasPassed() ? aPath.Value() : EmptyString(), aFlag,
+    GetInternal(aPath.WasPassed() ? aPath.Value() : u""_ns, aFlag,
                 aSuccessCallback, aErrorCallback, eGetFile);
   }
 
@@ -48,7 +48,7 @@ class FileSystemDirectoryEntry : public FileSystemEntry {
       const Optional<nsAString>& aPath, const FileSystemFlags& aFlag,
       const Optional<OwningNonNull<FileSystemEntryCallback>>& aSuccessCallback,
       const Optional<OwningNonNull<ErrorCallback>>& aErrorCallback) {
-    GetInternal(aPath.WasPassed() ? aPath.Value() : EmptyString(), aFlag,
+    GetInternal(aPath.WasPassed() ? aPath.Value() : u""_ns, aFlag,
                 aSuccessCallback, aErrorCallback, eGetDirectory);
   }
 

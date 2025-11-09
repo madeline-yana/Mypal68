@@ -46,10 +46,10 @@ class MockMediaEngineSource : public MediaEngineSource {
 
 RefPtr<AudioDeviceInfo> MakeAudioDeviceInfo(const nsString aName) {
   return MakeRefPtr<AudioDeviceInfo>(
-      nullptr, aName, NS_LITERAL_STRING("GroupId"), NS_LITERAL_STRING("Vendor"),
-      AudioDeviceInfo::TYPE_OUTPUT, AudioDeviceInfo::STATE_ENABLED,
-      AudioDeviceInfo::PREF_NONE, AudioDeviceInfo::FMT_F32LE,
-      AudioDeviceInfo::FMT_F32LE, 2u, 44100u, 44100u, 44100u, 0, 0);
+      nullptr, aName, u"GroupId"_ns, u"Vendor"_ns, AudioDeviceInfo::TYPE_OUTPUT,
+      AudioDeviceInfo::STATE_ENABLED, AudioDeviceInfo::PREF_NONE,
+      AudioDeviceInfo::FMT_F32LE, AudioDeviceInfo::FMT_F32LE, 2u, 44100u,
+      44100u, 44100u, 0, 0);
 }
 
 RefPtr<MediaDevice> MakeCameraDevice(const nsString& aName,
@@ -58,8 +58,7 @@ RefPtr<MediaDevice> MakeCameraDevice(const nsString& aName,
   EXPECT_CALL(*v, GetMediaSource())
       .WillRepeatedly(Return(dom::MediaSourceEnum::Camera));
 
-  return MakeRefPtr<MediaDevice>(v, aName, NS_LITERAL_STRING(""), aGroupId,
-                                 NS_LITERAL_STRING(""));
+  return MakeRefPtr<MediaDevice>(v, aName, u""_ns, aGroupId, u""_ns);
 }
 
 RefPtr<MediaDevice> MakeMicDevice(const nsString& aName,
@@ -68,15 +67,13 @@ RefPtr<MediaDevice> MakeMicDevice(const nsString& aName,
   EXPECT_CALL(*a, GetMediaSource())
       .WillRepeatedly(Return(dom::MediaSourceEnum::Microphone));
 
-  return MakeRefPtr<MediaDevice>(a, aName, NS_LITERAL_STRING(""), aGroupId,
-                                 NS_LITERAL_STRING(""));
+  return MakeRefPtr<MediaDevice>(a, aName, u""_ns, aGroupId, u""_ns);
 }
 
 RefPtr<MediaDevice> MakeSpeakerDevice(const nsString& aName,
                                       const nsString& aGroupId) {
-  return MakeRefPtr<MediaDevice>(MakeAudioDeviceInfo(aName),
-                                 NS_LITERAL_STRING("ID"), aGroupId,
-                                 NS_LITERAL_STRING("RawID"));
+  return MakeRefPtr<MediaDevice>(MakeAudioDeviceInfo(aName), u"ID"_ns, aGroupId,
+                                 u"RawID"_ns);
 }
 
 /* Verify that when an audio input device name contains the video input device
@@ -88,11 +85,10 @@ TEST(TestGroupId, MatchInput_PartOfName)
   MediaManager::MediaDeviceSet audios;
 
   devices.AppendElement(
-      MakeCameraDevice(NS_LITERAL_STRING("Vendor Model"),
-                       NS_LITERAL_STRING("Cam-Model-GroupId")));
+      MakeCameraDevice(u"Vendor Model"_ns, u"Cam-Model-GroupId"_ns));
 
-  auto mic = MakeMicDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                           NS_LITERAL_STRING("Mic-Model-GroupId"));
+  auto mic =
+      MakeMicDevice(u"Vendor Model Analog Stereo"_ns, u"Mic-Model-GroupId"_ns);
   devices.AppendElement(mic);
   audios.AppendElement(mic);
 
@@ -111,11 +107,9 @@ TEST(TestGroupId, MatchInput_FullName)
   MediaManager::MediaDeviceSet audios;
 
   devices.AppendElement(
-      MakeCameraDevice(NS_LITERAL_STRING("Vendor Model"),
-                       NS_LITERAL_STRING("Cam-Model-GroupId")));
+      MakeCameraDevice(u"Vendor Model"_ns, u"Cam-Model-GroupId"_ns));
 
-  auto mic = MakeMicDevice(NS_LITERAL_STRING("Vendor Model"),
-                           NS_LITERAL_STRING("Mic-Model-GroupId"));
+  auto mic = MakeMicDevice(u"Vendor Model"_ns, u"Mic-Model-GroupId"_ns);
   devices.AppendElement(mic);
   audios.AppendElement(mic);
 
@@ -132,12 +126,12 @@ TEST(TestGroupId, NoMatchInput)
   MediaManager::MediaDeviceSet devices;
   MediaManager::MediaDeviceSet audios;
 
-  nsString Cam_Model_GroupId = NS_LITERAL_STRING("Cam-Model-GroupId");
+  nsString Cam_Model_GroupId = u"Cam-Model-GroupId"_ns;
   devices.AppendElement(
-      MakeCameraDevice(NS_LITERAL_STRING("Vendor Model"), Cam_Model_GroupId));
+      MakeCameraDevice(u"Vendor Model"_ns, Cam_Model_GroupId));
 
-  audios.AppendElement(MakeMicDevice(NS_LITERAL_STRING("Model Analog Stereo"),
-                                     NS_LITERAL_STRING("Mic-Model-GroupId")));
+  audios.AppendElement(
+      MakeMicDevice(u"Model Analog Stereo"_ns, u"Mic-Model-GroupId"_ns));
 
   MediaManager::GuessVideoDeviceGroupIDs(devices, audios);
 
@@ -155,23 +149,19 @@ TEST(TestGroupId, NoMatch_TwoIdenticalDevices)
   MediaManager::MediaDeviceSet devices;
   MediaManager::MediaDeviceSet audios;
 
-  nsString Cam_Model_GroupId = NS_LITERAL_STRING("Cam-Model-GroupId");
+  nsString Cam_Model_GroupId = u"Cam-Model-GroupId"_ns;
   devices.AppendElement(
-      MakeCameraDevice(NS_LITERAL_STRING("Vendor Model"), Cam_Model_GroupId));
+      MakeCameraDevice(u"Vendor Model"_ns, Cam_Model_GroupId));
 
   audios.AppendElement(
-      MakeMicDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                    NS_LITERAL_STRING("Mic-Model-GroupId")));
+      MakeMicDevice(u"Vendor Model Analog Stereo"_ns, u"Mic-Model-GroupId"_ns));
   audios.AppendElement(
-      MakeMicDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                    NS_LITERAL_STRING("Mic-Model-GroupId")));
+      MakeMicDevice(u"Vendor Model Analog Stereo"_ns, u"Mic-Model-GroupId"_ns));
 
-  audios.AppendElement(
-      MakeSpeakerDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                        NS_LITERAL_STRING("Speaker-Model-GroupId")));
-  audios.AppendElement(
-      MakeSpeakerDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                        NS_LITERAL_STRING("Speaker-Model-GroupId")));
+  audios.AppendElement(MakeSpeakerDevice(u"Vendor Model Analog Stereo"_ns,
+                                         u"Speaker-Model-GroupId"_ns));
+  audios.AppendElement(MakeSpeakerDevice(u"Vendor Model Analog Stereo"_ns,
+                                         u"Speaker-Model-GroupId"_ns));
 
   MediaManager::GuessVideoDeviceGroupIDs(devices, audios);
 
@@ -192,20 +182,17 @@ TEST(TestGroupId, Match_TwoIdenticalInputsMatchOutput)
   MediaManager::MediaDeviceSet devices;
   MediaManager::MediaDeviceSet audios;
 
-  nsString Cam_Model_GroupId = NS_LITERAL_STRING("Cam-Model-GroupId");
+  nsString Cam_Model_GroupId = u"Cam-Model-GroupId"_ns;
   devices.AppendElement(
-      MakeCameraDevice(NS_LITERAL_STRING("Vendor Model"), Cam_Model_GroupId));
+      MakeCameraDevice(u"Vendor Model"_ns, Cam_Model_GroupId));
 
   audios.AppendElement(
-      MakeMicDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                    NS_LITERAL_STRING("Mic-Model-GroupId")));
+      MakeMicDevice(u"Vendor Model Analog Stereo"_ns, u"Mic-Model-GroupId"_ns));
   audios.AppendElement(
-      MakeMicDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                    NS_LITERAL_STRING("Mic-Model-GroupId")));
+      MakeMicDevice(u"Vendor Model Analog Stereo"_ns, u"Mic-Model-GroupId"_ns));
 
-  audios.AppendElement(
-      MakeSpeakerDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                        NS_LITERAL_STRING("Speaker-Model-GroupId")));
+  audios.AppendElement(MakeSpeakerDevice(u"Vendor Model Analog Stereo"_ns,
+                                         u"Speaker-Model-GroupId"_ns));
 
   MediaManager::GuessVideoDeviceGroupIDs(devices, audios);
 
@@ -221,29 +208,23 @@ TEST(TestGroupId, NoMatch_ThreeIdenticalDevices)
   MediaManager::MediaDeviceSet devices;
   MediaManager::MediaDeviceSet audios;
 
-  nsString Cam_Model_GroupId = NS_LITERAL_STRING("Cam-Model-GroupId");
+  nsString Cam_Model_GroupId = u"Cam-Model-GroupId"_ns;
   devices.AppendElement(
-      MakeCameraDevice(NS_LITERAL_STRING("Vendor Model"), Cam_Model_GroupId));
+      MakeCameraDevice(u"Vendor Model"_ns, Cam_Model_GroupId));
 
   audios.AppendElement(
-      MakeMicDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                    NS_LITERAL_STRING("Mic-Model-GroupId")));
+      MakeMicDevice(u"Vendor Model Analog Stereo"_ns, u"Mic-Model-GroupId"_ns));
   audios.AppendElement(
-      MakeMicDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                    NS_LITERAL_STRING("Mic-Model-GroupId")));
+      MakeMicDevice(u"Vendor Model Analog Stereo"_ns, u"Mic-Model-GroupId"_ns));
   audios.AppendElement(
-      MakeMicDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                    NS_LITERAL_STRING("Mic-Model-GroupId")));
+      MakeMicDevice(u"Vendor Model Analog Stereo"_ns, u"Mic-Model-GroupId"_ns));
 
-  audios.AppendElement(
-      MakeSpeakerDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                        NS_LITERAL_STRING("Speaker-Model-GroupId")));
-  audios.AppendElement(
-      MakeSpeakerDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                        NS_LITERAL_STRING("Speaker-Model-GroupId")));
-  audios.AppendElement(
-      MakeSpeakerDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                        NS_LITERAL_STRING("Speaker-Model-GroupId")));
+  audios.AppendElement(MakeSpeakerDevice(u"Vendor Model Analog Stereo"_ns,
+                                         u"Speaker-Model-GroupId"_ns));
+  audios.AppendElement(MakeSpeakerDevice(u"Vendor Model Analog Stereo"_ns,
+                                         u"Speaker-Model-GroupId"_ns));
+  audios.AppendElement(MakeSpeakerDevice(u"Vendor Model Analog Stereo"_ns,
+                                         u"Speaker-Model-GroupId"_ns));
 
   MediaManager::GuessVideoDeviceGroupIDs(devices, audios);
 
@@ -264,15 +245,13 @@ TEST(TestGroupId, MatchOutput)
   MediaManager::MediaDeviceSet audios;
 
   devices.AppendElement(
-      MakeCameraDevice(NS_LITERAL_STRING("Vendor Model"),
-                       NS_LITERAL_STRING("Cam-Model-GroupId")));
-
-  audios.AppendElement(MakeMicDevice(NS_LITERAL_STRING("Mic Analog Stereo"),
-                                     NS_LITERAL_STRING("Mic-Model-GroupId")));
+      MakeCameraDevice(u"Vendor Model"_ns, u"Cam-Model-GroupId"_ns));
 
   audios.AppendElement(
-      MakeSpeakerDevice(NS_LITERAL_STRING("Vendor Model Analog Stereo"),
-                        NS_LITERAL_STRING("Speaker-Model-GroupId")));
+      MakeMicDevice(u"Mic Analog Stereo"_ns, u"Mic-Model-GroupId"_ns));
+
+  audios.AppendElement(MakeSpeakerDevice(u"Vendor Model Analog Stereo"_ns,
+                                         u"Speaker-Model-GroupId"_ns));
 
   MediaManager::GuessVideoDeviceGroupIDs(devices, audios);
 
@@ -289,15 +268,13 @@ TEST(TestGroupId, InputOutputSameName)
   MediaManager::MediaDeviceSet audios;
 
   devices.AppendElement(
-      MakeCameraDevice(NS_LITERAL_STRING("Vendor Model"),
-                       NS_LITERAL_STRING("Cam-Model-GroupId")));
-
-  audios.AppendElement(MakeMicDevice(NS_LITERAL_STRING("Vendor Model"),
-                                     NS_LITERAL_STRING("Mic-Model-GroupId")));
+      MakeCameraDevice(u"Vendor Model"_ns, u"Cam-Model-GroupId"_ns));
 
   audios.AppendElement(
-      MakeSpeakerDevice(NS_LITERAL_STRING("Vendor Model"),
-                        NS_LITERAL_STRING("Speaker-Model-GroupId")));
+      MakeMicDevice(u"Vendor Model"_ns, u"Mic-Model-GroupId"_ns));
+
+  audios.AppendElement(
+      MakeSpeakerDevice(u"Vendor Model"_ns, u"Speaker-Model-GroupId"_ns));
 
   MediaManager::GuessVideoDeviceGroupIDs(devices, audios);
 
@@ -314,11 +291,9 @@ TEST(TestGroupId, InputEmptyGroupId)
   MediaManager::MediaDeviceSet audios;
 
   devices.AppendElement(
-      MakeCameraDevice(NS_LITERAL_STRING("Vendor Model"),
-                       NS_LITERAL_STRING("Cam-Model-GroupId")));
+      MakeCameraDevice(u"Vendor Model"_ns, u"Cam-Model-GroupId"_ns));
 
-  audios.AppendElement(
-      MakeMicDevice(NS_LITERAL_STRING("Vendor Model"), NS_LITERAL_STRING("")));
+  audios.AppendElement(MakeMicDevice(u"Vendor Model"_ns, u""_ns));
 
   MediaManager::GuessVideoDeviceGroupIDs(devices, audios);
 
@@ -335,11 +310,9 @@ TEST(TestGroupId, OutputEmptyGroupId)
   MediaManager::MediaDeviceSet audios;
 
   devices.AppendElement(
-      MakeCameraDevice(NS_LITERAL_STRING("Vendor Model"),
-                       NS_LITERAL_STRING("Cam-Model-GroupId")));
+      MakeCameraDevice(u"Vendor Model"_ns, u"Cam-Model-GroupId"_ns));
 
-  audios.AppendElement(MakeSpeakerDevice(NS_LITERAL_STRING("Vendor Model"),
-                                         NS_LITERAL_STRING("")));
+  audios.AppendElement(MakeSpeakerDevice(u"Vendor Model"_ns, u""_ns));
 
   MediaManager::GuessVideoDeviceGroupIDs(devices, audios);
 

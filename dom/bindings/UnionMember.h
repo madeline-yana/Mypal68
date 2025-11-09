@@ -8,6 +8,7 @@
 #define mozilla_dom_UnionMember_h
 
 #include "mozilla/Alignment.h"
+#include "mozilla/Attributes.h"
 
 namespace mozilla {
 namespace dom {
@@ -43,7 +44,7 @@ class UnionMember {
   T& Value() { return *mStorage.addr(); }
   const T& Value() const { return *mStorage.addr(); }
   void Destroy() { mStorage.addr()->~T(); }
-};
+} MOZ_INHERIT_TYPE_ANNOTATIONS_FROM_TEMPLATE_ARGS;
 
 }  // namespace dom
 }  // namespace mozilla

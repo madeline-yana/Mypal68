@@ -12,7 +12,9 @@ include protocol PParentToChildStream; //FIXME: bug #792908
 include PBackgroundSharedTypes;
 include IPCStream;
 
-using refcounted class nsIReferrerInfo from "mozilla/dom/ReferrerInfoUtils.h";
+include "mozilla/dom/ReferrerInfoUtils.h";
+
+using refcounted class nsIReferrerInfo from "nsIReferrerInfo.h";
 
 namespace mozilla {
 

@@ -4,6 +4,7 @@
 
 #include "Request.h"
 
+#include "js/Value.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsPIDOMWindow.h"
@@ -18,8 +19,9 @@
 #include "mozilla/dom/WorkerRunnable.h"
 #include "mozilla/Unused.h"
 
-namespace mozilla {
-namespace dom {
+#include "mozilla/dom/ReadableStreamDefaultReader.h"
+
+namespace mozilla::dom {
 
 NS_IMPL_ADDREF_INHERITED(Request, FetchBody<Request>)
 NS_IMPL_RELEASE_INHERITED(Request, FetchBody<Request>)
@@ -27,24 +29,23 @@ NS_IMPL_RELEASE_INHERITED(Request, FetchBody<Request>)
 NS_IMPL_CYCLE_COLLECTION_CLASS(Request)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(Request, FetchBody<Request>)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mReadableStreamBody)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mReadableStreamReader)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mOwner)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mHeaders)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSignal)
-  tmp->Unfollow();
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(Request, FetchBody<Request>)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mReadableStreamBody)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mReadableStreamReader)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOwner)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mHeaders)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSignal)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFollowingSignal)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(Request, FetchBody<Request>)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mReadableStreamBody)
-  MOZ_DIAGNOSTIC_ASSERT(!tmp->mReadableStreamReader);
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mReadableStreamReader)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -61,7 +62,8 @@ Request::Request(nsIGlobalObject* aOwner, SafeRefPtr<InternalRequest> aRequest,
   if (aSignal) {
     // If we don't have a signal as argument, we will create it when required by
     // content, otherwise the Request's signal must follow what has been passed.
-    mSignal = new AbortSignal(aOwner, aSignal->Aborted());
+    JS::Rooted<JS::Value> reason(RootingCx(), aSignal->RawReason());
+    mSignal = new AbortSignal(aOwner, aSignal->Aborted(), reason);
     if (!mSignal->Aborted()) {
       mSignal->Follow(aSignal);
     }
@@ -222,7 +224,7 @@ void GetRequestURLFromWorker(nsIGlobalObject* aGlobal, const nsAString& aInput,
     CopyUTF16toUTF8(Substring(fragment, 1), aURLfragment);
   }
 
-  url->SetHash(EmptyString());
+  url->SetHash(u""_ns);
   url->GetHref(aRequestURL);
 }
 
@@ -349,7 +351,8 @@ SafeRefPtr<Request> Request::Constructor(nsIGlobalObject* aGlobal,
   }
 
   if (aInit.IsAnyMemberPresent()) {
-    request->SetReferrer(NS_LITERAL_STRING(kFETCH_CLIENT_REFERRER_STR));
+    request->SetReferrer(
+        NS_LITERAL_STRING_FROM_CSTRING(kFETCH_CLIENT_REFERRER_STR));
     request->SetReferrerPolicy(ReferrerPolicy::_empty);
   }
   if (aInit.mReferrer.WasPassed()) {
@@ -636,7 +639,7 @@ Headers* Request::Headers_() {
 
 AbortSignal* Request::GetOrCreateSignal() {
   if (!mSignal) {
-    mSignal = new AbortSignal(mOwner, false);
+    mSignal = new AbortSignal(mOwner, false, JS::UndefinedHandleValue);
   }
 
   return mSignal;
@@ -644,5 +647,9 @@ AbortSignal* Request::GetOrCreateSignal() {
 
 AbortSignalImpl* Request::GetSignalImpl() const { return mSignal; }
 
-}  // namespace dom
-}  // namespace mozilla
+AbortSignalImpl* Request::GetSignalImplToConsumeBody() const {
+  // This is a hack, see Response::GetSignalImplToConsumeBody.
+  return nullptr;
+}
+
+}  // namespace mozilla::dom

@@ -10,7 +10,7 @@
 namespace mozilla {
 namespace dom {
 
-MOZ_MUST_USE RefPtr<ClientOpPromise> ClientOpenWindowInCurrentProcess(
+[[nodiscard]] RefPtr<ClientOpPromise> ClientOpenWindowInCurrentProcess(
     const ClientOpenWindowArgs& aArgs);
 
 }  // namespace dom

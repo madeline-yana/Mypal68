@@ -45,7 +45,7 @@ mozilla::ipc::IPCResult GMPTimerParent::RecvSetTimer(
   ctx->mId = aTimerId;
   ctx->mParent = this;
 
-  mTimers.PutEntry(ctx.release());
+  mTimers.Insert(ctx.release());
 
   return IPC_OK();
 }
@@ -56,8 +56,7 @@ void GMPTimerParent::Shutdown() {
 
   MOZ_ASSERT(mGMPEventTarget->IsOnCurrentThread());
 
-  for (auto iter = mTimers.Iter(); !iter.Done(); iter.Next()) {
-    Context* context = iter.Get()->GetKey();
+  for (Context* context : mTimers) {
     context->mTimer->Cancel();
     delete context;
   }
@@ -93,7 +92,7 @@ void GMPTimerParent::TimerExpired(Context* aContext) {
   }
 
   uint32_t id = aContext->mId;
-  mTimers.RemoveEntry(aContext);
+  mTimers.Remove(aContext);
   if (id) {
     Unused << SendTimerExpired(id);
   }

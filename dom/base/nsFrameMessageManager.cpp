@@ -13,15 +13,20 @@
 #include "ContentChild.h"
 #include "ErrorList.h"
 #include "GeckoProfiler.h"
+#include "mozilla/Unused.h"
 #include "base/process_util.h"
 #include "chrome/common/ipc_channel.h"
 #include "js/CallAndConstruct.h"  // JS::IsCallable, JS_CallFunctionValue
 #include "js/CompilationAndEvaluation.h"
+#include "js/CompileOptions.h"
 #include "js/experimental/JSStencil.h"
+#include "js/GCVector.h"
 #include "js/JSON.h"
 #include "js/PropertyAndElement.h"  // JS_GetProperty
+#include "js/RootingAPI.h"
 #include "js/SourceText.h"
 #include "js/StructuredClone.h"
+#include "js/TypeDecls.h"
 #include "js/Wrapper.h"
 #include "jsapi.h"
 #include "jsfriendapi.h"
@@ -62,6 +67,7 @@
 #include "mozilla/dom/MessageManagerCallback.h"
 #include "mozilla/dom/ipc/SharedMap.h"
 #include "mozilla/dom/ipc/StructuredCloneData.h"
+#include "mozilla/scache/StartupCacheUtils.h"
 #include "nsASCIIMask.h"
 #include "nsBaseHashtable.h"
 #include "nsCOMPtr.h"
@@ -70,7 +76,7 @@
 #include "nsContentUtils.h"
 #include "nsCycleCollectionNoteChild.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsDebug.h"
 #include "nsError.h"
 #include "nsFrameMessageManager.h"
@@ -123,6 +129,8 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::dom::ipc;
+
+#define CACHE_PREFIX(type) "mm/" type
 
 nsFrameMessageManager::nsFrameMessageManager(MessageManagerCallback* aCallback,
                                              MessageManagerFlags aFlags)
@@ -204,7 +212,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsFrameMessageManager)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFrameMessageManager)
 
-void MessageManagerCallback::DoGetRemoteType(nsAString& aRemoteType,
+void MessageManagerCallback::DoGetRemoteType(nsACString& aRemoteType,
                                              ErrorResult& aError) const {
   aRemoteType.Truncate();
   mozilla::dom::ProcessMessageManager* parent = GetProcessMessageManager();
@@ -241,9 +249,7 @@ void nsFrameMessageManager::AddMessageListener(const nsAString& aMessageName,
                                                MessageListener& aListener,
                                                bool aListenWhenClosed,
                                                ErrorResult& aError) {
-  auto& listeners = mListeners.LookupForAdd(aMessageName).OrInsert([]() {
-    return new nsAutoTObserverArray<nsMessageListenerInfo, 1>();
-  });
+  auto* const listeners = mListeners.GetOrInsertNew(aMessageName);
   uint32_t len = listeners->Length();
   for (uint32_t i = 0; i < len; ++i) {
     MessageListener* strongListener = listeners->ElementAt(i).mStrongListener;
@@ -297,8 +303,8 @@ void nsFrameMessageManager::AddWeakMessageListener(
   // this to happen; it will break e.g. RemoveWeakMessageListener.  So let's
   // check that we're not getting ourselves into that situation.
   nsCOMPtr<nsISupports> canonical = do_QueryInterface(listener);
-  for (auto iter = mListeners.Iter(); !iter.Done(); iter.Next()) {
-    nsAutoTObserverArray<nsMessageListenerInfo, 1>* listeners = iter.UserData();
+  for (const auto& entry : mListeners) {
+    nsAutoTObserverArray<nsMessageListenerInfo, 1>* listeners = entry.GetWeak();
     uint32_t count = listeners->Length();
     for (uint32_t i = 0; i < count; i++) {
       nsWeakPtr weakListener = listeners->ElementAt(i).mWeakListener;
@@ -310,9 +316,7 @@ void nsFrameMessageManager::AddWeakMessageListener(
   }
 #endif
 
-  auto& listeners = mListeners.LookupForAdd(aMessageName).OrInsert([]() {
-    return new nsAutoTObserverArray<nsMessageListenerInfo, 1>();
-  });
+  auto* const listeners = mListeners.GetOrInsertNew(aMessageName);
   uint32_t len = listeners->Length();
   for (uint32_t i = 0; i < len; ++i) {
     if (listeners->ElementAt(i).mWeakListener == weak) {
@@ -961,7 +965,7 @@ nsFrameMessageManager::GetProcessMessageManager(ErrorResult& aError) {
   return pmm.forget();
 }
 
-void nsFrameMessageManager::GetRemoteType(nsAString& aRemoteType,
+void nsFrameMessageManager::GetRemoteType(nsACString& aRemoteType,
                                           ErrorResult& aError) const {
   aRemoteType.Truncate();
   if (mCallback) {
@@ -977,13 +981,12 @@ struct MessageManagerReferentCount {
   size_t mWeakAlive;
   size_t mWeakDead;
   nsTArray<nsString> mSuspectMessages;
-  nsDataHashtable<nsStringHashKey, uint32_t> mMessageCounter;
+  nsTHashMap<nsStringHashKey, uint32_t> mMessageCounter;
 };
 
 }  // namespace
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 class MessageManagerReporter final : public nsIMemoryReporter {
   ~MessageManagerReporter() = default;
@@ -1004,18 +1007,17 @@ NS_IMPL_ISUPPORTS(MessageManagerReporter, nsIMemoryReporter)
 void MessageManagerReporter::CountReferents(
     nsFrameMessageManager* aMessageManager,
     MessageManagerReferentCount* aReferentCount) {
-  for (auto it = aMessageManager->mListeners.Iter(); !it.Done(); it.Next()) {
-    nsAutoTObserverArray<nsMessageListenerInfo, 1>* listeners = it.UserData();
+  for (const auto& entry : aMessageManager->mListeners) {
+    nsAutoTObserverArray<nsMessageListenerInfo, 1>* listeners = entry.GetWeak();
     uint32_t listenerCount = listeners->Length();
     if (listenerCount == 0) {
       continue;
     }
 
-    nsString key(it.Key());
-    uint32_t oldCount = 0;
-    aReferentCount->mMessageCounter.Get(key, &oldCount);
-    uint32_t currentCount = oldCount + listenerCount;
-    aReferentCount->mMessageCounter.Put(key, currentCount);
+    nsString key(entry.GetKey());
+    const uint32_t currentCount =
+        (aReferentCount->mMessageCounter.LookupOrInsert(key, 0) +=
+         listenerCount);
 
     // Keep track of messages that have a suspiciously large
     // number of referents (symptom of leak).
@@ -1075,9 +1077,8 @@ static void ReportReferentCount(
                          aManagerType));
 
   for (uint32_t i = 0; i < aReferentCount.mSuspectMessages.Length(); i++) {
-    uint32_t totalReferentCount = 0;
-    aReferentCount.mMessageCounter.Get(aReferentCount.mSuspectMessages[i],
-                                       &totalReferentCount);
+    const uint32_t totalReferentCount =
+        aReferentCount.mMessageCounter.Get(aReferentCount.mSuspectMessages[i]);
     NS_ConvertUTF16toUTF8 suspect(aReferentCount.mSuspectMessages[i]);
     REPORT(nsPrintfCString("message-manager-suspect/%s/referent(message=%s)",
                            aManagerType, suspect.get()),
@@ -1117,8 +1118,7 @@ MessageManagerReporter::CollectReports(nsIHandleReportCallback* aHandleReport,
   return NS_OK;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom
 
 already_AddRefed<ChromeMessageBroadcaster>
 nsFrameMessageManager::GetGlobalMessageManager() {
@@ -1139,7 +1139,7 @@ nsresult NS_NewGlobalMessageManager(nsISupports** aResult) {
   return NS_OK;
 }
 
-nsDataHashtable<nsStringHashKey, nsMessageManagerScriptHolder*>*
+nsTHashMap<nsStringHashKey, nsMessageManagerScriptHolder*>*
     nsMessageManagerScriptExecutor::sCachedScripts = nullptr;
 StaticRefPtr<nsScriptCacheCleaner>
     nsMessageManagerScriptExecutor::sScriptCacheCleaner;
@@ -1147,7 +1147,7 @@ StaticRefPtr<nsScriptCacheCleaner>
 void nsMessageManagerScriptExecutor::DidCreateScriptLoader() {
   if (!sCachedScripts) {
     sCachedScripts =
-        new nsDataHashtable<nsStringHashKey, nsMessageManagerScriptHolder*>;
+        new nsTHashMap<nsStringHashKey, nsMessageManagerScriptHolder*>;
     sScriptCacheCleaner = new nsScriptCacheCleaner();
   }
 }
@@ -1174,6 +1174,11 @@ void nsMessageManagerScriptExecutor::Shutdown() {
   }
 }
 
+static void FillCompileOptionsForCachedStencil(JS::CompileOptions& aOptions) {
+  ScriptPreloader::FillCompileOptionsForCachedStencil(aOptions);
+  aOptions.setNonSyntacticScope(true);
+}
+
 void nsMessageManagerScriptExecutor::LoadScriptInternal(
     JS::Handle<JSObject*> aMessageManager, const nsAString& aURL,
     bool aRunInUniqueScope) {
@@ -1184,48 +1189,54 @@ void nsMessageManagerScriptExecutor::LoadScriptInternal(
     return;
   }
 
-  JS::RootingContext* rcx = RootingCx();
-  JS::Rooted<JSScript*> script(rcx);
-
+  RefPtr<JS::Stencil> stencil;
   nsMessageManagerScriptHolder* holder = sCachedScripts->Get(aURL);
   if (holder) {
-    script = holder->mScript;
+    stencil = holder->mStencil;
   } else {
-    TryCacheLoadAndCompileScript(aURL, aRunInUniqueScope, aMessageManager,
-                                 &script);
+    stencil =
+        TryCacheLoadAndCompileScript(aURL, aRunInUniqueScope, aMessageManager);
   }
 
   AutoEntryScript aes(aMessageManager, "message manager script load");
   JSContext* cx = aes.cx();
-  if (script) {
-    if (aRunInUniqueScope) {
-      JS::Rooted<JSObject*> scope(cx);
-      bool ok = js::ExecuteInFrameScriptEnvironment(cx, aMessageManager, script,
-                                                    &scope);
-      if (ok) {
-        // Force the scope to stay alive.
-        mAnonymousGlobalScopes.AppendElement(scope);
+  if (stencil) {
+    JS::CompileOptions options(cx);
+    FillCompileOptionsForCachedStencil(options);
+    JS::InstantiateOptions instantiateOptions(options);
+    JS::Rooted<JSScript*> script(
+        cx, JS::InstantiateGlobalStencil(cx, instantiateOptions, stencil));
+
+    if (script) {
+      if (aRunInUniqueScope) {
+        JS::Rooted<JSObject*> scope(cx);
+        bool ok = js::ExecuteInFrameScriptEnvironment(cx, aMessageManager,
+                                                      script, &scope);
+        if (ok) {
+          // Force the scope to stay alive.
+          mAnonymousGlobalScopes.AppendElement(scope);
+        }
+      } else {
+        JS::RootedValue rval(cx);
+        JS::RootedVector<JSObject*> envChain(cx);
+        if (!envChain.append(aMessageManager)) {
+          return;
+        }
+        Unused << JS_ExecuteScript(cx, envChain, script, &rval);
       }
-    } else {
-      JS::RootedValue rval(cx);
-      JS::RootedVector<JSObject*> envChain(cx);
-      if (!envChain.append(aMessageManager)) {
-        return;
-      }
-      JS::CloneAndExecuteScript(cx, envChain, script, &rval);
     }
   }
 }
 
-void nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
+already_AddRefed<JS::Stencil>
+nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
     const nsAString& aURL, bool aRunInUniqueScope,
-    JS::Handle<JSObject*> aMessageManager,
-    JS::MutableHandle<JSScript*> aScriptp) {
+    JS::Handle<JSObject*> aMessageManager) {
   nsCString url = NS_ConvertUTF16toUTF8(aURL);
   nsCOMPtr<nsIURI> uri;
   nsresult rv = NS_NewURI(getter_AddRefs(uri), url);
   if (NS_FAILED(rv)) {
-    return;
+    return nullptr;
   }
 
   bool hasFlags;
@@ -1233,7 +1244,7 @@ void nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
                            &hasFlags);
   if (NS_FAILED(rv) || !hasFlags) {
     NS_WARNING("Will not load a frame script!");
-    return;
+    return nullptr;
   }
 
   // If this script won't be cached, or there is only one of this type of
@@ -1249,26 +1260,28 @@ void nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
   // We don't cache data: scripts!
   nsAutoCString scheme;
   uri->GetScheme(scheme);
-  bool useScriptPreloader = !scheme.EqualsLiteral("data");
+  bool isCacheable = !scheme.EqualsLiteral("data");
+  bool useScriptPreloader = isCacheable;
 
   // If the script will be reused in this session, compile it in the compilation
   // scope instead of the current global to avoid keeping the current
   // compartment alive.
   AutoJSAPI jsapi;
   if (!jsapi.Init(isRunOnce ? aMessageManager : xpc::CompilationScope())) {
-    return;
+    return nullptr;
   }
   JSContext* cx = jsapi.cx();
 
-  JS::CompileOptions options(cx);
-  ScriptPreloader::FillCompileOptionsForCachedStencil(options);
-  options.setFileAndLine(url.get(), 1);
-  options.setNonSyntacticScope(true);
-
   RefPtr<JS::Stencil> stencil;
   if (useScriptPreloader) {
-    stencil =
-        ScriptPreloader::GetChildSingleton().GetCachedStencil(cx, options, url);
+    nsAutoCString cachePath;
+    rv = scache::PathifyURI(CACHE_PREFIX("script"), uri, cachePath);
+    NS_ENSURE_SUCCESS(rv, nullptr);
+
+    JS::DecodeOptions decodeOptions;
+    ScriptPreloader::FillDecodeOptionsForCachedStencil(decodeOptions);
+    stencil = ScriptPreloader::GetChildSingleton().GetCachedStencil(
+        cx, decodeOptions, cachePath);
   }
 
   if (!stencil) {
@@ -1279,12 +1292,12 @@ void nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
                   nsIContentPolicy::TYPE_INTERNAL_FRAME_MESSAGEMANAGER_SCRIPT);
 
     if (!channel) {
-      return;
+      return nullptr;
     }
 
     nsCOMPtr<nsIInputStream> input;
     rv = channel->Open(getter_AddRefs(input));
-    NS_ENSURE_SUCCESS_VOID(rv);
+    NS_ENSURE_SUCCESS(rv, nullptr);
     nsString dataString;
     char16_t* dataStringBuf = nullptr;
     size_t dataStringLength = 0;
@@ -1292,7 +1305,7 @@ void nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
       nsCString buffer;
       uint64_t written;
       if (NS_FAILED(NS_ReadInputStreamToString(input, buffer, -1, &written))) {
-        return;
+        return nullptr;
       }
 
       uint32_t size = (uint32_t)std::min(written, (uint64_t)UINT32_MAX);
@@ -1302,8 +1315,12 @@ void nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
     }
 
     if (!dataStringBuf || dataStringLength == 0) {
-      return;
+      return nullptr;
     }
+
+    JS::CompileOptions options(cx);
+    FillCompileOptionsForCachedStencil(options);
+    options.setFileAndLine(url.get(), 1);
 
     // If we are not encoding to the ScriptPreloader cache, we can now relax the
     // compile options and use the JS syntax-parser for lower latency.
@@ -1315,37 +1332,38 @@ void nsMessageManagerScriptExecutor::TryCacheLoadAndCompileScript(
 
     JS::SourceText<char16_t> srcBuf;
     if (!srcBuf.init(cx, std::move(srcChars), dataStringLength)) {
-      return;
+      return nullptr;
     }
 
     stencil = JS::CompileGlobalScriptToStencil(cx, options, srcBuf);
     if (!stencil) {
-      return;
+      return nullptr;
     }
+
+    if (isCacheable && !isRunOnce) {
+      // Store into our cache only when we compile it here.
+      auto* holder = new nsMessageManagerScriptHolder(stencil);
+      sCachedScripts->InsertOrUpdate(aURL, holder);
+    }
+
+#ifdef DEBUG
+    // The above shouldn't touch any options for instantiation.
+    JS::InstantiateOptions instantiateOptions(options);
+    instantiateOptions.assertDefault();
+#endif
   }
 
   MOZ_ASSERT(stencil);
 
-  JS::Rooted<JSScript*> script(
-      cx, JS::InstantiateGlobalStencil(cx, options, stencil));
-  if (!script) {
-    return;
-  }
-
-  aScriptp.set(script);
-
   if (useScriptPreloader) {
-    ScriptPreloader::GetChildSingleton().NoteStencil(url, url, stencil,
+    nsAutoCString cachePath;
+    rv = scache::PathifyURI(CACHE_PREFIX("script"), uri, cachePath);
+    NS_ENSURE_SUCCESS(rv, nullptr);
+    ScriptPreloader::GetChildSingleton().NoteStencil(url, cachePath, stencil,
                                                      isRunOnce);
-
-    // If this script will only run once per process, only cache it in the
-    // preloader cache, not the session cache.
-    if (!isRunOnce) {
-      // Root the object also for caching.
-      auto* holder = new nsMessageManagerScriptHolder(cx, script);
-      sCachedScripts->Put(aURL, holder);
-    }
   }
+
+  return stencil.forget();
 }
 
 void nsMessageManagerScriptExecutor::Trace(const TraceCallbacks& aCallbacks,
@@ -1588,8 +1606,8 @@ nsresult NS_NewChildProcessMessageManager(nsISupports** aResult) {
 }
 
 void nsFrameMessageManager::MarkForCC() {
-  for (auto iter = mListeners.Iter(); !iter.Done(); iter.Next()) {
-    nsAutoTObserverArray<nsMessageListenerInfo, 1>* listeners = iter.UserData();
+  for (const auto& entry : mListeners) {
+    nsAutoTObserverArray<nsMessageListenerInfo, 1>* listeners = entry.GetWeak();
     uint32_t count = listeners->Length();
     for (uint32_t i = 0; i < count; i++) {
       MessageListener* strongListener = listeners->ElementAt(i).mStrongListener;

@@ -4,6 +4,7 @@
 
 #include "ServiceWorkerRegistrationProxy.h"
 
+#include "mozilla/ScopeExit.h"
 #include "mozilla/ipc/BackgroundParent.h"
 #include "ServiceWorkerManager.h"
 #include "ServiceWorkerRegistrationParent.h"

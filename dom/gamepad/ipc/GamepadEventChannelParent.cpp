@@ -6,8 +6,7 @@
 #include "mozilla/dom/GamepadMonitoring.h"
 #include "nsThreadUtils.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 using namespace mozilla::ipc;
 
@@ -108,5 +107,4 @@ void GamepadEventChannelParent::DispatchUpdateEvent(
                                    NS_DISPATCH_NORMAL);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

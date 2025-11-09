@@ -10,7 +10,7 @@
  * and create derivative works of this document.
  */
 
-[Unforgeable,
+[LegacyUnforgeable,
  Exposed=Window]
 interface Location {
   [Throws, CrossOriginWritable, NeedsSubjectPrincipal]

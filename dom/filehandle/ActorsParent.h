@@ -14,7 +14,7 @@
 #include "nsHashKeys.h"
 #include "nsString.h"
 #include "nsTArrayForwardDeclare.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 
 template <class>
 struct already_AddRefed;
@@ -91,7 +91,7 @@ class FileHandleThreadPool final {
 class BackgroundMutableFileParentBase : public PBackgroundMutableFileParent {
   friend PBackgroundMutableFileParent;
 
-  nsTHashtable<nsPtrHashKey<FileHandle>> mFileHandles;
+  nsTHashSet<FileHandle*> mFileHandles;
   nsCString mDirectoryId;
   nsString mFileName;
   FileHandleStorage mStorage;

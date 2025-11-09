@@ -26,6 +26,8 @@ class GlobalObject;
 class OwningArrayBufferViewOrArrayBufferOrBlobOrUSVString;
 class Promise;
 
+class ReadableStream;
+
 #define NS_DOM_BLOB_IID                              \
   {                                                  \
     0x648c2a83, 0xbdb1, 0x4a7d, {                    \
@@ -116,8 +118,7 @@ class Blob : public nsSupportsWeakReference, public nsWrapperCache {
   nsresult GetSendInfo(nsIInputStream** aBody, uint64_t* aContentLength,
                        nsACString& aContentType, nsACString& aCharset) const;
 
-  void Stream(JSContext* aCx, JS::MutableHandle<JSObject*> aStream,
-              ErrorResult& aRv);
+  already_AddRefed<ReadableStream> Stream(JSContext* aCx, ErrorResult& aRv);
   already_AddRefed<Promise> Text(ErrorResult& aRv);
   already_AddRefed<Promise> ArrayBuffer(ErrorResult& aRv);
 

@@ -28,6 +28,7 @@
 #endif
 
 #include "mozilla/ipc/CrashReporterClient.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/ProcessChild.h"
 #include "mozilla/plugins/PluginInstanceChild.h"
 #include "mozilla/plugins/StreamNotifyChild.h"
@@ -252,7 +253,7 @@ bool PluginModuleChild::InitForChrome(const std::string& aPluginFilename,
   mAsyncRenderSupport = info.fSupportsAsyncRender;
 #endif
 #if defined(MOZ_X11)
-  NS_NAMED_LITERAL_CSTRING(flash10Head, "Shockwave Flash 10.");
+  constexpr auto flash10Head = "Shockwave Flash 10."_ns;
   if (StringBeginsWith(nsDependentCString(info.fDescription), flash10Head)) {
     AddQuirk(QUIRK_FLASH_EXPOSE_COORD_TRANSLATION);
   }
@@ -771,9 +772,7 @@ const char* PluginModuleChild::GetUserAgent() {
 //-----------------------------------------------------------------------------
 // FIXME/cjones: just getting this out of the way for the moment ...
 
-namespace mozilla {
-namespace plugins {
-namespace child {
+namespace mozilla::plugins::child {
 
 static NPError _requestread(NPStream* pstream, NPByteRange* rangeList);
 
@@ -884,9 +883,7 @@ static NPError _finalizeasyncsurface(NPP instance, NPAsyncSurface* surface);
 static void _setcurrentasyncsurface(NPP instance, NPAsyncSurface* surface,
                                     NPRect* changed);
 
-} /* namespace child */
-} /* namespace plugins */
-} /* namespace mozilla */
+}  // namespace mozilla::plugins::child
 
 const NPNetscapeFuncs PluginModuleChild::sBrowserFuncs = {
     sizeof(sBrowserFuncs),
@@ -956,9 +953,7 @@ PluginInstanceChild* InstCast(NPP aNPP) {
   return static_cast<PluginInstanceChild*>(aNPP->ndata);
 }
 
-namespace mozilla {
-namespace plugins {
-namespace child {
+namespace mozilla::plugins::child {
 
 NPError _requestread(NPStream* aStream, NPByteRange* aRangeList) {
   return NPERR_STREAM_NOT_SEEKABLE;
@@ -1508,9 +1503,7 @@ void _setcurrentasyncsurface(NPP instance, NPAsyncSurface* surface,
   InstCast(instance)->NPN_SetCurrentAsyncSurface(surface, changed);
 }
 
-} /* namespace child */
-} /* namespace plugins */
-} /* namespace mozilla */
+}  // namespace mozilla::plugins::child
 
 //-----------------------------------------------------------------------------
 

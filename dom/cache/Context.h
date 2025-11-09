@@ -46,9 +46,9 @@ class Manager;
 //     have removed themselves as listener.  This means an idle context with
 //     no active DOM objects will close gracefully.
 //  2) The QuotaManager aborts all operations so it can delete the files.
-//     In this case the QuotaManager calls Client::AbortOperations() which
-//     in turn cancels all existing Action objects and then marks the Manager
-//     as invalid.
+//     In this case the QuotaManager calls Client::AbortOperationsForLocks()
+//     which in turn cancels all existing Action objects and then marks the
+//     Manager as invalid.
 //  3) Browser shutdown occurs and the Manager calls Context::CancelAll().
 //
 // In either case, though, the Action objects must be destroyed first to
@@ -113,14 +113,16 @@ class Context final : public SafeRefCounted<Context> {
   // be execute synchronously.
   static SafeRefPtr<Context> Create(SafeRefPtr<Manager> aManager,
                                     nsISerialEventTarget* aTarget,
-                                    Action* aInitAction,
+                                    SafeRefPtr<Action> aInitAction,
                                     Maybe<Context&> aOldContext);
 
   // Execute given action on the target once the quota manager has been
   // initialized.
   //
   // Only callable from the thread that created the Context.
-  void Dispatch(Action* aAction);
+  void Dispatch(SafeRefPtr<Action> aAction);
+
+  Maybe<DirectoryLock&> MaybeDirectoryLockRef() const;
 
   // Cancel any Actions running or waiting to run.  This should allow the
   // Context to be released and Listener::RemoveContext() will be called
@@ -145,8 +147,8 @@ class Context final : public SafeRefCounted<Context> {
   // Only callable from the thread that created the Context.
   void CancelForCacheId(CacheId aCacheId);
 
-  void AddActivity(Activity* aActivity);
-  void RemoveActivity(Activity* aActivity);
+  void AddActivity(Activity& aActivity);
+  void RemoveActivity(Activity& aActivity);
 
   const QuotaInfo& GetQuotaInfo() const { return mQuotaInfo; }
 
@@ -169,12 +171,12 @@ class Context final : public SafeRefCounted<Context> {
 
   struct PendingAction {
     nsCOMPtr<nsIEventTarget> mTarget;
-    RefPtr<Action> mAction;
+    SafeRefPtr<Action> mAction;
   };
 
   void Init(Maybe<Context&> aOldContext);
   void Start();
-  void DispatchAction(Action* aAction, bool aDoomData = false);
+  void DispatchAction(SafeRefPtr<Action> aAction, bool aDoomData = false);
   void OnQuotaInit(nsresult aRv, const QuotaInfo& aQuotaInfo,
                    already_AddRefed<DirectoryLock> aDirectoryLock);
 
@@ -191,12 +193,12 @@ class Context final : public SafeRefCounted<Context> {
   bool mOrphanedData;
   QuotaInfo mQuotaInfo;
   RefPtr<QuotaInitRunnable> mInitRunnable;
-  RefPtr<Action> mInitAction;
+  SafeRefPtr<Action> mInitAction;
   nsTArray<PendingAction> mPendingActions;
 
   // Weak refs since activites must remove themselves from this list before
   // being destroyed by calling RemoveActivity().
-  nsTObserverArray<Activity*> mActivityList;
+  nsTObserverArray<NotNull<Activity*>> mActivityList;
 
   // The ThreadsafeHandle may have a strong ref back to us.  This creates
   // a ref-cycle that keeps the Context alive.  The ref-cycle is broken
@@ -209,7 +211,7 @@ class Context final : public SafeRefCounted<Context> {
  public:
   // XXX Consider adding a private guard parameter.
   Context(SafeRefPtr<Manager> aManager, nsISerialEventTarget* aTarget,
-          Action* aInitAction);
+          SafeRefPtr<Action> aInitAction);
   ~Context();
 
   NS_DECL_OWNINGTHREAD

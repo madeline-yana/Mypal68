@@ -16,6 +16,7 @@
 #include "mozilla/StaticPrefs_intl.h"
 #include "mozilla/TextComposition.h"
 #include "mozilla/TextEvents.h"
+#include "mozilla/ToString.h"
 #include "mozilla/Unused.h"
 #include "mozilla/dom/BrowserBridgeChild.h"
 #include "mozilla/dom/BrowserParent.h"
@@ -60,71 +61,6 @@ using namespace widget;
 LazyLogModule sISMLog("IMEStateManager");
 
 static const char* GetBoolName(bool aBool) { return aBool ? "true" : "false"; }
-
-static const char* GetActionCauseName(InputContextAction::Cause aCause) {
-  switch (aCause) {
-    case InputContextAction::CAUSE_UNKNOWN:
-      return "CAUSE_UNKNOWN";
-    case InputContextAction::CAUSE_UNKNOWN_CHROME:
-      return "CAUSE_UNKNOWN_CHROME";
-    case InputContextAction::CAUSE_KEY:
-      return "CAUSE_KEY";
-    case InputContextAction::CAUSE_MOUSE:
-      return "CAUSE_MOUSE";
-    case InputContextAction::CAUSE_TOUCH:
-      return "CAUSE_TOUCH";
-    case InputContextAction::CAUSE_LONGPRESS:
-      return "CAUSE_LONGPRESS";
-    default:
-      return "illegal value";
-  }
-}
-
-static const char* GetActionFocusChangeName(
-    InputContextAction::FocusChange aFocusChange) {
-  switch (aFocusChange) {
-    case InputContextAction::FOCUS_NOT_CHANGED:
-      return "FOCUS_NOT_CHANGED";
-    case InputContextAction::GOT_FOCUS:
-      return "GOT_FOCUS";
-    case InputContextAction::LOST_FOCUS:
-      return "LOST_FOCUS";
-    case InputContextAction::MENU_GOT_PSEUDO_FOCUS:
-      return "MENU_GOT_PSEUDO_FOCUS";
-    case InputContextAction::MENU_LOST_PSEUDO_FOCUS:
-      return "MENU_LOST_PSEUDO_FOCUS";
-    default:
-      return "illegal value";
-  }
-}
-
-static const char* GetIMEStateEnabledName(IMEState::Enabled aEnabled) {
-  switch (aEnabled) {
-    case IMEState::DISABLED:
-      return "DISABLED";
-    case IMEState::ENABLED:
-      return "ENABLED";
-    case IMEState::PASSWORD:
-      return "PASSWORD";
-    case IMEState::PLUGIN:
-      return "PLUGIN";
-    default:
-      return "illegal value";
-  }
-}
-
-static const char* GetIMEStateSetOpenName(IMEState::Open aOpen) {
-  switch (aOpen) {
-    case IMEState::DONT_CHANGE_OPEN_STATE:
-      return "DONT_CHANGE_OPEN_STATE";
-    case IMEState::OPEN:
-      return "OPEN";
-    case IMEState::CLOSED:
-      return "CLOSED";
-    default:
-      return "illegal value";
-  }
-}
 
 StaticRefPtr<nsIContent> IMEStateManager::sContent;
 StaticRefPtr<nsPresContext> IMEStateManager::sPresContext;
@@ -424,7 +360,7 @@ nsresult IMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
                                         InputContextAction::Cause aCause) {
   MOZ_LOG(sISMLog, LogLevel::Info,
           ("OnChangeFocus(aPresContext=0x%p, aContent=0x%p, aCause=%s)",
-           aPresContext, aContent, GetActionCauseName(aCause)));
+           aPresContext, aContent, ToString(aCause).c_str()));
 
   InputContextAction action(aCause);
   return OnChangeFocusInternal(aPresContext, aContent, action);
@@ -445,8 +381,8 @@ nsresult IMEStateManager::OnChangeFocusInternal(nsPresContext* aPresContext,
            "sWidget=0x%p (available: %s), BrowserParent::GetFocused()=0x%p, "
            "sActiveIMEContentObserver=0x%p, sInstalledMenuKeyboardListener=%s",
            aPresContext, GetBoolName(CanHandleWith(aPresContext)), aContent,
-           GetBoolName(remoteHasFocus), GetActionCauseName(aAction.mCause),
-           GetActionFocusChangeName(aAction.mFocusChange), sPresContext.get(),
+           GetBoolName(remoteHasFocus), ToString(aAction.mCause).c_str(),
+           ToString(aAction.mFocusChange).c_str(), sPresContext.get(),
            GetBoolName(CanHandleWith(sPresContext)), sContent.get(), sWidget,
            GetBoolName(sWidget && !sWidget->Destroyed()),
            BrowserParent::GetFocused(), sActiveIMEContentObserver.get(),
@@ -660,18 +596,10 @@ void IMEStateManager::OnInstalledMenuKeyboardListener(bool aInstalling) {
       sISMLog, LogLevel::Info,
       ("OnInstalledMenuKeyboardListener(aInstalling=%s), "
        "sInstalledMenuKeyboardListener=%s, BrowserParent::GetFocused()=0x%p, "
-       "sActiveChildInputContext={ mIMEState={ mEnabled=%s, mOpen=%s }, "
-       "mHTMLInputType=\"%s\", mHTMLInputInputmode=\"%s\", mActionHint=\"%s\", "
-       "mInPrivateBrowsing=%s }",
+       "sActiveChildInputContext=%s",
        GetBoolName(aInstalling), GetBoolName(sInstalledMenuKeyboardListener),
        BrowserParent::GetFocused(),
-       GetIMEStateEnabledName(sActiveChildInputContext.mIMEState.mEnabled),
-       GetIMEStateSetOpenName(sActiveChildInputContext.mIMEState.mOpen),
-       NS_ConvertUTF16toUTF8(sActiveChildInputContext.mHTMLInputType).get(),
-       NS_ConvertUTF16toUTF8(sActiveChildInputContext.mHTMLInputInputmode)
-           .get(),
-       NS_ConvertUTF16toUTF8(sActiveChildInputContext.mActionHint).get(),
-       GetBoolName(sActiveChildInputContext.mInPrivateBrowsing)));
+       ToString(sActiveChildInputContext).c_str()));
 
   sInstalledMenuKeyboardListener = aInstalling;
 
@@ -719,8 +647,8 @@ bool IMEStateManager::OnMouseButtonEventInEditor(
     return false;
   }
 
-  bool consumed =
-      sActiveIMEContentObserver->OnMouseButtonEvent(aPresContext, aMouseEvent);
+  RefPtr<IMEContentObserver> observer = sActiveIMEContentObserver;
+  bool consumed = observer->OnMouseButtonEvent(aPresContext, aMouseEvent);
 
   if (MOZ_LOG_TEST(sISMLog, LogLevel::Info)) {
     nsAutoString eventType;
@@ -870,12 +798,10 @@ void IMEStateManager::UpdateIMEState(const IMEState& aNewIMEState,
                                      EditorBase* aEditorBase) {
   MOZ_LOG(
       sISMLog, LogLevel::Info,
-      ("UpdateIMEState(aNewIMEState={ mEnabled=%s, "
-       "mOpen=%s }, aContent=0x%p, aEditorBase=0x%p), "
+      ("UpdateIMEState(aNewIMEState=%s, aContent=0x%p, aEditorBase=0x%p), "
        "sPresContext=0x%p, sContent=0x%p, sWidget=0x%p (available: %s), "
        "sActiveIMEContentObserver=0x%p, sIsGettingNewIMEState=%s",
-       GetIMEStateEnabledName(aNewIMEState.mEnabled),
-       GetIMEStateSetOpenName(aNewIMEState.mOpen), aContent, aEditorBase,
+       ToString(aNewIMEState).c_str(), aContent, aEditorBase,
        sPresContext.get(), sContent.get(), sWidget,
        GetBoolName(sWidget && !sWidget->Destroyed()),
        sActiveIMEContentObserver.get(), GetBoolName(sIsGettingNewIMEState)));
@@ -947,6 +873,10 @@ void IMEStateManager::UpdateIMEState(const IMEState& aNewIMEState,
   MOZ_ASSERT(!sPresContext->GetTextInputHandlingWidget() ||
              sPresContext->GetTextInputHandlingWidget() == widget);
 
+  // TODO: Investigate if we could put off to initialize IMEContentObserver
+  //       later because a lot of callers need to be marked as
+  //       MOZ_CAN_RUN_SCRIPT otherwise.
+
   // Even if there is active IMEContentObserver, it may not be observing the
   // editor with current editable root content due to reframed.  In such case,
   // We should try to reinitialize the IMEContentObserver.
@@ -955,7 +885,8 @@ void IMEStateManager::UpdateIMEState(const IMEState& aNewIMEState,
             ("  UpdateIMEState(), try to reinitialize the "
              "active IMEContentObserver"));
     RefPtr<IMEContentObserver> contentObserver = sActiveIMEContentObserver;
-    if (!contentObserver->MaybeReinitialize(widget, sPresContext, aContent,
+    RefPtr<nsPresContext> presContext = sPresContext;
+    if (!contentObserver->MaybeReinitialize(widget, presContext, aContent,
                                             aEditorBase)) {
       MOZ_LOG(sISMLog, LogLevel::Error,
               ("  UpdateIMEState(), failed to reinitialize the "
@@ -1076,10 +1007,7 @@ IMEState IMEStateManager::GetNewIMEState(nsPresContext* aPresContext,
 
   IMEState newIMEState = aContent->GetDesiredIMEState();
   MOZ_LOG(sISMLog, LogLevel::Debug,
-          ("  GetNewIMEState() returns { mEnabled=%s, "
-           "mOpen=%s }",
-           GetIMEStateEnabledName(newIMEState.mEnabled),
-           GetIMEStateSetOpenName(newIMEState.mOpen)));
+          ("  GetNewIMEState() returns %s", ToString(newIMEState).c_str()));
   return newIMEState;
 }
 
@@ -1117,20 +1045,12 @@ void IMEStateManager::SetInputContextForChildProcess(
   MOZ_LOG(
       sISMLog, LogLevel::Info,
       ("SetInputContextForChildProcess(aBrowserParent=0x%p, "
-       "aInputContext={ mIMEState={ mEnabled=%s, mOpen=%s }, "
-       "mHTMLInputType=\"%s\", mHTMLInputInputmode=\"%s\", mActionHint=\"%s\", "
-       "mInPrivateBrowsing=%s }, aAction={ mCause=%s, mAction=%s }), "
+       "aInputContext=%s , aAction={ mCause=%s, mAction=%s }), "
        "sPresContext=0x%p (available: %s), sWidget=0x%p (available: %s), "
        "BrowserParent::GetFocused()=0x%p, sInstalledMenuKeyboardListener=%s",
-       aBrowserParent, GetIMEStateEnabledName(aInputContext.mIMEState.mEnabled),
-       GetIMEStateSetOpenName(aInputContext.mIMEState.mOpen),
-       NS_ConvertUTF16toUTF8(aInputContext.mHTMLInputType).get(),
-       NS_ConvertUTF16toUTF8(aInputContext.mHTMLInputInputmode).get(),
-       NS_ConvertUTF16toUTF8(aInputContext.mActionHint).get(),
-       GetBoolName(aInputContext.mInPrivateBrowsing),
-       GetActionCauseName(aAction.mCause),
-       GetActionFocusChangeName(aAction.mFocusChange), sPresContext.get(),
-       GetBoolName(CanHandleWith(sPresContext)), sWidget,
+       aBrowserParent, ToString(aInputContext).c_str(),
+       ToString(aAction.mCause).c_str(), ToString(aAction.mFocusChange).c_str(),
+       sPresContext.get(), GetBoolName(CanHandleWith(sPresContext)), sWidget,
        GetBoolName(sWidget && !sWidget->Destroyed()),
        BrowserParent::GetFocused(),
        GetBoolName(sInstalledMenuKeyboardListener)));
@@ -1308,16 +1228,12 @@ void IMEStateManager::SetIMEState(const IMEState& aState,
                                   nsIContent* aContent, nsIWidget* aWidget,
                                   InputContextAction aAction,
                                   InputContext::Origin aOrigin) {
-  MOZ_LOG(
-      sISMLog, LogLevel::Info,
-      ("SetIMEState(aState={ mEnabled=%s, mOpen=%s }, "
-       "aContent=0x%p (BrowserParent=0x%p), aWidget=0x%p, aAction={ mCause=%s, "
-       "mFocusChange=%s }, aOrigin=%s)",
-       GetIMEStateEnabledName(aState.mEnabled),
-       GetIMEStateSetOpenName(aState.mOpen), aContent,
-       BrowserParent::GetFrom(aContent), aWidget,
-       GetActionCauseName(aAction.mCause),
-       GetActionFocusChangeName(aAction.mFocusChange), ToChar(aOrigin)));
+  MOZ_LOG(sISMLog, LogLevel::Info,
+          ("SetIMEState(aState=%s, aContent=0x%p (BrowserParent=0x%p), "
+           "aWidget=0x%p, aAction={ mCause=%s, mFocusChange=%s }, aOrigin=%s)",
+           ToString(aState).c_str(), aContent, BrowserParent::GetFrom(aContent),
+           aWidget, ToString(aAction.mCause).c_str(),
+           ToString(aAction.mFocusChange).c_str(), ToChar(aOrigin)));
 
   NS_ENSURE_TRUE_VOID(aWidget);
 
@@ -1367,6 +1283,13 @@ void IMEStateManager::SetIMEState(const IMEState& aState,
         ToLowerCase(context.mHTMLInputInputmode);
       }
     }
+
+    if (aContent->IsHTMLElement() && aState.IsEditable() &&
+        StaticPrefs::dom_forms_autocapitalize() &&
+        context.IsAutocapitalizeSupported()) {
+      nsGenericHTMLElement::FromNode(aContent)->GetAutocapitalize(
+          context.mAutocapitalize);
+    }
   }
 
   if (aAction.mCause == InputContextAction::CAUSE_UNKNOWN &&
@@ -1392,19 +1315,10 @@ void IMEStateManager::SetInputContext(nsIWidget* aWidget,
                                       const InputContextAction& aAction) {
   MOZ_LOG(
       sISMLog, LogLevel::Info,
-      ("SetInputContext(aWidget=0x%p, aInputContext={ "
-       "mIMEState={ mEnabled=%s, mOpen=%s }, mHTMLInputType=\"%s\", "
-       "mHTMLInputInputmode=\"%s\", mActionHint=\"%s\", "
-       "mInPrivateBrowsing=%s }, "
+      ("SetInputContext(aWidget=0x%p, aInputContext=%s, "
        "aAction={ mCause=%s, mAction=%s }), BrowserParent::GetFocused()=0x%p",
-       aWidget, GetIMEStateEnabledName(aInputContext.mIMEState.mEnabled),
-       GetIMEStateSetOpenName(aInputContext.mIMEState.mOpen),
-       NS_ConvertUTF16toUTF8(aInputContext.mHTMLInputType).get(),
-       NS_ConvertUTF16toUTF8(aInputContext.mHTMLInputInputmode).get(),
-       NS_ConvertUTF16toUTF8(aInputContext.mActionHint).get(),
-       GetBoolName(aInputContext.mInPrivateBrowsing),
-       GetActionCauseName(aAction.mCause),
-       GetActionFocusChangeName(aAction.mFocusChange),
+       aWidget, ToString(aInputContext).c_str(),
+       ToString(aAction.mCause).c_str(), ToString(aAction.mFocusChange).c_str(),
        BrowserParent::GetFocused()));
 
   MOZ_RELEASE_ASSERT(aWidget);
@@ -1935,7 +1849,9 @@ void IMEStateManager::CreateIMEContentObserver(EditorBase* aEditorBase) {
   // We should hold the current instance here.
   RefPtr<IMEContentObserver> activeIMEContentObserver(
       sActiveIMEContentObserver);
-  activeIMEContentObserver->Init(widget, sPresContext, sContent, aEditorBase);
+  RefPtr<nsPresContext> presContext = sPresContext;
+  RefPtr<nsIContent> content = sContent;
+  activeIMEContentObserver->Init(widget, presContext, content, aEditorBase);
 }
 
 // static

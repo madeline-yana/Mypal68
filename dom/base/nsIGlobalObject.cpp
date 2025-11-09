@@ -4,13 +4,21 @@
 
 #include "nsIGlobalObject.h"
 #include "mozilla/CycleCollectedJSContext.h"
+#include "mozilla/StorageAccess.h"
 #include "mozilla/dom/BlobURLProtocolHandler.h"
 #include "mozilla/dom/FunctionBinding.h"
+#ifdef THE_REPORTING
+#include "mozilla/dom/Report.h"
+#include "mozilla/dom/ReportingObserver.h"
+#endif
 #include "mozilla/dom/ServiceWorker.h"
 #include "mozilla/dom/ServiceWorkerRegistration.h"
 #include "nsContentUtils.h"
 #include "nsThreadUtils.h"
 #include "nsGlobalWindowInner.h"
+
+// Max number of Report objects
+constexpr auto MAX_REPORT_RECORDS = 100;
 
 using mozilla::AutoSlowOperation;
 using mozilla::CycleCollectedJSContext;
@@ -28,9 +36,12 @@ using mozilla::dom::ServiceWorkerRegistration;
 using mozilla::dom::ServiceWorkerRegistrationDescriptor;
 using mozilla::dom::VoidFunction;
 
+nsIGlobalObject::nsIGlobalObject()
+    : mIsDying(false), mIsScriptForbidden(false), mIsInnerWindow(false) {}
+
 bool nsIGlobalObject::IsScriptForbidden(JSObject* aCallback,
                                         bool aIsJSImplementedWebIDL) const {
-  if (mIsScriptForbidden) {
+  if (mIsScriptForbidden || mIsDying) {
     return true;
   }
 
@@ -38,7 +49,8 @@ bool nsIGlobalObject::IsScriptForbidden(JSObject* aCallback,
     if (aIsJSImplementedWebIDL) {
       return false;
     }
-    if (!xpc::Scriptability::Get(aCallback).Allowed()) {
+
+    if (!xpc::Scriptability::AllowedIfExists(aCallback)) {
       return true;
     }
   }
@@ -47,7 +59,7 @@ bool nsIGlobalObject::IsScriptForbidden(JSObject* aCallback,
 }
 
 nsIGlobalObject::~nsIGlobalObject() {
-  UnlinkHostObjectURIs();
+  UnlinkObjectsInGlobal();
   DisconnectEventTargetObjects();
   MOZ_DIAGNOSTIC_ASSERT(mEventTargetObjects.isEmpty());
 }
@@ -99,47 +111,51 @@ class UnlinkHostObjectURIsRunnable final : public mozilla::Runnable {
 
 }  // namespace
 
-void nsIGlobalObject::UnlinkHostObjectURIs() {
-  if (mHostObjectURIs.IsEmpty()) {
-    return;
-  }
+void nsIGlobalObject::UnlinkObjectsInGlobal() {
+  if (!mHostObjectURIs.IsEmpty()) {
+    // BlobURLProtocolHandler is main-thread only.
+    if (NS_IsMainThread()) {
+      for (uint32_t index = 0; index < mHostObjectURIs.Length(); ++index) {
+        BlobURLProtocolHandler::RemoveDataEntry(mHostObjectURIs[index]);
+      }
 
-  if (NS_IsMainThread()) {
-    for (uint32_t index = 0; index < mHostObjectURIs.Length(); ++index) {
-      BlobURLProtocolHandler::RemoveDataEntry(mHostObjectURIs[index]);
+      mHostObjectURIs.Clear();
+    } else {
+      RefPtr<UnlinkHostObjectURIsRunnable> runnable =
+          new UnlinkHostObjectURIsRunnable(mHostObjectURIs);
+      MOZ_ASSERT(mHostObjectURIs.IsEmpty());
+
+      nsresult rv = NS_DispatchToMainThread(runnable);
+      if (NS_FAILED(rv)) {
+        NS_WARNING("Failed to dispatch a runnable to the main-thread.");
+      }
     }
-
-    mHostObjectURIs.Clear();
-    return;
   }
-
-  // BlobURLProtocolHandler is main-thread only.
-
-  RefPtr<UnlinkHostObjectURIsRunnable> runnable =
-      new UnlinkHostObjectURIsRunnable(mHostObjectURIs);
-  MOZ_ASSERT(mHostObjectURIs.IsEmpty());
-
-  nsresult rv = NS_DispatchToMainThread(runnable);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("Failed to dispatch a runnable to the main-thread.");
-  }
+#ifdef THE_REPORTING
+  mReportRecords.Clear();
+  mReportingObservers.Clear();
+#endif
+  mCountQueuingStrategySizeFunction = nullptr;
+  mByteLengthQueuingStrategySizeFunction = nullptr;
 }
 
-void nsIGlobalObject::TraverseHostObjectURIs(
-    nsCycleCollectionTraversalCallback& aCb) {
-  if (mHostObjectURIs.IsEmpty()) {
-    return;
-  }
-
+void nsIGlobalObject::TraverseObjectsInGlobal(
+    nsCycleCollectionTraversalCallback& cb) {
   // Currently we only store BlobImpl objects off the the main-thread and they
   // are not CCed.
-  if (!NS_IsMainThread()) {
-    return;
+  if (!mHostObjectURIs.IsEmpty() && NS_IsMainThread()) {
+    for (uint32_t index = 0; index < mHostObjectURIs.Length(); ++index) {
+      BlobURLProtocolHandler::Traverse(mHostObjectURIs[index], cb);
+    }
   }
 
-  for (uint32_t index = 0; index < mHostObjectURIs.Length(); ++index) {
-    BlobURLProtocolHandler::Traverse(mHostObjectURIs[index], aCb);
-  }
+  nsIGlobalObject* tmp = this;
+#ifdef THE_REPORTING
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mReportRecords)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mReportingObservers)
+#endif
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCountQueuingStrategySizeFunction)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mByteLengthQueuingStrategySizeFunction)
 }
 
 void nsIGlobalObject::AddEventTargetObject(DOMEventTargetHelper* aObject) {
@@ -227,6 +243,10 @@ nsIGlobalObject::GetOrCreateServiceWorkerRegistration(
   return nullptr;
 }
 
+mozilla::StorageAccess nsIGlobalObject::GetStorageAccess() {
+  return mozilla::StorageAccess::eDeny;
+}
+
 nsPIDOMWindowInner* nsIGlobalObject::AsInnerWindow() {
   if (MOZ_LIKELY(mIsInnerWindow)) {
     return static_cast<nsPIDOMWindowInner*>(
@@ -263,4 +283,89 @@ void nsIGlobalObject::QueueMicrotask(VoidFunction& aCallback) {
     RefPtr<MicroTaskRunnable> mt = new QueuedMicrotask(this, aCallback);
     context->DispatchToMicroTask(mt.forget());
   }
+}
+
+#ifdef THE_REPORTING
+void nsIGlobalObject::RegisterReportingObserver(ReportingObserver* aObserver,
+                                                bool aBuffered) {
+  MOZ_ASSERT(aObserver);
+
+  if (mReportingObservers.Contains(aObserver)) {
+    return;
+  }
+
+  if (NS_WARN_IF(!mReportingObservers.AppendElement(aObserver, fallible))) {
+    return;
+  }
+
+  if (!aBuffered) {
+    return;
+  }
+
+  for (Report* report : mReportRecords) {
+    aObserver->MaybeReport(report);
+  }
+}
+
+void nsIGlobalObject::UnregisterReportingObserver(
+    ReportingObserver* aObserver) {
+  MOZ_ASSERT(aObserver);
+  mReportingObservers.RemoveElement(aObserver);
+}
+
+void nsIGlobalObject::BroadcastReport(Report* aReport) {
+  MOZ_ASSERT(aReport);
+
+  for (ReportingObserver* observer : mReportingObservers) {
+    observer->MaybeReport(aReport);
+  }
+
+  if (NS_WARN_IF(!mReportRecords.AppendElement(aReport, fallible))) {
+    return;
+  }
+
+  while (mReportRecords.Length() > MAX_REPORT_RECORDS) {
+    mReportRecords.RemoveElementAt(0);
+  }
+}
+
+void nsIGlobalObject::NotifyReportingObservers() {
+  const nsTArray<RefPtr<ReportingObserver>> reportingObservers(
+      mReportingObservers);
+  for (auto& observer : reportingObservers) {
+    // MOZ_KnownLive because 'reportingObservers' is guaranteed to
+    // keep it alive.
+    //
+    // This can go away once
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1620312 is fixed.
+    MOZ_KnownLive(observer)->MaybeNotify();
+  }
+}
+
+void nsIGlobalObject::RemoveReportRecords() {
+  mReportRecords.Clear();
+
+  for (auto& observer : mReportingObservers) {
+    observer->ForgetReports();
+  }
+}
+#endif  //THE_REPORTING
+already_AddRefed<mozilla::dom::Function>
+nsIGlobalObject::GetCountQueuingStrategySizeFunction() {
+  return do_AddRef(mCountQueuingStrategySizeFunction);
+}
+
+void nsIGlobalObject::SetCountQueuingStrategySizeFunction(
+    mozilla::dom::Function* aFunction) {
+  mCountQueuingStrategySizeFunction = aFunction;
+}
+
+already_AddRefed<mozilla::dom::Function>
+nsIGlobalObject::GetByteLengthQueuingStrategySizeFunction() {
+  return do_AddRef(mByteLengthQueuingStrategySizeFunction);
+}
+
+void nsIGlobalObject::SetByteLengthQueuingStrategySizeFunction(
+    mozilla::dom::Function* aFunction) {
+  mByteLengthQueuingStrategySizeFunction = aFunction;
 }

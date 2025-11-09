@@ -17,7 +17,6 @@
 #include "npapi.h"
 #include "npfunctions.h"
 
-#include "nsDataHashtable.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 

@@ -12,13 +12,14 @@
 #include "mozilla/dom/DocumentInlines.h"
 #include "mozilla/dom/DocumentTimeline.h"
 #include "mozilla/dom/MutationObservers.h"
+#include "mozilla/dom/Promise.h"
 #include "mozilla/AnimationEventDispatcher.h"
 #include "mozilla/AnimationTarget.h"
 #include "mozilla/AutoRestore.h"
+#include "mozilla/CycleCollectedJSContext.h"
 #include "mozilla/DeclarationBlock.h"
-#include "mozilla/Maybe.h"       // For Maybe
+#include "mozilla/Maybe.h"  // For Maybe
 #include "mozilla/StaticPrefs_dom.h"
-#include "mozilla/TypeTraits.h"  // For std::forward<>
 #include "nsAnimationManager.h"  // For CSSAnimation
 #include "nsComputedDOMStyle.h"
 #include "nsDOMMutationObserver.h"    // For nsAutoAnimationMutationBatch
@@ -77,6 +78,50 @@ class MOZ_RAII AutoMutationBatchForAnimation {
 // Animation interface:
 //
 // ---------------------------------------------------------------------------
+
+Animation::Animation(nsIGlobalObject* aGlobal)
+    : DOMEventTargetHelper(aGlobal), mAnimationIndex(sNextAnimationIndex++) {}
+
+Animation::~Animation() = default;
+
+/* static */
+already_AddRefed<Animation> Animation::ClonePausedAnimation(
+    nsIGlobalObject* aGlobal, const Animation& aOther, AnimationEffect& aEffect,
+    AnimationTimeline& aTimeline) {
+  RefPtr<Animation> animation = new Animation(aGlobal);
+  // Setup the timing.
+  animation->mTimeline = &aTimeline;
+  const Nullable<TimeDuration> timelineTime =
+      aTimeline.GetCurrentTimeAsDuration();
+  MOZ_ASSERT(!timelineTime.IsNull(), "Timeline not yet set");
+
+  const Nullable<TimeDuration> currentTime = aOther.GetCurrentTimeAsDuration();
+  animation->mHoldTime = currentTime;
+  if (!currentTime.IsNull()) {
+    animation->mPreviousCurrentTime = timelineTime;
+  }
+
+  animation->mPlaybackRate = aOther.mPlaybackRate;
+
+  // Setup the effect's link to this.
+  animation->mEffect = &aEffect;
+  animation->mEffect->SetAnimation(animation);
+
+  animation->mPendingState = PendingState::PausePending;
+
+  Document* doc = animation->GetRenderedDocument();
+  MOZ_ASSERT(doc,
+             "Cloning animation should already have the rendered document");
+  PendingAnimationTracker* tracker = doc->GetOrCreatePendingAnimationTracker();
+  tracker->AddPausePending(*animation);
+
+  // We expect our relevance to be the same as the orginal.
+  animation->mIsRelevant = aOther.mIsRelevant;
+
+  animation->PostUpdate();
+  animation->mTimeline->NotifyAnimationUpdated(*animation);
+  return animation.forget();
+}
 
 NonOwningAnimationTarget Animation::GetTargetForAnimation() const {
   AnimationEffect* effect = GetEffect();
@@ -184,6 +229,10 @@ void Animation::SetEffectNoUpdate(AnimationEffect* aEffect) {
 }
 
 void Animation::SetTimeline(AnimationTimeline* aTimeline) {
+#ifndef NIGHTLY_BUILD
+  MOZ_ASSERT_UNREACHABLE(
+      "Animation.timeline setter is supported only on nightly");
+#endif
   SetTimelineNoUpdate(aTimeline);
   PostUpdate();
 }

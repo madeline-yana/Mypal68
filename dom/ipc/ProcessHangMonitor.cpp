@@ -18,6 +18,7 @@
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/BrowserChild.h"
 #include "mozilla/dom/BrowserParent.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/TaskFactory.h"
 #include "mozilla/Monitor2.h"
 #include "mozilla/plugins/PluginBridge.h"
@@ -293,7 +294,7 @@ class HangMonitorParent : public PProcessHangMonitorParent,
   bool mShutdownDone;
   // Map from plugin ID to crash dump ID. Protected by
   // mBrowserCrashDumpHashLock.
-  nsDataHashtable<nsUint32HashKey, nsString> mBrowserCrashDumpIds;
+  nsTHashMap<nsUint32HashKey, nsString> mBrowserCrashDumpIds;
   Mutex mBrowserCrashDumpHashLock;
   mozilla::ipc::TaskFactory<HangMonitorParent> mMainThreadTaskFactory;
 };
@@ -447,8 +448,7 @@ bool HangMonitorChild::InterruptCallback() {
 
 void HangMonitorChild::AnnotateHang(BackgroundHangAnnotations& aAnnotations) {
   if (mPaintWhileInterruptingJSActive) {
-    aAnnotations.AddAnnotation(NS_LITERAL_STRING("PaintWhileInterruptingJS"),
-                               true);
+    aAnnotations.AddAnnotation(u"PaintWhileInterruptingJS"_ns, true);
   }
 }
 
@@ -852,23 +852,28 @@ void HangMonitorParent::ClearHangNotification() {
 bool HangMonitorParent::TakeBrowserMinidump(const PluginHangData& aPhd,
                                             nsString& aCrashId) {
   MutexAutoLock lock(mBrowserCrashDumpHashLock);
-  if (!mBrowserCrashDumpIds.Get(aPhd.pluginId(), &aCrashId)) {
-    nsCOMPtr<nsIFile> browserDump;
-    if (CrashReporter::TakeMinidump(getter_AddRefs(browserDump), true)) {
-      if (!CrashReporter::GetIDFromMinidump(browserDump, aCrashId) ||
-          aCrashId.IsEmpty()) {
-        browserDump->Remove(false);
-        NS_WARNING(
-            "Failed to generate timely browser stack, "
-            "this is bad for plugin hang analysis!");
-      } else {
-        mBrowserCrashDumpIds.Put(aPhd.pluginId(), aCrashId);
-        return true;
-      }
-    }
-  }
+  return mBrowserCrashDumpIds.WithEntryHandle(
+      aPhd.pluginId(), [&](auto&& entry) {
+        if (entry) {
+          aCrashId = entry.Data();
+        } else {
+          nsCOMPtr<nsIFile> browserDump;
+          if (CrashReporter::TakeMinidump(getter_AddRefs(browserDump), true)) {
+            if (!CrashReporter::GetIDFromMinidump(browserDump, aCrashId) ||
+                aCrashId.IsEmpty()) {
+              browserDump->Remove(false);
+              NS_WARNING(
+                  "Failed to generate timely browser stack, "
+                  "this is bad for plugin hang analysis!");
+            } else {
+              entry.Insert(aCrashId);
+              return true;
+            }
+          }
+        }
 
-  return false;
+        return false;
+      });
 }
 
 mozilla::ipc::IPCResult HangMonitorParent::RecvHangEvidence(
@@ -970,7 +975,7 @@ void HangMonitorParent::UpdateMinidump(uint32_t aPluginId,
   }
 
   MutexAutoLock lock(mBrowserCrashDumpHashLock);
-  mBrowserCrashDumpIds.Put(aPluginId, aDumpId);
+  mBrowserCrashDumpIds.InsertOrUpdate(aPluginId, aDumpId);
 }
 
 /* HangMonitoredProcess implementation */
@@ -1142,8 +1147,7 @@ HangMonitoredProcess::TerminatePlugin() {
   uint32_t id = mHangData.get_PluginHangData().pluginId();
   base::ProcessId contentPid =
       mHangData.get_PluginHangData().contentProcessId();
-  plugins::TerminatePlugin(id, contentPid, NS_LITERAL_CSTRING("HangMonitor"),
-                           mDumpId);
+  plugins::TerminatePlugin(id, contentPid, "HangMonitor"_ns, mDumpId);
 
   if (mActor) {
     mActor->CleanupPluginHang(id, false);

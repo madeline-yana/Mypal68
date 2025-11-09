@@ -5,12 +5,21 @@
 #ifndef mozilla_dom_StorageManager_h
 #define mozilla_dom_StorageManager_h
 
+#include "js/RootingAPI.h"
+#include "mozilla/AlreadyAddRefed.h"
+#include "mozilla/Assertions.h"
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsISupports.h"
 #include "nsWrapperCache.h"
 
+class JSObject;
+class nsIGlobalObject;
+struct JSContext;
+
 namespace mozilla {
+class ErrorResult;
+
 namespace dom {
 
 class Promise;
@@ -30,6 +39,8 @@ class StorageManager final : public nsISupports, public nsWrapperCache {
   already_AddRefed<Promise> Persist(ErrorResult& aRv);
 
   already_AddRefed<Promise> Estimate(ErrorResult& aRv);
+
+  already_AddRefed<Promise> GetDirectory();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(StorageManager)

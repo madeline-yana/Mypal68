@@ -24,18 +24,18 @@
 #include "nsDOMJSUtils.h"
 #include "nsError.h"
 #include "nsNetUtil.h"
+#include "nsStreamUtils.h"
 #include "xpcpublic.h"
 #include "nsReadableUtils.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
-#define ABORT_STR "abort"
-#define LOAD_STR "load"
-#define LOADSTART_STR "loadstart"
-#define LOADEND_STR "loadend"
-#define ERROR_STR "error"
-#define PROGRESS_STR "progress"
+#define ABORT_STR u"abort"
+#define LOAD_STR u"load"
+#define LOADSTART_STR u"loadstart"
+#define LOADEND_STR u"loadend"
+#define ERROR_STR u"error"
+#define PROGRESS_STR u"progress"
 
 const uint64_t kUnknownSize = uint64_t(-1);
 
@@ -414,7 +414,7 @@ void FileReader::ReadFileContent(Blob& aBlob, const nsAString& aCharset,
 
   // FileReader should be in loading state here
   mReadyState = LOADING;
-  DispatchProgressEvent(NS_LITERAL_STRING(LOADSTART_STR));
+  DispatchProgressEvent(nsLiteralString(LOADSTART_STR));
 }
 
 nsresult FileReader::GetAsText(Blob* aBlob, const nsACString& aCharset,
@@ -441,7 +441,7 @@ nsresult FileReader::GetAsText(Blob* aBlob, const nsACString& aCharset,
 
   auto data = Span(reinterpret_cast<const uint8_t*>(aFileData), aDataLen);
   nsresult rv;
-  Tie(rv, encoding) = encoding->Decode(data, aResult);
+  std::tie(rv, std::ignore) = encoding->Decode(data, aResult);
   return NS_FAILED(rv) ? rv : NS_OK;
 }
 
@@ -509,8 +509,8 @@ void FileReader::FreeDataAndDispatchSuccess() {
   mBlob = nullptr;
 
   // Dispatch event to signify end of a successful operation
-  DispatchProgressEvent(NS_LITERAL_STRING(LOAD_STR));
-  DispatchProgressEvent(NS_LITERAL_STRING(LOADEND_STR));
+  DispatchProgressEvent(nsLiteralString(LOAD_STR));
+  DispatchProgressEvent(nsLiteralString(LOADEND_STR));
 }
 
 void FileReader::FreeDataAndDispatchError() {
@@ -522,8 +522,8 @@ void FileReader::FreeDataAndDispatchError() {
   mBlob = nullptr;
 
   // Dispatch error event to signify load failure
-  DispatchProgressEvent(NS_LITERAL_STRING(ERROR_STR));
-  DispatchProgressEvent(NS_LITERAL_STRING(LOADEND_STR));
+  DispatchProgressEvent(nsLiteralString(ERROR_STR));
+  DispatchProgressEvent(nsLiteralString(LOADEND_STR));
 }
 
 void FileReader::FreeDataAndDispatchError(nsresult aRv) {
@@ -571,7 +571,7 @@ FileReader::Notify(nsITimer* aTimer) {
   mTimerIsActive = false;
 
   if (mProgressEventWasDelayed) {
-    rv = DispatchProgressEvent(NS_LITERAL_STRING("progress"));
+    rv = DispatchProgressEvent(u"progress"_ns);
     NS_ENSURE_SUCCESS(rv, rv);
 
     StartProgressEventTimer();
@@ -617,7 +617,7 @@ FileReader::OnInputStreamReady(nsIAsyncInputStream* aStream) {
   if (mTimerIsActive) {
     mProgressEventWasDelayed = true;
   } else {
-    rv = DispatchProgressEvent(NS_LITERAL_STRING(PROGRESS_STR));
+    rv = DispatchProgressEvent(nsLiteralString(PROGRESS_STR));
     NS_ENSURE_SUCCESS(rv, rv);
 
     StartProgressEventTimer();
@@ -708,9 +708,9 @@ void FileReader::Abort() {
   FreeFileData();
 
   // Dispatch the events
-  DispatchProgressEvent(NS_LITERAL_STRING(ABORT_STR));
-  DispatchProgressEvent(NS_LITERAL_STRING(LOADEND_STR));
-}
+  DispatchProgressEvent(nsLiteralString(ABORT_STR));
+  DispatchProgressEvent(nsLiteralString(LOADEND_STR));
+}  // namespace dom
 
 nsresult FileReader::IncreaseBusyCounter() {
   if (mWeakWorkerRef && mBusyCount++ == 0) {
@@ -758,5 +758,4 @@ void FileReader::Shutdown() {
   }
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

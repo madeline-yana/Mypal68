@@ -425,7 +425,7 @@ XULContentSinkImpl::HandleEndElement(const char16_t* aName) {
           static_cast<nsXULPrototypeScript*>(node.get());
 
       // If given a src= attribute, we must ignore script tag content.
-      if (!script->mSrcURI && !script->HasScriptObject()) {
+      if (!script->mSrcURI && !script->HasStencil()) {
         nsCOMPtr<Document> doc = do_QueryReferent(mDocument);
 
         script->mOutOfLine = false;

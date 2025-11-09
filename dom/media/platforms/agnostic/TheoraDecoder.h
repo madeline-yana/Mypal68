@@ -28,7 +28,7 @@ class TheoraDecoder : public MediaDataDecoder,
   static bool IsTheora(const nsACString& aMimeType);
 
   nsCString GetDescriptionName() const override {
-    return NS_LITERAL_CSTRING("theora video decoder");
+    return "theora video decoder"_ns;
   }
 
  private:

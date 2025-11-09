@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <stdio.h>
 #include "prio.h"
+#include "nsComponentManagerUtils.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginStreamListener.h"
 #include "nsNPAPIPluginInstance.h"
@@ -280,7 +281,8 @@ class BlocklistPromiseHandler final
     }
   }
 
-  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     if (!aValue.isInt32()) {
       MOZ_ASSERT(false, "Blocklist should always return int32");
       return;
@@ -303,7 +305,8 @@ class BlocklistPromiseHandler final
 
     MaybeWriteBlocklistChanges();
   }
-  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     MOZ_ASSERT(false, "Shouldn't reject plugin blocklist state request");
     MaybeWriteBlocklistChanges();
   }
@@ -2554,8 +2557,8 @@ void nsPluginHost::RegisterWithCategoryManager(const nsCString& aMimeType,
     return;
   }
 
-  NS_NAMED_LITERAL_CSTRING(
-      contractId, "@mozilla.org/content/plugin/document-loader-factory;1");
+  constexpr auto contractId =
+      "@mozilla.org/content/plugin/document-loader-factory;1"_ns;
 
   if (aType == ePluginRegister) {
     catMan->AddCategoryEntry("Gecko-Content-Viewers", aMimeType, contractId,

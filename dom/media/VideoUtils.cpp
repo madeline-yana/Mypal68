@@ -175,7 +175,7 @@ bool IsDefaultPlaybackDeviceMono() {
 }
 
 bool IsVideoContentType(const nsCString& aContentType) {
-  NS_NAMED_LITERAL_CSTRING(video, "video");
+  constexpr auto video = "video"_ns;
   if (FindInReadable(video, aContentType)) {
     return true;
   }
@@ -467,7 +467,7 @@ nsresult GenerateRandomName(nsCString& aOutSalt, uint32_t aLength) {
   rv = rg->GenerateRandomBytes(requiredBytesLength, &buffer);
   if (NS_FAILED(rv)) return rv;
 
-  nsAutoCString temp;
+  nsCString temp;
   nsDependentCSubstring randomData(reinterpret_cast<const char*>(buffer),
                                    requiredBytesLength);
   rv = Base64Encode(randomData, temp);
@@ -475,7 +475,7 @@ nsresult GenerateRandomName(nsCString& aOutSalt, uint32_t aLength) {
   buffer = nullptr;
   if (NS_FAILED(rv)) return rv;
 
-  aOutSalt = temp;
+  aOutSalt = std::move(temp);
   return NS_OK;
 }
 

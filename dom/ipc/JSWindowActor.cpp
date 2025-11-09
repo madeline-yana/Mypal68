@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "js/Promise.h" //MY
+#include "js/Promise.h"  //MY
 #include "mozilla/dom/JSWindowActor.h"
 #include "mozilla/dom/JSWindowActorBinding.h"
 #include "mozilla/dom/MessageManagerBinding.h"
@@ -79,7 +79,7 @@ void JSWindowActor::RejectPendingQueries() {
   }
 }
 
-void JSWindowActor::SetName(const nsAString& aName) {
+void JSWindowActor::SetName(const nsACString& aName) {
   MOZ_ASSERT(mName.IsEmpty(), "Cannot set name twice!");
   mName = aName;
 }
@@ -131,7 +131,7 @@ already_AddRefed<Promise> JSWindowActor::SendQuery(
   meta.queryId() = mNextQueryId++;
   meta.kind() = JSWindowActorMessageKind::Query;
 
-  mPendingQueries.Put(meta.queryId(), RefPtr{promise});
+  mPendingQueries.InsertOrUpdate(meta.queryId(), RefPtr{promise});
 
   SendRawMessage(meta, std::move(data), aRv);
   return promise.forget();
@@ -249,7 +249,7 @@ JSWindowActor::QueryHandler::QueryHandler(
       mQueryId(aMetadata.queryId()) {}
 
 void JSWindowActor::QueryHandler::RejectedCallback(
-    JSContext* aCx, JS::Handle<JS::Value> aValue) {
+    JSContext* aCx, JS::Handle<JS::Value> aValue, ErrorResult& aRv) {
   if (!mActor) {
     return;
   }
@@ -265,7 +265,7 @@ void JSWindowActor::QueryHandler::RejectedCallback(
 }
 
 void JSWindowActor::QueryHandler::ResolvedCallback(
-    JSContext* aCx, JS::Handle<JS::Value> aValue) {
+    JSContext* aCx, JS::Handle<JS::Value> aValue, ErrorResult& aRv) {
   if (!mActor) {
     return;
   }
@@ -278,12 +278,13 @@ void JSWindowActor::QueryHandler::ResolvedCallback(
   if (NS_WARN_IF(error.Failed())) {
     // We failed to serialize the message over IPC. Report this error to the
     // console, and send a reject reply.
-    nsAutoString msg;
+    nsAutoCString msg;
     msg.Append(mActor->Name());
     msg.Append(':');
-    msg.Append(mMessageName);
-    msg.Append(NS_LITERAL_STRING(": message reply cannot be cloned."));
-    nsContentUtils::LogSimpleConsoleError(msg, "chrome", false, true);
+    msg.Append(NS_LossyConvertUTF16toASCII(mMessageName));
+    msg.AppendLiteral(": message reply cannot be cloned.");
+    nsContentUtils::LogSimpleConsoleError(NS_ConvertUTF8toUTF16(msg), "chrome",
+                                          false, true);
 
     JS_ClearPendingException(aCx);
 

@@ -12,6 +12,7 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
+#include "mozilla/Attributes.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/layers/APZPublicUtils.h"
 #include "Units.h"
@@ -550,9 +551,9 @@ class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
    *                    false.  I.e., when this returns true and aExecute
    *                    is true, a target is executed or focused.
    */
-  bool LookForAccessKeyAndExecute(nsTArray<uint32_t>& aAccessCharCodes,
-                                  bool aIsTrustedEvent, bool aIsRepeat,
-                                  bool aExecute);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY bool LookForAccessKeyAndExecute(
+      nsTArray<uint32_t>& aAccessCharCodes, bool aIsTrustedEvent,
+      bool aIsRepeat, bool aExecute);
 
   //---------------------------------------------
   // DocShell Focus Traversal Methods
@@ -1065,7 +1066,8 @@ class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
 
   void ReleaseCurrentIMEContentObserver();
 
-  void HandleQueryContentEvent(WidgetQueryContentEvent* aEvent);
+  MOZ_CAN_RUN_SCRIPT void HandleQueryContentEvent(
+      WidgetQueryContentEvent* aEvent);
 
  private:
   // Removes a node from the :hover / :active chain if needed, notifying if the
@@ -1085,9 +1087,9 @@ class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
   static void UpdateAncestorState(nsIContent* aStartNode,
                                   nsIContent* aStopBefore, EventStates aState,
                                   bool aAddState);
-  static void ResetLastOverForContent(const uint32_t& aIdx,
-                                      RefPtr<OverOutElementsWrapper>& aChunk,
-                                      nsIContent* aClosure);
+  static void ResetLastOverForContent(
+      const uint32_t& aIdx, const RefPtr<OverOutElementsWrapper>& aChunk,
+      nsIContent* aClosure);
 
   /**
    * Update the attribute mLastRefPoint of the mouse event. It should be
@@ -1191,7 +1193,7 @@ class EventStateManager : public nsSupportsWeakReference, public nsIObserver {
   void CreateClickHoldTimer(nsPresContext* aPresContext, nsIFrame* aDownFrame,
                             WidgetGUIEvent* aMouseDownEvent);
   void KillClickHoldTimer();
-  void FireContextClick();
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY void FireContextClick();
 
   MOZ_CAN_RUN_SCRIPT static void SetPointerLock(nsIWidget* aWidget,
                                                 nsIContent* aElement);

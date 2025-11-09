@@ -7,6 +7,7 @@
 
 #include "mozilla/Atomics.h"
 #include "mozilla/dom/PContentChild.h"
+#include "mozilla/ipc/InputStreamUtils.h"
 #include "mozilla/ipc/ProtocolUtils.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/UniquePtr.h"
@@ -16,7 +17,7 @@
 #include "nsRefPtrHashtable.h"
 #include "nsString.h"
 #include "nsTArrayForwardDeclare.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 
 #include "nsIWindowProvider.h"
 
@@ -65,9 +66,11 @@ class BrowserChild;
 class GetFilesHelperChild;
 enum class MediaControlKeysEvent : uint32_t;
 
-class ContentChild final : public PContentChild,
-                           public nsIWindowProvider,
-                           public mozilla::ipc::IShmemAllocator {
+class ContentChild final
+    : public PContentChild,
+      public nsIWindowProvider,
+      public mozilla::ipc::IShmemAllocator,
+      public mozilla::ipc::ChildToParentStreamActorManager {
   typedef mozilla::dom::ClonedMessageData ClonedMessageData;
   typedef mozilla::ipc::FileDescriptor FileDescriptor;
   typedef mozilla::ipc::PFileDescriptorSetChild PFileDescriptorSetChild;
@@ -238,9 +241,6 @@ class ContentChild final : public PContentChild,
 
   bool DeallocPPrintingChild(PPrintingChild*);
 
-  PChildToParentStreamChild* SendPChildToParentStreamConstructor(
-      PChildToParentStreamChild*);
-
   PChildToParentStreamChild* AllocPChildToParentStreamChild();
   bool DeallocPChildToParentStreamChild(PChildToParentStreamChild*);
 
@@ -250,16 +250,6 @@ class ContentChild final : public PContentChild,
   PMediaChild* AllocPMediaChild();
 
   bool DeallocPMediaChild(PMediaChild* aActor);
-
-  PPresentationChild* AllocPPresentationChild();
-
-  bool DeallocPPresentationChild(PPresentationChild* aActor);
-
-  mozilla::ipc::IPCResult RecvNotifyPresentationReceiverLaunched(
-      PBrowserChild* aIframe, const nsString& aSessionId);
-
-  mozilla::ipc::IPCResult RecvNotifyPresentationReceiverCleanUp(
-      const nsString& aSessionId);
 
   mozilla::ipc::IPCResult RecvNotifyEmptyHTTPCache();
 
@@ -367,9 +357,9 @@ class ContentChild final : public PContentChild,
       const nsCString& UAName, const nsCString& ID, const nsCString& vendor,
       const nsCString& sourceURL);
 
-  mozilla::ipc::IPCResult RecvRemoteType(const nsString& aRemoteType);
+  mozilla::ipc::IPCResult RecvRemoteType(const nsCString& aRemoteType);
 
-  const nsAString& GetRemoteType() const;
+  const nsACString& GetRemoteType() const;
 
   mozilla::ipc::IPCResult RecvInitServiceWorkers(
       const ServiceWorkerConfiguration& aConfig);
@@ -380,7 +370,7 @@ class ContentChild final : public PContentChild,
   mozilla::ipc::IPCResult RecvInitJSWindowActorInfos(
       nsTArray<JSWindowActorInfo>&& aInfos);
 
-  mozilla::ipc::IPCResult RecvUnregisterJSWindowActor(const nsString& aName);
+  mozilla::ipc::IPCResult RecvUnregisterJSWindowActor(const nsCString& aName);
 
   mozilla::ipc::IPCResult RecvLastPrivateDocShellDestroyed();
 
@@ -463,9 +453,6 @@ class ContentChild final : public PContentChild,
 #endif
 
   bool IsForBrowser() const { return mIsForBrowser; }
-
-  PFileDescriptorSetChild* SendPFileDescriptorSetConstructor(
-      const FileDescriptor&);
 
   PFileDescriptorSetChild* AllocPFileDescriptorSetChild(const FileDescriptor&);
 
@@ -635,6 +622,11 @@ class ContentChild final : public PContentChild,
   uint32_t GetPendingInputEvents() { return mPendingInputEvents; }
 #endif
 
+  PChildToParentStreamChild* SendPChildToParentStreamConstructor(
+      PChildToParentStreamChild* aActor) override;
+  PFileDescriptorSetChild* SendPFileDescriptorSetConstructor(
+      const FileDescriptor& aFD) override;
+
  private:
   static void ForceKillTimerCallback(nsITimer* aTimer, void* aClosure);
   void StartForceKillTimer();
@@ -691,7 +683,7 @@ class ContentChild final : public PContentChild,
   nsTArray<mozilla::UniquePtr<AlertObserver>> mAlertObservers;
   RefPtr<ConsoleListener> mConsoleListener;
 
-  nsTHashtable<nsPtrHashKey<nsIObserver>> mIdleObservers;
+  nsTHashSet<nsIObserver*> mIdleObservers;
 
   nsTArray<nsCString> mAvailableDictionaries;
 
@@ -727,7 +719,7 @@ class ContentChild final : public PContentChild,
   AppInfo mAppInfo;
 
   bool mIsForBrowser;
-  nsString mRemoteType = VoidString();
+  nsCString mRemoteType = VoidCString();
   bool mIsAlive;
   nsString mProcessName;
 

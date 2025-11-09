@@ -8,21 +8,21 @@
 #include "mozilla/dom/ContentProcessManager.h"
 #include "mozilla/dom/CanonicalBrowsingContext.h"
 #include "mozilla/dom/BrowsingContextGroup.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/layers/InputAPZContext.h"
 
 using namespace mozilla::ipc;
 using namespace mozilla::layout;
 using namespace mozilla::hal;
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 BrowserBridgeParent::BrowserBridgeParent() : mIPCOpen(false) {}
 
 BrowserBridgeParent::~BrowserBridgeParent() { Destroy(); }
 
 nsresult BrowserBridgeParent::Init(const nsString& aPresentationURL,
-                                   const nsString& aRemoteType,
+                                   const nsCString& aRemoteType,
                                    CanonicalBrowsingContext* aBrowsingContext,
                                    const uint32_t& aChromeFlags) {
   mIPCOpen = true;
@@ -31,9 +31,10 @@ nsresult BrowserBridgeParent::Init(const nsString& aPresentationURL,
   // from our Manager().
   OriginAttributes attrs;
   attrs.SyncAttributesWithPrivateBrowsing(false);
+  uint32_t maxTouchPoints = Manager()->GetMaxTouchPoints();
   MutableTabContext tabContext;
   tabContext.SetTabContext(0, UIStateChangeType_Set, attrs,
-                           aPresentationURL);
+                           aPresentationURL, maxTouchPoints);
 
   ProcessPriority initialPriority = PROCESS_PRIORITY_FOREGROUND;
 
@@ -79,7 +80,7 @@ nsresult BrowserBridgeParent::Init(const nsString& aPresentationURL,
   }
 
   // Set our BrowserParent object to the newly created browser.
-  mBrowserParent = browserParent.forget();
+  mBrowserParent = std::move(browserParent);
   mBrowserParent->SetOwnerElement(Manager()->GetOwnerElement());
   mBrowserParent->InitRendering();
 
@@ -200,5 +201,4 @@ void BrowserBridgeParent::ActorDestroy(ActorDestroyReason aWhy) {
   Destroy();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

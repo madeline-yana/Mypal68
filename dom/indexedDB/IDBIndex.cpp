@@ -5,6 +5,7 @@
 #include "IDBIndex.h"
 
 #include "IDBCursorType.h"
+#include "IDBDatabase.h"
 #include "IDBEvents.h"
 #include "IDBKeyRange.h"
 #include "IDBObjectStore.h"
@@ -20,14 +21,14 @@
 // Include this last to avoid path problems on Windows.
 #include "ActorsChild.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 using namespace mozilla::dom::indexedDB;
 
 namespace {
 
-RefPtr<IDBRequest> GenerateRequest(JSContext* aCx, IDBIndex* aIndex) {
+MovingNotNull<RefPtr<IDBRequest>> GenerateRequest(JSContext* aCx,
+                                                  IDBIndex* aIndex) {
   MOZ_ASSERT(aIndex);
   aIndex->AssertIsOnOwningThread();
 
@@ -208,10 +209,11 @@ void IDBIndex::SetName(const nsAString& aName, ErrorResult& aRv) {
   IDB_LOG_MARK_CHILD_TRANSACTION_REQUEST(
       "database(%s).transaction(%s).objectStore(%s).index(%s)."
       "rename(%s)",
-      "IDBIndex.rename()", transaction.LoggingSerialNumber(),
-      requestSerialNumber, IDB_LOG_STRINGIFY(transaction.Database()),
-      IDB_LOG_STRINGIFY(transaction), IDB_LOG_STRINGIFY(mObjectStore),
-      loggingOldIndex.get(), IDB_LOG_STRINGIFY(this));
+      "IDBIndex.rename(%.0s%.0s%.0s%.0s%.0s)",
+      transaction.LoggingSerialNumber(), requestSerialNumber,
+      IDB_LOG_STRINGIFY(transaction.Database()), IDB_LOG_STRINGIFY(transaction),
+      IDB_LOG_STRINGIFY(mObjectStore), loggingOldIndex.get(),
+      IDB_LOG_STRINGIFY(this));
 
   mObjectStore->MutableTransactionRef().RenameIndex(mObjectStore, indexId,
                                                     aName);
@@ -343,15 +345,14 @@ RefPtr<IDBRequest> IDBIndex::GetInternal(bool aKeyOnly, JSContext* aCx,
     params = IndexGetParams(objectStoreId, indexId, serializedKeyRange);
   }
 
-  auto request = GenerateRequest(aCx, this);
-  MOZ_ASSERT(request);
+  auto request = GenerateRequest(aCx, this).unwrap();
 
   if (aKeyOnly) {
     IDB_LOG_MARK_CHILD_TRANSACTION_REQUEST(
         "database(%s).transaction(%s).objectStore(%s).index(%s)."
         "getKey(%s)",
-        "IDBIndex.getKey()", transaction.LoggingSerialNumber(),
-        request->LoggingSerialNumber(),
+        "IDBIndex.getKey(%.0s%.0s%.0s%.0s%.0s)",
+        transaction.LoggingSerialNumber(), request->LoggingSerialNumber(),
         IDB_LOG_STRINGIFY(transaction.Database()),
         IDB_LOG_STRINGIFY(transaction), IDB_LOG_STRINGIFY(mObjectStore),
         IDB_LOG_STRINGIFY(this), IDB_LOG_STRINGIFY(keyRange));
@@ -359,7 +360,7 @@ RefPtr<IDBRequest> IDBIndex::GetInternal(bool aKeyOnly, JSContext* aCx,
     IDB_LOG_MARK_CHILD_TRANSACTION_REQUEST(
         "database(%s).transaction(%s).objectStore(%s).index(%s)."
         "get(%s)",
-        "IDBIndex.get()", transaction.LoggingSerialNumber(),
+        "IDBIndex.get(%.0s%.0s%.0s%.0s%.0s)", transaction.LoggingSerialNumber(),
         request->LoggingSerialNumber(),
         IDB_LOG_STRINGIFY(transaction.Database()),
         IDB_LOG_STRINGIFY(transaction), IDB_LOG_STRINGIFY(mObjectStore),
@@ -419,15 +420,14 @@ RefPtr<IDBRequest> IDBIndex::GetAllInternal(bool aKeysOnly, JSContext* aCx,
                 : RequestParams{IndexGetAllParams(objectStoreId, indexId,
                                                   optionalKeyRange, limit)};
 
-  auto request = GenerateRequest(aCx, this);
-  MOZ_ASSERT(request);
+  auto request = GenerateRequest(aCx, this).unwrap();
 
   if (aKeysOnly) {
     IDB_LOG_MARK_CHILD_TRANSACTION_REQUEST(
         "database(%s).transaction(%s).objectStore(%s).index(%s)."
         "getAllKeys(%s, %s)",
-        "IDBIndex.getAllKeys()", transaction.LoggingSerialNumber(),
-        request->LoggingSerialNumber(),
+        "IDBIndex.getAllKeys(%.0s%.0s%.0s%.0s%.0s%.0s)",
+        transaction.LoggingSerialNumber(), request->LoggingSerialNumber(),
         IDB_LOG_STRINGIFY(transaction.Database()),
         IDB_LOG_STRINGIFY(transaction), IDB_LOG_STRINGIFY(mObjectStore),
         IDB_LOG_STRINGIFY(this), IDB_LOG_STRINGIFY(keyRange),
@@ -436,8 +436,8 @@ RefPtr<IDBRequest> IDBIndex::GetAllInternal(bool aKeysOnly, JSContext* aCx,
     IDB_LOG_MARK_CHILD_TRANSACTION_REQUEST(
         "database(%s).transaction(%s).objectStore(%s).index(%s)."
         "getAll(%s, %s)",
-        "IDBIndex.getAll()", transaction.LoggingSerialNumber(),
-        request->LoggingSerialNumber(),
+        "IDBIndex.getAll(%.0s%.0s%.0s%.0s%.0s%.0s)",
+        transaction.LoggingSerialNumber(), request->LoggingSerialNumber(),
         IDB_LOG_STRINGIFY(transaction.Database()),
         IDB_LOG_STRINGIFY(transaction), IDB_LOG_STRINGIFY(mObjectStore),
         IDB_LOG_STRINGIFY(this), IDB_LOG_STRINGIFY(keyRange),
@@ -498,15 +498,14 @@ RefPtr<IDBRequest> IDBIndex::OpenCursorInternal(bool aKeysOnly, JSContext* aCx,
       aKeysOnly ? OpenCursorParams{IndexOpenKeyCursorParams{commonIndexParams}}
                 : OpenCursorParams{IndexOpenCursorParams{commonIndexParams}};
 
-  auto request = GenerateRequest(aCx, this);
-  MOZ_ASSERT(request);
+  auto request = GenerateRequest(aCx, this).unwrap();
 
   if (aKeysOnly) {
     IDB_LOG_MARK_CHILD_TRANSACTION_REQUEST(
         "database(%s).transaction(%s).objectStore(%s).index(%s)."
         "openKeyCursor(%s, %s)",
-        "IDBIndex.openKeyCursor()", transaction.LoggingSerialNumber(),
-        request->LoggingSerialNumber(),
+        "IDBIndex.openKeyCursor(%.0s%.0s%.0s%.0s%.0s%.0s)",
+        transaction.LoggingSerialNumber(), request->LoggingSerialNumber(),
         IDB_LOG_STRINGIFY(transaction.Database()),
         IDB_LOG_STRINGIFY(transaction), IDB_LOG_STRINGIFY(mObjectStore),
         IDB_LOG_STRINGIFY(this), IDB_LOG_STRINGIFY(keyRange),
@@ -515,20 +514,21 @@ RefPtr<IDBRequest> IDBIndex::OpenCursorInternal(bool aKeysOnly, JSContext* aCx,
     IDB_LOG_MARK_CHILD_TRANSACTION_REQUEST(
         "database(%s).transaction(%s).objectStore(%s).index(%s)."
         "openCursor(%s, %s)",
-        "IDBIndex.openCursor()", transaction.LoggingSerialNumber(),
-        request->LoggingSerialNumber(),
+        "IDBIndex.openCursor(%.0s%.0s%.0s%.0s%.0s%.0s)",
+        transaction.LoggingSerialNumber(), request->LoggingSerialNumber(),
         IDB_LOG_STRINGIFY(transaction.Database()),
         IDB_LOG_STRINGIFY(transaction), IDB_LOG_STRINGIFY(mObjectStore),
         IDB_LOG_STRINGIFY(this), IDB_LOG_STRINGIFY(keyRange),
         IDB_LOG_STRINGIFY(aDirection));
   }
 
-  BackgroundCursorChildBase* const actor =
-      aKeysOnly ? static_cast<BackgroundCursorChildBase*>(
-                      new BackgroundCursorChild<IDBCursorType::IndexKey>(
-                          request, this, aDirection))
-                : new BackgroundCursorChild<IDBCursorType::Index>(request, this,
-                                                                  aDirection);
+  const auto actor =
+      aKeysOnly
+          ? static_cast<SafeRefPtr<BackgroundCursorChildBase>>(
+                MakeSafeRefPtr<BackgroundCursorChild<IDBCursorType::IndexKey>>(
+                    request, this, aDirection))
+          : MakeSafeRefPtr<BackgroundCursorChild<IDBCursorType::Index>>(
+                request, this, aDirection);
 
   auto& mutableTransaction = mObjectStore->MutableTransactionRef();
 
@@ -537,7 +537,7 @@ RefPtr<IDBRequest> IDBIndex::OpenCursorInternal(bool aKeysOnly, JSContext* aCx,
   // doesn't require invalidating cursor caches (Bug 1580499).
   mutableTransaction.InvalidateCursorCaches();
 
-  mutableTransaction.OpenCursor(actor, params);
+  mutableTransaction.OpenCursor(*actor, params);
 
   return request;
 }
@@ -573,13 +573,12 @@ RefPtr<IDBRequest> IDBIndex::Count(JSContext* aCx, JS::Handle<JS::Value> aKey,
     params.optionalKeyRange().emplace(serializedKeyRange);
   }
 
-  auto request = GenerateRequest(aCx, this);
-  MOZ_ASSERT(request);
+  auto request = GenerateRequest(aCx, this).unwrap();
 
   IDB_LOG_MARK_CHILD_TRANSACTION_REQUEST(
       "database(%s).transaction(%s).objectStore(%s).index(%s)."
       "count(%s)",
-      "IDBIndex.count()", transaction.LoggingSerialNumber(),
+      "IDBIndex.count(%.0s%.0s%.0s%.0s%.0s)", transaction.LoggingSerialNumber(),
       request->LoggingSerialNumber(), IDB_LOG_STRINGIFY(transaction.Database()),
       IDB_LOG_STRINGIFY(transaction), IDB_LOG_STRINGIFY(mObjectStore),
       IDB_LOG_STRINGIFY(this), IDB_LOG_STRINGIFY(keyRange));
@@ -633,5 +632,4 @@ JSObject* IDBIndex::WrapObject(JSContext* aCx,
   return IDBIndex_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

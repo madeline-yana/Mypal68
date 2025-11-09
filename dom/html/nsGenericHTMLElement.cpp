@@ -139,6 +139,24 @@ static const nsAttrValue::EnumTable kEnterKeyHintTable[] = {
     {"send", NS_ENTERKEYHINT_SEND},
     {nullptr, 0}};
 
+static const uint8_t NS_AUTOCAPITALIZE_NONE = 1;
+static const uint8_t NS_AUTOCAPITALIZE_SENTENCES = 2;
+static const uint8_t NS_AUTOCAPITALIZE_WORDS = 3;
+static const uint8_t NS_AUTOCAPITALIZE_CHARACTERS = 4;
+
+static const nsAttrValue::EnumTable kAutocapitalizeTable[] = {
+    {"none", NS_AUTOCAPITALIZE_NONE},
+    {"sentences", NS_AUTOCAPITALIZE_SENTENCES},
+    {"words", NS_AUTOCAPITALIZE_WORDS},
+    {"characters", NS_AUTOCAPITALIZE_CHARACTERS},
+    {"off", NS_AUTOCAPITALIZE_NONE},
+    {"on", NS_AUTOCAPITALIZE_SENTENCES},
+    {"", 0},
+    {nullptr, 0}};
+
+static const nsAttrValue::EnumTable* kDefaultAutocapitalize =
+    &kAutocapitalizeTable[1];
+
 nsresult nsGenericHTMLElement::CopyInnerTo(Element* aDst) {
   MOZ_ASSERT(!aDst->GetUncomposedDoc(),
              "Should not CopyInnerTo an Element in a document");
@@ -442,8 +460,7 @@ nsresult nsGenericHTMLElement::BindToTree(BindContext& aContext,
         [self = RefPtr<nsGenericHTMLElement>(this)]() {
           nsAutoString nonce;
           self->GetNonce(nonce);
-          self->SetAttr(kNameSpaceID_None, nsGkAtoms::nonce, EmptyString(),
-                        true);
+          self->SetAttr(kNameSpaceID_None, nsGkAtoms::nonce, u""_ns, true);
           self->SetNonce(nonce);
         }));
   }
@@ -607,7 +624,7 @@ nsresult nsGenericHTMLElement::BeforeSetAttr(int32_t aNamespaceID,
     }
     if (!aValue && IsEventAttributeName(aName)) {
       if (EventListenerManager* manager = GetExistingListenerManager()) {
-        manager->RemoveEventHandler(aName);
+        manager->RemoveEventHandler(GetEventNameForAttr(aName));
       }
     }
   }
@@ -624,7 +641,7 @@ nsresult nsGenericHTMLElement::AfterSetAttr(
     if (IsEventAttributeName(aName) && aValue) {
       MOZ_ASSERT(aValue->Type() == nsAttrValue::eString,
                  "Expected string value for script body");
-      SetEventHandler(aName, aValue->GetStringValue());
+      SetEventHandler(GetEventNameForAttr(aName), aValue->GetStringValue());
     } else if (aNotify && aName == nsGkAtoms::spellcheck) {
       SyncEditorsOnSubtree(this);
     } else if (aName == nsGkAtoms::dir) {
@@ -676,16 +693,16 @@ nsresult nsGenericHTMLElement::AfterSetAttr(
     } else if (aName == nsGkAtoms::contenteditable) {
       int32_t editableCountDelta = 0;
       if (aOldValue && (aOldValue->Equals(u"true"_ns, eIgnoreCase) ||
-                        aOldValue->Equals(EmptyString(), eIgnoreCase))) {
+                        aOldValue->Equals(u""_ns, eIgnoreCase))) {
         editableCountDelta = -1;
       }
       if (aValue && (aValue->Equals(u"true"_ns, eIgnoreCase) ||
-                     aValue->Equals(EmptyString(), eIgnoreCase))) {
+                     aValue->Equals(u""_ns, eIgnoreCase))) {
         ++editableCountDelta;
       }
       ChangeEditableState(editableCountDelta);
     } else if (aName == nsGkAtoms::accesskey) {
-      if (aValue && !aValue->Equals(EmptyString(), eIgnoreCase)) {
+      if (aValue && !aValue->Equals(u""_ns, eIgnoreCase)) {
         SetFlags(NODE_HAS_ACCESSKEY);
         RegAccessKey();
       }
@@ -697,7 +714,7 @@ nsresult nsGenericHTMLElement::AfterSetAttr(
         RemoveStates(NS_EVENT_STATE_MOZINERT);
       }
     } else if (aName == nsGkAtoms::name) {
-      if (aValue && !aValue->Equals(EmptyString(), eIgnoreCase)) {
+      if (aValue && !aValue->Equals(u""_ns, eIgnoreCase)) {
         // This may not be quite right because we can have subclass code run
         // before here. But in practice subclasses don't care about this flag,
         // and in particular selector matching does not care.  Otherwise we'd
@@ -887,6 +904,10 @@ bool nsGenericHTMLElement::ParseAttribute(int32_t aNamespaceID,
     if (aAttribute == nsGkAtoms::enterkeyhint) {
       return aResult.ParseEnumValue(aValue, kEnterKeyHintTable, false);
     }
+
+    if (aAttribute == nsGkAtoms::autocapitalize) {
+      return aResult.ParseEnumValue(aValue, kAutocapitalizeTable, false);
+    }
   }
 
   return nsGenericHTMLElementBase::ParseAttribute(
@@ -927,25 +948,24 @@ nsMapRuleToAttributesFunc nsGenericHTMLElement::GetAttributeMappingFunction()
 
 nsIFormControlFrame* nsGenericHTMLElement::GetFormControlFrame(
     bool aFlushFrames) {
-  if (aFlushFrames && IsInComposedDoc()) {
-    // Cause a flush of the frames, so we get up-to-date frame information
-    GetComposedDoc()->FlushPendingNotifications(FlushType::Frames);
+  auto flushType = aFlushFrames ? FlushType::Frames : FlushType::None;
+  nsIFrame* frame = GetPrimaryFrame(flushType);
+  if (!frame) {
+    return nullptr;
   }
-  nsIFrame* frame = GetPrimaryFrame();
-  if (frame) {
-    nsIFormControlFrame* form_frame = do_QueryFrame(frame);
-    if (form_frame) {
-      return form_frame;
-    }
 
-    // If we have generated content, the primary frame will be a
-    // wrapper frame..  out real frame will be in its child list.
-    for (frame = frame->PrincipalChildList().FirstChild(); frame;
-         frame = frame->GetNextSibling()) {
-      form_frame = do_QueryFrame(frame);
-      if (form_frame) {
-        return form_frame;
-      }
+  if (nsIFormControlFrame* f = do_QueryFrame(frame)) {
+    return f;
+  }
+
+  // If we have generated content, the primary frame will be a wrapper frame...
+  // Our real frame will be in its child list.
+  //
+  // FIXME(emilio): I don't think that's true... See bug 155957 for test-cases
+  // though, we should figure out whether this is still needed.
+  for (nsIFrame* kid : frame->PrincipalChildList()) {
+    if (nsIFormControlFrame* f = do_QueryFrame(kid)) {
+      return f;
     }
   }
 
@@ -2413,7 +2433,7 @@ bool nsGenericHTMLElement::PerformAccesskey(bool aKeyCausesActivation,
 
   // It's hard to say what HTML4 wants us to do in all cases.
   bool focused = true;
-  if (nsFocusManager* fm = nsFocusManager::GetFocusManager()) {
+  if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
     fm->SetFocus(this, nsIFocusManager::FLAG_BYKEY);
 
     // Return true if the element became the current focus within its window.
@@ -2487,7 +2507,7 @@ void nsGenericHTMLElement::RecompileScriptEventListeners() {
 
     nsAutoString value;
     GetAttr(kNameSpaceID_None, attr, value);
-    SetEventHandler(attr, value, true);
+    SetEventHandler(GetEventNameForAttr(attr), value, true);
   }
 }
 
@@ -2830,7 +2850,7 @@ void nsGenericHTMLElement::SetInnerText(const nsAString& aValue) {
   mb.NodesAdded();
 }
 
-// https://html.spec.whatwg.org/commit-snapshots/b48bb2238269d90ea4f455a52cdf29505aff3df0/#dom-attachinternals
+// https://html.spec.whatwg.org/commit-snapshots/53bc3803433e1c817918b83e8a84f3db900031dd/#dom-attachinternals
 already_AddRefed<ElementInternals> nsGenericHTMLElement::AttachInternals(
     ErrorResult& aRv) {
   CustomElementData* ceData = GetCustomElementData();
@@ -2880,6 +2900,10 @@ already_AddRefed<ElementInternals> nsGenericHTMLElement::AttachInternals(
     return nullptr;
   }
 
+  // If this is not a custom element, i.e. ceData is nullptr, we are unable to
+  // find a definition and should return earlier above.
+  MOZ_ASSERT(ceData);
+
   // 5. If element's attached internals is true, then throw an
   //    "NotSupportedError" DOMException.
   if (ceData->HasAttachedInternals()) {
@@ -2889,9 +2913,42 @@ already_AddRefed<ElementInternals> nsGenericHTMLElement::AttachInternals(
     return nullptr;
   }
 
-  // 6. Set element's attached internals to true.
+  // 6. If element's custom element state is not "precustomized" or "custom",
+  //    then throw a "NotSupportedError" DOMException.
+  if (ceData->mState != CustomElementData::State::ePrecustomized &&
+      ceData->mState != CustomElementData::State::eCustom) {
+    aRv.ThrowNotSupportedError(
+        R"(Custom element state is not "precustomized" or "custom".)");
+    return nullptr;
+  }
+
+  // 7. Set element's attached internals to true.
   ceData->AttachedInternals();
 
-  // 7. Create a new ElementInternals instance targeting element, and return it.
+  // 8. Create a new ElementInternals instance targeting element, and return it.
   return MakeAndAddRef<ElementInternals>(this);
+}
+
+void nsGenericHTMLElement::GetAutocapitalize(nsAString& aValue) {
+  GetEnumAttr(nsGkAtoms::autocapitalize, nullptr, kDefaultAutocapitalize->tag,
+              aValue);
+}
+
+bool nsGenericHTMLFormElement::IsAutocapitalizeInheriting() const {
+  uint32_t type = ControlType();
+  return (type & NS_FORM_INPUT_ELEMENT) || (type & NS_FORM_BUTTON_ELEMENT) ||
+         type == NS_FORM_FIELDSET || type == NS_FORM_OUTPUT ||
+         type == NS_FORM_SELECT || type == NS_FORM_TEXTAREA;
+}
+
+void nsGenericHTMLFormElement::GetAutocapitalize(nsAString& aValue) {
+  if (nsContentUtils::HasNonEmptyAttr(this, kNameSpaceID_None,
+                                      nsGkAtoms::autocapitalize)) {
+    nsGenericHTMLElement::GetAutocapitalize(aValue);
+    return;
+  }
+
+  if (mForm && IsAutocapitalizeInheriting()) {
+    mForm->GetAutocapitalize(aValue);
+  }
 }

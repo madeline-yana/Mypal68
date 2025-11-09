@@ -31,7 +31,7 @@ using namespace mozilla::dom;
 
 namespace mozilla {
 
-typedef AutoTArray<RefPtr<RawServoAnimationValue>, 1> ServoAnimationValues;
+using ServoAnimationValues = AutoTArray<RefPtr<RawServoAnimationValue>, 1>;
 
 /*static*/
 SMILCSSValueType SMILCSSValueType::sSingleton;

@@ -8,8 +8,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Progress)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 const double HTMLProgressElement::kIndeterminatePosition = -1.0;
 const double HTMLProgressElement::kDefaultValue = 0.0;
@@ -89,5 +88,4 @@ JSObject* HTMLProgressElement::WrapNode(JSContext* aCx,
   return HTMLProgressElement_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

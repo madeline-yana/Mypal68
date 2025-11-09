@@ -10,7 +10,7 @@
  * and create derivative works of this document.
  */
 
-[NamedConstructor=Option(optional DOMString text = "", optional DOMString value, optional boolean defaultSelected = false, optional boolean selected = false),
+[LegacyFactoryFunction=Option(optional DOMString text = "", optional DOMString value, optional boolean defaultSelected = false, optional boolean selected = false),
  Exposed=Window]
 interface HTMLOptionElement : HTMLElement {
   [HTMLConstructor] constructor();

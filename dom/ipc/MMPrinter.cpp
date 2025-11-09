@@ -13,8 +13,7 @@
 #include "mozilla/ErrorResult.h"
 #include "nsFrameMessageManager.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 LazyLogModule MMPrinter::sMMLog("MessageManager");
 
@@ -41,7 +40,7 @@ void MMPrinter::PrintImpl(char const* aLocation, const nsAString& aMsg,
 
   MOZ_LOG(MMPrinter::sMMLog, LogLevel::Debug,
           ("%s Message: %s in process type: %s", aLocation, charMsg.get(),
-           XRE_GeckoProcessTypeToString(XRE_GetProcessType())));
+           XRE_GetProcessTypeString()));
 
   if (!MOZ_LOG_TEST(sMMLog, LogLevel::Verbose)) {
     return;
@@ -74,8 +73,6 @@ void MMPrinter::PrintImpl(char const* aLocation, const nsAString& aMsg,
 
   MOZ_LOG(MMPrinter::sMMLog, LogLevel::Verbose,
           ("   %s", NS_ConvertUTF16toUTF8(srcString).get()));
-  return;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

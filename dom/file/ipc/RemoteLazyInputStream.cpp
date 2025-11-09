@@ -348,7 +348,7 @@ RemoteLazyInputStream::CloneWithRange(uint64_t aStart, uint64_t aLength,
 
   // Too short or out of range.
   if (aLength == 0 || aStart >= mLength) {
-    return NS_NewCStringInputStream(aResult, EmptyCString());
+    return NS_NewCStringInputStream(aResult, ""_ns);
   }
 
   MOZ_ASSERT(mActor);
@@ -577,44 +577,22 @@ RemoteLazyInputStream::OnInputStreamReady(nsIAsyncInputStream* aStream) {
 
 // nsIIPCSerializableInputStream
 
-void RemoteLazyInputStream::Serialize(mozilla::ipc::InputStreamParams& aParams,
-                                   FileDescriptorArray& aFileDescriptors,
-                                   bool aDelayedStart, uint32_t aMaxSize,
-                                   uint32_t* aSizeUsed,
-                                   ContentChild* aManager) {
+void RemoteLazyInputStream::Serialize(
+    mozilla::ipc::InputStreamParams& aParams,
+    FileDescriptorArray& aFileDescriptors, bool aDelayedStart,
+    uint32_t aMaxSize, uint32_t* aSizeUsed,
+    mozilla::ipc::ParentToChildStreamActorManager* aManager) {
   MOZ_ASSERT(aSizeUsed);
   *aSizeUsed = 0;
 
   SerializeInternal(aParams);
 }
 
-void RemoteLazyInputStream::Serialize(mozilla::ipc::InputStreamParams& aParams,
-                                   FileDescriptorArray& aFileDescriptors,
-                                   bool aDelayedStart, uint32_t aMaxSize,
-                                   uint32_t* aSizeUsed,
-                                   mozilla::ipc::PBackgroundChild* aManager) {
-  MOZ_ASSERT(aSizeUsed);
-  *aSizeUsed = 0;
-
-  SerializeInternal(aParams);
-}
-
-void RemoteLazyInputStream::Serialize(mozilla::ipc::InputStreamParams& aParams,
-                                   FileDescriptorArray& aFileDescriptors,
-                                   bool aDelayedStart, uint32_t aMaxSize,
-                                   uint32_t* aSizeUsed,
-                                   ContentParent* aManager) {
-  MOZ_ASSERT(aSizeUsed);
-  *aSizeUsed = 0;
-
-  SerializeInternal(aParams);
-}
-
-void RemoteLazyInputStream::Serialize(mozilla::ipc::InputStreamParams& aParams,
-                                   FileDescriptorArray& aFileDescriptors,
-                                   bool aDelayedStart, uint32_t aMaxSize,
-                                   uint32_t* aSizeUsed,
-                                   mozilla::ipc::PBackgroundParent* aManager) {
+void RemoteLazyInputStream::Serialize(
+    mozilla::ipc::InputStreamParams& aParams,
+    FileDescriptorArray& aFileDescriptors, bool aDelayedStart,
+    uint32_t aMaxSize, uint32_t* aSizeUsed,
+    mozilla::ipc::ChildToParentStreamActorManager* aManager) {
   MOZ_ASSERT(aSizeUsed);
   *aSizeUsed = 0;
 

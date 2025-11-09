@@ -447,9 +447,8 @@ bool nsMixedContentBlocker::IsPotentiallyTrustworthyOrigin(nsIURI* aURI) {
   nsAutoCString whitelist;
   rv = Preferences::GetCString("dom.securecontext.whitelist", whitelist);
   if (NS_SUCCEEDED(rv)) {
-    nsCCharSeparatedTokenizer tokenizer(whitelist, ',');
-    while (tokenizer.hasMoreTokens()) {
-      const nsACString& allowedHost = tokenizer.nextToken();
+    for (const nsACString& allowedHost :
+         nsCCharSeparatedTokenizer(whitelist, ',').ToRange()) {
       if (host.Equals(allowedHost)) {
         return true;
       }

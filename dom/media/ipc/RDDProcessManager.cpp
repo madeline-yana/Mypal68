@@ -4,14 +4,15 @@
 #include "RDDProcessManager.h"
 
 #include "mozilla/MemoryReportingProcess.h"
+#include "mozilla/Preferences.h"
 #include "mozilla/RemoteDecoderManagerChild.h"
 #include "mozilla/RemoteDecoderManagerParent.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/StaticPrefs_media.h"
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/gfx/GPUProcessManager.h"
-#include "mozilla/layers/VideoBridgeParent.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/layers/CompositorThread.h"
+#include "mozilla/layers/VideoBridgeParent.h"
 #include "nsAppRunner.h"
 #include "nsContentUtils.h"
 #include "RDDChild.h"
@@ -157,8 +158,7 @@ void RDDProcessManager::OnProcessLaunchComplete(RDDProcessHost* aHost) {
   mQueuedPrefs.Clear();
 
   CrashReporter::AnnotateCrashReport(
-      CrashReporter::Annotation::RDDProcessStatus,
-      NS_LITERAL_CSTRING("Running"));
+      CrashReporter::Annotation::RDDProcessStatus, "Running"_ns);
 }
 
 void RDDProcessManager::OnProcessUnexpectedShutdown(RDDProcessHost* aHost) {
@@ -209,8 +209,7 @@ void RDDProcessManager::DestroyProcess() {
   mRDDChild = nullptr;
 
   CrashReporter::AnnotateCrashReport(
-      CrashReporter::Annotation::RDDProcessStatus,
-      NS_LITERAL_CSTRING("Destroyed"));
+      CrashReporter::Annotation::RDDProcessStatus, "Destroyed"_ns);
 }
 
 bool RDDProcessManager::CreateContentBridge(

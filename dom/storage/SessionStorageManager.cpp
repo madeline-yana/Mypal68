@@ -92,8 +92,10 @@ nsresult SessionStorageManager::GetSessionStorageCacheHelper(
   OriginKeyHashTable* table;
   if (!mOATable.Get(originAttributes, &table)) {
     if (aMakeIfNeeded) {
-      table = new OriginKeyHashTable();
-      mOATable.Put(originAttributes, table);
+      table =
+          mOATable
+              .InsertOrUpdate(originAttributes, MakeUnique<OriginKeyHashTable>())
+              .get();
     } else {
       return NS_OK;
     }
@@ -107,7 +109,7 @@ nsresult SessionStorageManager::GetSessionStorageCacheHelper(
       } else {
         cache = new SessionStorageCache();
       }
-      table->Put(originKey, RefPtr{cache});
+      table->LookupOrInsert(originKey, cache);
     } else {
       return NS_OK;
     }

@@ -118,8 +118,8 @@ nsresult nsNodeInfoManager::Init(mozilla::dom::Document* aDocument) {
 
 void nsNodeInfoManager::DropDocumentReference() {
   // This is probably not needed anymore.
-  for (auto iter = mNodeInfoHash.Iter(); !iter.Done(); iter.Next()) {
-    iter.Data()->mDocument = nullptr;
+  for (const auto& entry : mNodeInfoHash) {
+    entry.GetData()->mDocument = nullptr;
   }
 
   NS_ASSERTION(!mNonDocumentNodeInfos,
@@ -141,8 +141,8 @@ already_AddRefed<mozilla::dom::NodeInfo> nsNodeInfoManager::GetNodeInfo(
     return nodeInfo.forget();
   }
 
-  // We don't use LookupForAdd here as that would end up storing the temporary
-  // key instead of using `mInner`.
+  // We don't use WithEntryHandle here as that would end up storing the
+  // temporary key instead of using `mInner`.
   RefPtr<NodeInfo> nodeInfo = mNodeInfoHash.Get(&tmpKey);
   if (!nodeInfo) {
     ++mNonDocumentNodeInfos;
@@ -152,7 +152,7 @@ already_AddRefed<mozilla::dom::NodeInfo> nsNodeInfoManager::GetNodeInfo(
 
     nodeInfo =
         new NodeInfo(aName, aPrefix, aNamespaceID, aNodeType, aExtraName, this);
-    mNodeInfoHash.Put(&nodeInfo->mInner, nodeInfo);
+    mNodeInfoHash.InsertOrUpdate(&nodeInfo->mInner, nodeInfo);
   }
 
   // Have to do the swap thing, because already_AddRefed<nsNodeInfo>
@@ -192,7 +192,7 @@ nsresult nsNodeInfoManager::GetNodeInfo(const nsAString& aName, nsAtom* aPrefix,
     RefPtr<nsAtom> nameAtom = NS_Atomize(aName);
     nodeInfo =
         new NodeInfo(nameAtom, aPrefix, aNamespaceID, aNodeType, nullptr, this);
-    mNodeInfoHash.Put(&nodeInfo->mInner, nodeInfo);
+    mNodeInfoHash.InsertOrUpdate(&nodeInfo->mInner, nodeInfo);
   }
 
   p.Set(nodeInfo);

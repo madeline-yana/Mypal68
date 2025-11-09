@@ -29,6 +29,7 @@
 #include "mozilla/dom/ChromeMessageBroadcaster.h"
 #include "mozilla/dom/ContentFrameMessageManager.h"
 #include "mozilla/dom/ContentProcessMessageManager.h"
+#include "mozilla/dom/CustomElementRegistry.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ParentProcessMessageManager.h"
 #include "mozilla/dom/BrowserChild.h"
@@ -421,20 +422,7 @@ nsresult nsCCUncollectableMarker::Observe(nsISupports* aSubject,
   return NS_OK;
 }
 
-void mozilla::dom::TraceBlackJS(JSTracer* aTrc, bool aIsShutdownGC) {
-#ifdef MOZ_XUL
-  // Mark the scripts held in the XULPrototypeCache. This is required to keep
-  // the JS script in the cache live across GC.
-  nsXULPrototypeCache* cache = nsXULPrototypeCache::MaybeGetInstance();
-  if (cache) {
-    if (aIsShutdownGC) {
-      cache->FlushScripts();
-    } else {
-      cache->MarkInGC(aTrc);
-    }
-  }
-#endif
-
+void mozilla::dom::TraceBlackJS(JSTracer* aTrc) {
   if (!nsCCUncollectableMarker::sGeneration) {
     return;
   }
@@ -451,8 +439,8 @@ void mozilla::dom::TraceBlackJS(JSTracer* aTrc, bool aIsShutdownGC) {
   nsGlobalWindowOuter::OuterWindowByIdTable* windowsById =
       nsGlobalWindowOuter::GetWindowsTable();
   if (windowsById) {
-    for (auto iter = windowsById->Iter(); !iter.Done(); iter.Next()) {
-      nsGlobalWindowOuter* window = iter.Data();
+    for (const auto& entry : *windowsById) {
+      nsGlobalWindowOuter* window = entry.GetData();
       if (!window->IsCleanedUp()) {
         nsGlobalWindowInner* inner = nullptr;
         for (PRCList* win = PR_LIST_HEAD(window); win != window;
@@ -465,6 +453,10 @@ void mozilla::dom::TraceBlackJS(JSTracer* aTrc, bool aIsShutdownGC) {
             EventListenerManager* elm = inner->GetExistingListenerManager();
             if (elm) {
               elm->TraceListeners(aTrc);
+            }
+            CustomElementRegistry* cer = inner->GetExistingCustomElements();
+            if (cer) {
+              cer->TraceDefinitions(aTrc);
             }
           }
         }
@@ -493,13 +485,6 @@ void mozilla::dom::TraceBlackJS(JSTracer* aTrc, bool aIsShutdownGC) {
             }
           }
         }
-
-#ifdef MOZ_XUL
-        Document* doc = window->GetExtantDoc();
-        if (doc) {
-          doc->TraceProtos(aTrc);
-        }
-#endif
       }
     }
   }

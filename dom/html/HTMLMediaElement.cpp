@@ -3193,12 +3193,12 @@ void HTMLMediaElement::MozGetMetadata(JSContext* cx,
     return;
   }
   if (mTags) {
-    for (auto iter = mTags->ConstIter(); !iter.Done(); iter.Next()) {
+    for (const auto& entry : *mTags) {
       nsString wideValue;
-      CopyUTF8toUTF16(iter.UserData(), wideValue);
+      CopyUTF8toUTF16(entry.GetData(), wideValue);
       JS::Rooted<JSString*> string(cx,
                                    JS_NewUCStringCopyZ(cx, wideValue.Data()));
-      if (!string || !JS_DefineProperty(cx, tags, iter.Key().Data(), string,
+      if (!string || !JS_DefineProperty(cx, tags, entry.GetKey().Data(), string,
                                         JSPROP_ENUMERATE)) {
         NS_WARNING("couldn't create metadata object!");
         aRv.Throw(NS_ERROR_FAILURE);
@@ -3543,8 +3543,8 @@ void HTMLMediaElement::UpdateOutputTrackSources() {
                           source.get(), NS_ConvertUTF16toUTF8(id).get()));
 
     track->QueueSetAutoend(false);
-    MOZ_DIAGNOSTIC_ASSERT(!mOutputTrackSources.GetWeak(id));
-    mOutputTrackSources.Put(id, RefPtr{source});
+    MOZ_DIAGNOSTIC_ASSERT(!mOutputTrackSources.Contains(id));
+    mOutputTrackSources.InsertOrUpdate(id, RefPtr{source});
 
     // Add the new track source to any existing output streams
     for (OutputMediaStream& ms : mOutputStreams) {
@@ -3779,15 +3779,14 @@ static unsigned MediaElementTableCount(HTMLMediaElement* aElement,
   }
   uint32_t uriCount = 0;
   uint32_t otherCount = 0;
-  for (auto it = gElementTable->ConstIter(); !it.Done(); it.Next()) {
-    MediaElementSetForURI* entry = it.Get();
+  for (const auto& entry : *gElementTable) {
     uint32_t count = 0;
-    for (const auto& elem : entry->mElements) {
+    for (const auto& elem : entry.mElements) {
       if (elem == aElement) {
         count++;
       }
     }
-    if (URISafeEquals(aURI, entry->GetKey())) {
+    if (URISafeEquals(aURI, entry.GetKey())) {
       uriCount = count;
     } else {
       otherCount += count;
@@ -4967,7 +4966,7 @@ static already_AddRefed<AudioTrack> CreateAudioTrack(
   aStreamTrack->GetLabel(label, CallerType::System);
 
   return MediaTrackList::CreateAudioTrack(aOwnerGlobal, id, u"main"_ns, label,
-                                          EmptyString(), true, aStreamTrack);
+                                          u""_ns, true, aStreamTrack);
 }
 
 static already_AddRefed<VideoTrack> CreateVideoTrack(
@@ -4978,7 +4977,7 @@ static already_AddRefed<VideoTrack> CreateVideoTrack(
   aStreamTrack->GetLabel(label, CallerType::System);
 
   return MediaTrackList::CreateVideoTrack(aOwnerGlobal, id, u"main"_ns, label,
-                                          EmptyString(), aStreamTrack);
+                                          u""_ns, aStreamTrack);
 }
 
 void HTMLMediaElement::NotifyMediaStreamTrackAdded(
@@ -6228,7 +6227,7 @@ void HTMLMediaElement::SetRequestHeaders(nsIHttpChannel* aChannel) {
   // and from seeking. So, disable the standard "Accept-Encoding: gzip,deflate"
   // that we usually send. See bug 614760.
   DebugOnly<nsresult> rv =
-      aChannel->SetRequestHeader("Accept-Encoding"_ns, EmptyCString(), false);
+      aChannel->SetRequestHeader("Accept-Encoding"_ns, ""_ns, false);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
 
   // Set the Referrer header

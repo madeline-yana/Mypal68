@@ -108,13 +108,13 @@ dictionary FluentBundleIteratorResult
   required boolean done;
 };
 
-[NoInterfaceObject, Exposed=Window]
+[LegacyNoInterfaceObject, Exposed=Window]
 interface FluentBundleIterator {
   FluentBundleIteratorResult next();
   [Alias="@@iterator"] FluentBundleIterator values();
 };
 
-[NoInterfaceObject, Exposed=Window]
+[LegacyNoInterfaceObject, Exposed=Window]
 interface FluentBundleAsyncIterator {
   Promise<FluentBundleIteratorResult> next();
   [Alias="@@asyncIterator"] FluentBundleAsyncIterator values();

@@ -317,7 +317,7 @@ void WorkerErrorReport::ReportError(
       nsEventStatus status = nsEventStatus_eIgnore;
 
       if (aWorkerPrivate) {
-        WorkerGlobalScope* globalScope = nullptr;
+        RefPtr<WorkerGlobalScope> globalScope;
         UNWRAP_OBJECT(WorkerGlobalScope, &global, globalScope);
 
         if (!globalScope) {
@@ -348,8 +348,10 @@ void WorkerErrorReport::ReportError(
             ErrorEvent::Constructor(aTarget, u"error"_ns, init);
         event->SetTrusted(true);
 
+        // TODO: Bug 1506441
         if (NS_FAILED(EventDispatcher::DispatchDOMEvent(
-                ToSupports(globalScope), nullptr, event, nullptr, &status))) {
+                MOZ_KnownLive(ToSupports(globalScope)), nullptr, event, nullptr,
+                &status))) {
           NS_WARNING("Failed to dispatch worker thread error event!");
           status = nsEventStatus_eIgnore;
         }
@@ -385,8 +387,8 @@ void WorkerErrorReport::ReportError(
 void WorkerErrorReport::LogErrorToConsole(JSContext* aCx,
                                           WorkerErrorReport& aReport,
                                           uint64_t aInnerWindowId) {
-  JS::RootedObject stack(aCx, aReport.ReadStack(aCx));
-  JS::RootedObject stackGlobal(aCx, JS::CurrentGlobalOrNull(aCx));
+  JS::Rooted<JSObject*> stack(aCx, aReport.ReadStack(aCx));
+  JS::Rooted<JSObject*> stackGlobal(aCx, JS::CurrentGlobalOrNull(aCx));
 
   ErrorData errorData(
       aReport.mIsWarning, aReport.mLineNumber, aReport.mColumnNumber,
@@ -401,8 +403,8 @@ void WorkerErrorReport::LogErrorToConsole(JSContext* aCx,
 /* static */
 void WorkerErrorReport::LogErrorToConsole(const ErrorData& aReport,
                                           uint64_t aInnerWindowId,
-                                          JS::HandleObject aStack,
-                                          JS::HandleObject aStackGlobal) {
+                                          JS::Handle<JSObject*> aStack,
+                                          JS::Handle<JSObject*> aStackGlobal) {
   AssertIsOnMainThread();
 
   RefPtr<nsScriptErrorBase> scriptError =

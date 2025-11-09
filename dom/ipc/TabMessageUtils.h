@@ -5,30 +5,20 @@
 #ifndef TABMESSAGE_UTILS_H
 #define TABMESSAGE_UTILS_H
 
-#include "ipc/IPCMessageUtils.h"
+#include "ipc/EnumSerializer.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/dom/Event.h"
-#include "nsExceptionHandler.h"
 #include "nsIRemoteTab.h"
 #include "nsPIDOMWindow.h"
 #include "nsCOMPtr.h"
+#include "TabMessageTypes.h"
 
-namespace mozilla {
-namespace dom {
-class Event;
-
-struct RemoteDOMEvent {
-  // Make sure to set the owner after deserializing.
-  RefPtr<Event> mEvent;
-};
+namespace mozilla::dom {
 
 bool ReadRemoteEvent(const IPC::Message* aMsg, PickleIterator* aIter,
                      mozilla::dom::RemoteDOMEvent* aResult);
 
-typedef CrashReporter::ThreadId NativeThreadId;
-
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom
 
 namespace IPC {
 

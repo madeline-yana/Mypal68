@@ -5,8 +5,7 @@
 #include "mozilla/dom/GamepadButton.h"
 #include "mozilla/dom/GamepadBinding.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(GamepadButton)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(GamepadButton)
@@ -24,5 +23,4 @@ JSObject* GamepadButton::WrapObject(JSContext* aCx,
   return GamepadButton_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

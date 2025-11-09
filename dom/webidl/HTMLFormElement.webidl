@@ -10,7 +10,7 @@
  * and create derivative works of this document.
  */
 
-[OverrideBuiltins, LegacyUnenumerableNamedProperties,
+[LegacyOverrideBuiltIns, LegacyUnenumerableNamedProperties,
  Exposed=Window]
 interface HTMLFormElement : HTMLElement {
   [HTMLConstructor] constructor();

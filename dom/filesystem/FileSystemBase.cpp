@@ -6,7 +6,7 @@
 
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/BlobImpl.h"
-#include "nsCharSeparatedTokenizer.h"
+#include "mozilla/dom/FileSystemUtils.h"
 #include "nsIFile.h"
 #include "OSFileSystem.h"
 

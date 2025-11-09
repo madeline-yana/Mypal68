@@ -12,8 +12,7 @@
 
 using namespace mozilla::ipc;
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 BrowserBridgeChild::BrowserBridgeChild(nsFrameLoader* aFrameLoader,
                                        BrowsingContext* aBrowsingContext)
@@ -26,7 +25,7 @@ BrowserBridgeChild::~BrowserBridgeChild() {}
 
 already_AddRefed<BrowserBridgeChild> BrowserBridgeChild::Create(
     nsFrameLoader* aFrameLoader, const TabContext& aContext,
-    const nsString& aRemoteType, BrowsingContext* aBrowsingContext) {
+    const nsCString& aRemoteType, BrowsingContext* aBrowsingContext) {
   MOZ_ASSERT(XRE_IsContentProcess());
 
   // Determine our embedder's BrowserChild actor.
@@ -197,5 +196,4 @@ void BrowserBridgeChild::ActorDestroy(ActorDestroyReason aWhy) {
   mIPCOpen = false;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

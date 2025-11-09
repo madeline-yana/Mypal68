@@ -45,6 +45,10 @@ class Storage : public nsISupports, public nsWrapperCache {
 
   nsIPrincipal* StoragePrincipal() const { return mStoragePrincipal; }
 
+  bool IsPrivateBrowsing() const { return mPrivateBrowsing; }
+
+  bool IsSessionScopedOrLess() const { return mSessionScopedOrLess; }
+
   // WebIDL
   JSObject* WrapObject(JSContext* aCx,
                        JS::Handle<JSObject*> aGivenProto) override;
@@ -89,7 +93,10 @@ class Storage : public nsISupports, public nsWrapperCache {
 
   virtual void Clear(nsIPrincipal& aSubjectPrincipal, ErrorResult& aRv) = 0;
 
-  bool IsSessionOnly() const { return mIsSessionOnly; }
+  // The attribute in the WebIDL interface has rather confusing name. So we
+  // shouldn't use this method internally. IsSessionScopedOrLess should be used
+  // directly.
+  bool IsSessionOnly() const { return IsSessionScopedOrLess(); }
 
   //////////////////////////////////////////////////////////////////////////////
   // Testing Methods:
@@ -107,6 +114,13 @@ class Storage : public nsISupports, public nsWrapperCache {
 
   virtual void EndExplicitSnapshot(nsIPrincipal& aSubjectPrincipal,
                                    ErrorResult& aRv) {}
+
+#ifdef ENABLE_TESTS
+  virtual bool GetHasActiveSnapshot(nsIPrincipal& aSubjectPrincipal,
+                                    ErrorResult& aRv) {
+    return false;
+  }
+#endif
 
   //////////////////////////////////////////////////////////////////////////////
 
@@ -144,10 +158,12 @@ class Storage : public nsISupports, public nsWrapperCache {
   nsCOMPtr<nsIPrincipal> mPrincipal;
   nsCOMPtr<nsIPrincipal> mStoragePrincipal;
 
+  bool mPrivateBrowsing : 1;
+
   // Whether storage is set to persist data only per session, may change
   // dynamically and is set by CanUseStorage function that is called
   // before any operation on the storage.
-  bool mIsSessionOnly : 1;
+  bool mSessionScopedOrLess : 1;
 };
 
 }  // namespace dom

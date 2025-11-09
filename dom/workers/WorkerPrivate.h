@@ -9,6 +9,7 @@
 #include "ScriptLoader.h"
 #include "js/ContextOptions.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/AutoRestore.h"
 #include "base/condition_variable.h"
 #include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/PerformanceCounter.h"
@@ -618,10 +619,7 @@ class WorkerPrivate final : public RelativeTimeline {
 
   void SetBaseURI(nsIURI* aBaseURI);
 
-  nsIURI* GetResolvedScriptURI() const {
-    AssertIsOnMainThread();
-    return mLoadInfo.mResolvedScriptURI;
-  }
+  nsIURI* GetResolvedScriptURI() const { return mLoadInfo.mResolvedScriptURI; }
 
   const nsString& ServiceWorkerCacheName() const {
     MOZ_DIAGNOSTIC_ASSERT(IsServiceWorker());
@@ -1140,6 +1138,19 @@ class WorkerPrivate final : public RelativeTimeline {
 
     uint32_t mErrorHandlerRecursionCount;
     uint32_t mNextTimeoutId;
+
+    // Tracks the current setTimeout/setInterval nesting level.
+    // When there isn't a TimeoutHandler on the stack, this will be 0.
+    // Whenever setTimeout/setInterval are called, a new TimeoutInfo will be
+    // created with a nesting level one more than the current nesting level,
+    // saturating at the kClampTimeoutNestingLevel.
+    //
+    // When RunExpiredTimeouts is run, it sets this value to the
+    // TimeoutInfo::mNestingLevel for the duration of
+    // the WorkerScriptTimeoutHandler::Call which will explicitly trigger a
+    // microtask checkpoint so that any immediately-resolved promises will
+    // still see the nesting level.
+    uint32_t mCurrentTimerNestingLevel;
 
     bool mFrozen;
     bool mTimerRunning;

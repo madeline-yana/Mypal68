@@ -10,6 +10,7 @@
 #include "mozIGeckoMediaPluginService.h"
 #include "mozilla/AbstractThread.h"
 #include "mozilla/ipc/CrashReporterHost.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)
 #  include "mozilla/SandboxInfo.h"
@@ -401,11 +402,9 @@ static void GMPNotifyObservers(const uint32_t aPluginID,
   nsCOMPtr<nsIWritablePropertyBag2> propbag =
       do_CreateInstance("@mozilla.org/hash-property-bag;1");
   if (obs && propbag) {
-    propbag->SetPropertyAsUint32(NS_LITERAL_STRING("pluginID"), aPluginID);
-    propbag->SetPropertyAsACString(NS_LITERAL_STRING("pluginName"),
-                                   aPluginName);
-    propbag->SetPropertyAsAString(NS_LITERAL_STRING("pluginDumpID"),
-                                  aPluginDumpID);
+    propbag->SetPropertyAsUint32(u"pluginID"_ns, aPluginID);
+    propbag->SetPropertyAsACString(u"pluginName"_ns, aPluginName);
+    propbag->SetPropertyAsAString(u"pluginDumpID"_ns, aPluginDumpID);
     obs->NotifyObservers(propbag, "gmp-plugin-crash", nullptr);
   }
 
@@ -420,8 +419,8 @@ void GMPParent::ActorDestroy(ActorDestroyReason aWhy) {
   GMP_PARENT_LOG_DEBUG("%s: (%d)", __FUNCTION__, (int)aWhy);
 
   if (AbnormalShutdown == aWhy) {
-    Telemetry::Accumulate(Telemetry::SUBPROCESS_ABNORMAL_ABORT,
-                          NS_LITERAL_CSTRING("gmplugin"), 1);
+    Telemetry::Accumulate(Telemetry::SUBPROCESS_ABNORMAL_ABORT, "gmplugin"_ns,
+                          1);
     nsString dumpID;
     if (!GetCrashID(dumpID)) {
       NS_WARNING("GMP crash without crash report");
@@ -513,7 +512,7 @@ RefPtr<GenericPromise> GMPParent::ReadGMPMetaData() {
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return GenericPromise::CreateAndReject(rv, __func__);
   }
-  infoFile->AppendRelativePath(mName + NS_LITERAL_STRING(".info"));
+  infoFile->AppendRelativePath(mName + u".info"_ns);
 
   if (FileExists(infoFile)) {
     return ReadGMPInfoFile(infoFile);
@@ -528,10 +527,10 @@ RefPtr<GenericPromise> GMPParent::ReadGMPInfoFile(nsIFile* aFile) {
   }
 
   nsAutoCString apis;
-  if (!ReadInfoField(parser, NS_LITERAL_CSTRING("name"), mDisplayName) ||
-      !ReadInfoField(parser, NS_LITERAL_CSTRING("description"), mDescription) ||
-      !ReadInfoField(parser, NS_LITERAL_CSTRING("version"), mVersion) ||
-      !ReadInfoField(parser, NS_LITERAL_CSTRING("apis"), apis)) {
+  if (!ReadInfoField(parser, "name"_ns, mDisplayName) ||
+      !ReadInfoField(parser, "description"_ns, mDescription) ||
+      !ReadInfoField(parser, "version"_ns, mVersion) ||
+      !ReadInfoField(parser, "apis"_ns, apis)) {
     return GenericPromise::CreateAndReject(NS_ERROR_FAILURE, __func__);
   }
 
@@ -694,9 +693,7 @@ bool GMPParent::EnsureProcessLoaded(base::ProcessId* aID) {
 
 void GMPParent::IncrementGMPContentChildCount() { ++mGMPContentChildCount; }
 
-nsString GMPParent::GetPluginBaseName() const {
-  return NS_LITERAL_STRING("gmp-") + mName;
-}
+nsString GMPParent::GetPluginBaseName() const { return u"gmp-"_ns + mName; }
 
 }  // namespace gmp
 }  // namespace mozilla

@@ -21,6 +21,7 @@
 #include "nsString.h"
 #include "mozilla/dom/BindingDeclarations.h"
 
+class nsIGlobalObject;
 class nsIStackFrame;
 
 nsresult NS_GetNameAndMessageForDOMNSResult(nsresult aNSResult,
@@ -101,6 +102,7 @@ class Exception : public nsIException, public nsWrapperCache {
   Exception(const nsACString& aMessage, nsresult aResult,
             const nsACString& aName, nsIStackFrame* aLocation,
             nsISupports* aData);
+  Exception(nsCString&& aMessage, nsresult aResult, nsCString&& aName);
 
  protected:
   virtual ~Exception();
@@ -136,6 +138,8 @@ class DOMException : public Exception {
  public:
   DOMException(nsresult aRv, const nsACString& aMessage,
                const nsACString& aName, uint16_t aCode);
+  DOMException(nsresult aRv, nsCString&& aMessage, nsCString&& aName,
+               uint16_t aCode);
 
   NS_INLINE_DECL_REFCOUNTING_INHERITED(DOMException, Exception)
 
@@ -166,6 +170,12 @@ class DOMException : public Exception {
 
   static already_AddRefed<DOMException> Create(nsresult aRv,
                                                const nsACString& aMessage);
+
+  static already_AddRefed<DOMException> ReadStructuredClone(
+      JSContext* aCx, nsIGlobalObject* aGlobal,
+      JSStructuredCloneReader* aReader);
+  bool WriteStructuredClone(JSContext* aCx,
+                            JSStructuredCloneWriter* aWriter) const;
 
  protected:
   virtual ~DOMException() = default;

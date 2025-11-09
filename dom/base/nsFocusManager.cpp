@@ -153,8 +153,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsFocusManager)
 
 NS_IMPL_CYCLE_COLLECTION(nsFocusManager, mActiveWindow, mFocusedWindow,
                          mFocusedElement, mFirstBlurEvent, mFirstFocusEvent,
-                         mWindowBeingLowered, mDelayedBlurFocusEvents,
-                         mMouseButtonEventHandlingDocument)
+                         mWindowBeingLowered, mDelayedBlurFocusEvents)
 
 StaticRefPtr<nsFocusManager> nsFocusManager::sInstance;
 bool nsFocusManager::sMouseFocusesFormControl = false;
@@ -236,7 +235,6 @@ nsFocusManager::Observe(nsISupports* aSubject, const char* aTopic,
     mFirstFocusEvent = nullptr;
     mWindowBeingLowered = nullptr;
     mDelayedBlurFocusEvents.Clear();
-    mMouseButtonEventHandlingDocument = nullptr;
   }
 
   return NS_OK;
@@ -448,7 +446,7 @@ nsFocusManager::ElementIsFocusable(Element* aElement, uint32_t aFlags,
   return NS_OK;
 }
 
-NS_IMETHODIMP
+MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHODIMP
 nsFocusManager::MoveFocus(mozIDOMWindowProxy* aWindow, Element* aStartElement,
                           uint32_t aType, uint32_t aFlags, Element** aElement) {
   *aElement = nullptr;
@@ -1032,16 +1030,14 @@ void nsFocusManager::ParentActivated(mozIDOMWindowProxy* aWindow,
 }
 
 nsFocusManager::BlurredElementInfo::BlurredElementInfo(Element& aElement)
-    : mElement(aElement),
-      mHadRing(aElement.State().HasState(NS_EVENT_STATE_FOCUSRING)) {}
+    : mElement(aElement) {}
 
 nsFocusManager::BlurredElementInfo::~BlurredElementInfo() = default;
 
 // https://drafts.csswg.org/selectors-4/#the-focus-visible-pseudo
-static bool ShouldMatchFocusVisible(
-    nsPIDOMWindowOuter* aWindow, const Element& aElement, int32_t aFocusFlags,
-    const Maybe<nsFocusManager::BlurredElementInfo>& aBlurredElementInfo,
-    bool aIsRefocus, bool aRefocusedElementUsedToShowOutline) {
+static bool ShouldMatchFocusVisible(nsPIDOMWindowOuter* aWindow,
+                                    const Element& aElement,
+                                    int32_t aFocusFlags) {
   // If we were explicitly requested to show the ring, do it.
   if (aFocusFlags & nsIFocusManager::FLAG_SHOWRING) {
     return true;
@@ -1068,6 +1064,10 @@ static bool ShouldMatchFocusVisible(
     }
   }
 
+  if (aFocusFlags & nsIFocusManager::FLAG_NOSHOWRING) {
+    return false;
+  }
+
   switch (nsFocusManager::GetFocusMoveActionCause(aFocusFlags)) {
     case InputContextAction::CAUSE_KEY:
       // If the user interacts with the page via the keyboard, the currently
@@ -1076,20 +1076,9 @@ static bool ShouldMatchFocusVisible(
       // :focus).
       return true;
     case InputContextAction::CAUSE_UNKNOWN:
-      // If the active element matches :focus-visible, and a script causes focus
-      // to move elsewhere, the newly focused element should match
-      // :focus-visible.
-      //
-      // Conversely, if the active element does not match :focus-visible, and a
-      // script causes focus to move elsewhere, the newly focused element should
-      // not match :focus-visible.
-      //
-      // There's an special-case here. If this is a refocus, we just keep the
-      // outline as it was before, the focus isn't moving after all.
-      if (aIsRefocus) {
-        return aRefocusedElementUsedToShowOutline;
-      }
-      return !aBlurredElementInfo || aBlurredElementInfo->mHadRing;
+      // We render outlines if the last "known" focus method was by key or there
+      // was no previous known focus method, otherwise we don't.
+      return aWindow->UnknownFocusMethodShouldShowOutline();
     case InputContextAction::CAUSE_MOUSE:
     case InputContextAction::CAUSE_TOUCH:
     case InputContextAction::CAUSE_LONGPRESS:
@@ -1325,24 +1314,14 @@ void nsFocusManager::SetFocusInner(Element* aNewContent, int32_t aFlags,
   bool sendFocusEvent =
       isElementInActiveWindow && allowFrameSwitch && IsWindowVisible(newWindow);
 
-  // When the following conditions are true:
-  //  * an element has focus
-  //  * isn't called by trusted event (i.e., called by untrusted event or by js)
-  //  * the focus is moved to another document's element
-  // we need to check the permission.
+  // Don't allow to steal the focus from chrome nodes if the caller cannot
+  // access them.
   if (sendFocusEvent && mFocusedElement &&
+      mFocusedElement->OwnerDoc() != aNewContent->OwnerDoc() &&
+      mFocusedElement->NodePrincipal()->IsSystemPrincipal() &&
       !nsContentUtils::LegacyIsCallerNativeCode() &&
-      mFocusedElement->OwnerDoc() != aNewContent->OwnerDoc()) {
-    // If the caller cannot access the current focused node, the caller should
-    // not be able to steal focus from it. E.g., When the current focused node
-    // is in chrome, any web contents should not be able to steal the focus.
-    sendFocusEvent = nsContentUtils::CanCallerAccess(mFocusedElement);
-    if (!sendFocusEvent && mMouseButtonEventHandlingDocument) {
-      // However, while mouse button event is handling, the handling document's
-      // script should be able to steal focus.
-      sendFocusEvent =
-          nsContentUtils::CanCallerAccess(mMouseButtonEventHandlingDocument);
-    }
+      !nsContentUtils::CanCallerAccess(mFocusedElement)) {
+    sendFocusEvent = false;
   }
 
   LOGCONTENT("Shift Focus: %s", elementToFocus.get());
@@ -1399,7 +1378,8 @@ void nsFocusManager::SetFocusInner(Element* aNewContent, int32_t aFlags,
     // set the focus node and method as needed
     uint32_t focusMethod =
         aFocusChanged ? aFlags & FOCUSMETHODANDRING_MASK
-                      : newWindow->GetFocusMethod() | (aFlags & FLAG_SHOWRING);
+                      : newWindow->GetFocusMethod() |
+                            (aFlags & (FLAG_SHOWRING | FLAG_NOSHOWRING));
     newWindow->SetFocusedElement(elementToFocus, focusMethod);
     if (aFocusChanged) {
       nsCOMPtr<nsIDocShell> docShell = newWindow->GetDocShell();
@@ -1591,14 +1571,6 @@ Element* nsFocusManager::FlushAndCheckIfFocusable(Element* aElement,
     return aElement;
   }
 
-  // cannot focus content in print preview mode. Only the root can be focused.
-  nsPresContext* presContext = presShell->GetPresContext();
-  if (presContext &&
-      presContext->Type() == nsPresContext::eContext_PrintPreview) {
-    LOGCONTENT("Cannot focus %s while in print preview", aElement)
-    return nullptr;
-  }
-
   nsIFrame* frame = aElement->GetPrimaryFrame();
   if (!frame) {
     LOGCONTENT("Cannot focus %s as it has no frame", aElement)
@@ -1629,8 +1601,7 @@ Element* nsFocusManager::FlushAndCheckIfFocusable(Element* aElement,
                                                                    : nullptr;
   }
 
-  return frame->IsFocusable(nullptr, aFlags & FLAG_BYMOUSE) ? aElement
-                                                            : nullptr;
+  return frame->IsFocusable(aFlags & FLAG_BYMOUSE) ? aElement : nullptr;
 }
 
 bool nsFocusManager::Blur(nsPIDOMWindowOuter* aWindowToClear,
@@ -1862,9 +1833,10 @@ void nsFocusManager::Focus(
   // If the focus actually changed, set the focus method (mouse, keyboard, etc).
   // Otherwise, just get the current focus method and use that. This ensures
   // that the method is set during the document and window focus events.
-  uint32_t focusMethod =
-      aFocusChanged ? aFlags & FOCUSMETHODANDRING_MASK
-                    : aWindow->GetFocusMethod() | (aFlags & FLAG_SHOWRING);
+  uint32_t focusMethod = aFocusChanged
+                             ? aFlags & FOCUSMETHODANDRING_MASK
+                             : aWindow->GetFocusMethod() |
+                                   (aFlags & (FLAG_SHOWRING | FLAG_NOSHOWRING));
 
   if (!IsWindowVisible(aWindow)) {
     // if the window isn't visible, for instance because it is a hidden tab,
@@ -1962,13 +1934,9 @@ void nsFocusManager::Focus(
                                 !IsNonFocusableRoot(aElement);
     const bool isRefocus = focusedNode && focusedNode == aElement;
     const bool shouldShowFocusRing =
-        sendFocusEvent &&
-        ShouldMatchFocusVisible(
-            aWindow, *aElement, aFlags, aBlurredElementInfo, isRefocus,
-            isRefocus && aWindow->FocusedElementShowedOutline());
+        sendFocusEvent && ShouldMatchFocusVisible(aWindow, *aElement, aFlags);
 
-    aWindow->SetFocusedElement(aElement, focusMethod, false,
-                               shouldShowFocusRing);
+    aWindow->SetFocusedElement(aElement, focusMethod, false);
 
     // if the focused element changed, scroll it into view
     if (aElement && aFocusChanged) {
@@ -2710,7 +2678,7 @@ nsresult nsFocusManager::DetermineElementToMoveFocus(
     if (startContent->IsHTMLElement(nsGkAtoms::area)) {
       startContent->IsFocusable(&tabIndex);
     } else if (frame) {
-      frame->IsFocusable(&tabIndex, 0);
+      tabIndex = frame->IsFocusable().mTabIndex;
     } else {
       startContent->IsFocusable(&tabIndex);
     }
@@ -2944,7 +2912,7 @@ nsresult nsFocusManager::DetermineElementToMoveFocus(
         return NS_OK;
       }
 
-      frame->IsFocusable(&tabIndex, 0);
+      tabIndex = frame->IsFocusable().mTabIndex;
       if (tabIndex < 0) {
         tabIndex = 1;
         ignoreTabIndex = true;
@@ -3018,7 +2986,14 @@ nsresult nsFocusManager::DetermineElementToMoveFocus(
 
 uint32_t nsFocusManager::FocusOptionsToFocusManagerFlags(
     const mozilla::dom::FocusOptions& aOptions) {
-  return aOptions.mPreventScroll ? nsIFocusManager::FLAG_NOSCROLL : 0;
+  uint32_t flags = 0;
+  if (aOptions.mPreventScroll) {
+    flags |= FLAG_NOSCROLL;
+  }
+  if (aOptions.mPreventFocusRing) {
+    flags |= FLAG_NOSHOWRING;
+  }
+  return flags;
 }
 
 static bool IsHostOrSlot(const nsIContent* aContent) {
@@ -3159,13 +3134,8 @@ static int32_t HostOrSlotTabIndexValue(const nsIContent* aContent,
   MOZ_ASSERT(IsHostOrSlot(aContent));
 
   if (aIsFocusable) {
-    *aIsFocusable = false;
     nsIFrame* frame = aContent->GetPrimaryFrame();
-    if (frame) {
-      int32_t tabIndex;
-      frame->IsFocusable(&tabIndex, 0);
-      *aIsFocusable = tabIndex >= 0;
-    }
+    *aIsFocusable = frame && frame->IsFocusable().mTabIndex >= 0;
   }
 
   const nsAttrValue* attrVal =
@@ -3188,10 +3158,11 @@ nsIContent* nsFocusManager::GetNextTabbableContentInScope(
   MOZ_ASSERT(IsHostOrSlot(aOwner), "Scope owner should be host or slot");
 
   if (!aSkipOwner && (aForward && aOwner == aStartContent)) {
-    int32_t tabIndex = -1;
-    nsIFrame* frame = aOwner->GetPrimaryFrame();
-    if (frame && frame->IsFocusable(&tabIndex, false) && tabIndex >= 0) {
-      return aOwner;
+    if (nsIFrame* frame = aOwner->GetPrimaryFrame()) {
+      auto focusable = frame->IsFocusable();
+      if (focusable && focusable.mTabIndex >= 0) {
+        return aOwner;
+      }
     }
   }
 
@@ -3232,7 +3203,7 @@ nsIContent* nsFocusManager::GetNextTabbableContentInScope(
       int32_t tabIndex = 0;
       if (iterContent->IsInNativeAnonymousSubtree() &&
           iterContent->GetPrimaryFrame()) {
-        iterContent->GetPrimaryFrame()->IsFocusable(&tabIndex);
+        tabIndex = iterContent->GetPrimaryFrame()->IsFocusable().mTabIndex;
       } else if (IsHostOrSlot(iterContent)) {
         tabIndex = HostOrSlotTabIndexValue(iterContent);
       } else {
@@ -3240,7 +3211,7 @@ nsIContent* nsFocusManager::GetNextTabbableContentInScope(
         if (!frame) {
           continue;
         }
-        frame->IsFocusable(&tabIndex, 0);
+        tabIndex = frame->IsFocusable().mTabIndex;
       }
       if (tabIndex < 0 || !(aIgnoreTabIndex || tabIndex == aCurrentTabIndex)) {
         continue;
@@ -3298,10 +3269,11 @@ nsIContent* nsFocusManager::GetNextTabbableContentInScope(
   // Return scope owner at last for backward navigation if its tabindex
   // is non-negative
   if (!aSkipOwner && !aForward) {
-    int32_t tabIndex = -1;
-    nsIFrame* frame = aOwner->GetPrimaryFrame();
-    if (frame && frame->IsFocusable(&tabIndex, false) && tabIndex >= 0) {
-      return aOwner;
+    if (nsIFrame* frame = aOwner->GetPrimaryFrame()) {
+      auto focusable = frame->IsFocusable();
+      if (focusable && focusable.mTabIndex >= 0) {
+        return aOwner;
+      }
     }
   }
 
@@ -3323,7 +3295,7 @@ nsIContent* nsFocusManager::GetNextTabbableContentInAncestorScopes(
     if (IsHostOrSlot(startContent)) {
       tabIndex = HostOrSlotTabIndexValue(startContent);
     } else if (nsIFrame* frame = startContent->GetPrimaryFrame()) {
-      frame->IsFocusable(&tabIndex);
+      tabIndex = frame->IsFocusable().mTabIndex;
     } else {
       startContent->IsFocusable(&tabIndex);
     }
@@ -3599,8 +3571,7 @@ nsresult nsFocusManager::GetNextTabbableContent(
       //          == 0 in normal tab order (last after positive tabindexed items)
       //          > 0 can be tabbed to in the order specified by this value
       // clang-format on
-      int32_t tabIndex;
-      frame->IsFocusable(&tabIndex, 0);
+      int32_t tabIndex = frame->IsFocusable().mTabIndex;
 
       LOGCONTENTNAVIGATION("Next Tabbable %s:", frame->GetContent());
       LOGFOCUSNAVIGATION(
@@ -4188,10 +4159,6 @@ void nsFocusManager::MarkUncollectableForCCGeneration(uint32_t aGeneration) {
   if (sInstance->mFirstFocusEvent) {
     sInstance->mFirstFocusEvent->OwnerDoc()->MarkUncollectableForCCGeneration(
         aGeneration);
-  }
-  if (sInstance->mMouseButtonEventHandlingDocument) {
-    sInstance->mMouseButtonEventHandlingDocument
-        ->MarkUncollectableForCCGeneration(aGeneration);
   }
 }
 

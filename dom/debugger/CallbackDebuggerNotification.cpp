@@ -4,8 +4,7 @@
 
 #include "CallbackDebuggerNotification.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(CallbackDebuggerNotification,
                                    DebuggerNotification)
@@ -29,5 +28,4 @@ already_AddRefed<DebuggerNotification> CallbackDebuggerNotification::CloneInto(
   return notification.forget();
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

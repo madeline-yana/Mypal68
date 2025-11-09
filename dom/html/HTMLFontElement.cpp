@@ -11,8 +11,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Font)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 HTMLFontElement::~HTMLFontElement() = default;
 
@@ -100,5 +99,4 @@ nsMapRuleToAttributesFunc HTMLFontElement::GetAttributeMappingFunction() const {
   return &MapAttributesIntoRule;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

@@ -81,7 +81,7 @@ interface U2F {
 
   // Returns a Function.  It's readonly + [LenientSetter] to keep the Google
   // U2F polyfill from stomping on the value.
-  [LenientSetter, Pure, Cached, Throws]
+  [LegacyLenientSetter, Pure, Cached, Throws]
   readonly attribute object register;
 
   // A way to generate the actual implementation of register()
@@ -94,7 +94,7 @@ interface U2F {
 
   // Returns a Function.  It's readonly + [LenientSetter] to keep the Google
   // U2F polyfill from stomping on the value.
-  [LenientSetter, Pure, Cached, Throws]
+  [LegacyLenientSetter, Pure, Cached, Throws]
   readonly attribute object sign;
 
   // A way to generate the actual implementation of sign()

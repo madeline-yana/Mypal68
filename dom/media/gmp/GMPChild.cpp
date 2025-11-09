@@ -23,6 +23,7 @@
 #include "GMPVideoHost.h"
 #include "mozilla/Algorithm.h"
 #include "mozilla/ipc/CrashReporterClient.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/ProcessChild.h"
 #include "mozilla/TextUtils.h"
 #include "nsDebugImpl.h"
@@ -97,13 +98,11 @@ static bool GetPluginFile(const nsAString& aPluginPath,
   GetFileBase(aPluginPath, aLibDirectory, aLibFile, baseName);
 
 #if defined(XP_MACOSX)
-  nsAutoString binaryName =
-      NS_LITERAL_STRING("lib") + baseName + NS_LITERAL_STRING(".dylib");
+  nsAutoString binaryName = u"lib"_ns + baseName + u".dylib"_ns;
 #elif defined(OS_POSIX)
-  nsAutoString binaryName =
-      NS_LITERAL_STRING("lib") + baseName + NS_LITERAL_STRING(".so");
+  nsAutoString binaryName = u"lib"_ns + baseName + u".so"_ns;
 #elif defined(XP_WIN)
-  nsAutoString binaryName = baseName + NS_LITERAL_STRING(".dll");
+  nsAutoString binaryName = baseName + u".dll"_ns;
 #else
 #  error not defined
 #endif

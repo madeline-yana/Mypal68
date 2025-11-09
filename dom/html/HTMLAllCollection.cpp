@@ -12,8 +12,7 @@
 #include "nsContentList.h"
 #include "nsGenericHTMLElement.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 HTMLAllCollection::HTMLAllCollection(mozilla::dom::Document* aDocument)
     : mDocument(aDocument) {
@@ -103,11 +102,15 @@ static bool DocAllResultMatch(Element* aElement, int32_t aNamespaceID,
 }
 
 nsContentList* HTMLAllCollection::GetDocumentAllList(const nsAString& aID) {
-  return mNamedMap.LookupForAdd(aID).OrInsert([this, &aID]() {
-    RefPtr<nsAtom> id = NS_Atomize(aID);
-    return new nsContentList(mDocument, DocAllResultMatch, nullptr, nullptr,
-                             true, id);
-  });
+  return mNamedMap
+      .LookupOrInsertWith(aID,
+                          [this, &aID] {
+                            RefPtr<nsAtom> id = NS_Atomize(aID);
+                            return new nsContentList(mDocument,
+                                                     DocAllResultMatch, nullptr,
+                                                     nullptr, true, id);
+                          })
+      .get();
 }
 
 void HTMLAllCollection::NamedGetter(
@@ -188,5 +191,4 @@ JSObject* HTMLAllCollection::WrapObject(JSContext* aCx,
   return HTMLAllCollection_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

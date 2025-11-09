@@ -110,6 +110,7 @@ static const uint32_t ServiceWorkerGlobalScope = 1u << 4;
 static const uint32_t WorkerDebuggerGlobalScope = 1u << 5;
 static const uint32_t WorkletGlobalScope = 1u << 6;
 static const uint32_t AudioWorkletGlobalScope = 1u << 7;
+static const uint32_t PaintWorkletGlobalScope = 1u << 8;
 }  // namespace GlobalNames
 
 struct PrefableDisablers {
@@ -200,7 +201,7 @@ struct PropertyInfo {
   void SetId(jsid aId) {
     static_assert(sizeof(jsid) == sizeof(mIdBits),
                   "jsid should fit in mIdBits");
-    mIdBits = JSID_BITS(aId);
+    mIdBits = aId.asRawBits();
   }
   MOZ_ALWAYS_INLINE jsid Id() const { return jsid::fromRawBits(mIdBits); }
 };
@@ -321,6 +322,11 @@ typedef NativePropertiesN<7> NativeProperties;
 struct NativePropertiesHolder {
   const NativeProperties* regular;
   const NativeProperties* chromeOnly;
+  // Points to a static bool that's set to true once the regular and chromeOnly
+  // NativeProperties have been inited. This is a pointer to a bool instead of
+  // a bool value because NativePropertiesHolder is stored by value in
+  // a static const NativePropertyHooks.
+  bool* inited;
 };
 
 // Helper structure for Xrays for DOM binding objects. The same instance is used

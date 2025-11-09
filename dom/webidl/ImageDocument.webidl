@@ -3,7 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[ChromeOnly, OverrideBuiltins,
+[ChromeOnly, LegacyOverrideBuiltIns,
  Exposed=Window]
 interface ImageDocument : HTMLDocument {
   /* Whether the image is overflowing visible area. */
@@ -17,9 +17,4 @@ interface ImageDocument : HTMLDocument {
 
   /* Restore image original size. */
   void restoreImage();
-
-  /* Restore the image, trying to keep a certain pixel in the same position.
-   * The coordinate system is that of the shrunken image.
-   */
-  void restoreImageTo(long x, long y);
 };

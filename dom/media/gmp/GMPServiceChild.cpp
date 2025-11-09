@@ -11,13 +11,15 @@
 #include "mozIGeckoMediaPluginChromeService.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/SyncRunnable.h"
 #include "mozilla/SystemGroup.h"
-#include "nsComponentManagerUtils.h"
 #include "nsCOMPtr.h"
+#include "nsComponentManagerUtils.h"
 #include "nsIObserverService.h"
+#include "nsReadableUtils.h"
 #include "nsXPCOMPrivate.h"
 #include "runnable_utils.h"
 
@@ -76,7 +78,7 @@ GeckoMediaPluginServiceChild::GetContentParent(
         nsCString displayName;
         uint32_t pluginId = 0;
         ipc::Endpoint<PGMPContentParent> endpoint;
-        nsCString errorDescription = NS_LITERAL_CSTRING("");
+        nsCString errorDescription = ""_ns;
 
         bool ok = child->SendLaunchGMP(
             nodeIdString, api, tags, alreadyBridgedTo, &pluginId, &otherProcess,
@@ -152,7 +154,7 @@ GeckoMediaPluginServiceChild::GetContentParent(
         nsCString displayName;
         uint32_t pluginId = 0;
         ipc::Endpoint<PGMPContentParent> endpoint;
-        nsCString errorDescription = NS_LITERAL_CSTRING("");
+        nsCString errorDescription = ""_ns;
 
         bool ok = child->SendLaunchGMPForNodeId(
             nodeId, api, tags, alreadyBridgedTo, &pluginId, &otherProcess,
@@ -222,18 +224,14 @@ struct GMPCapabilityAndVersion {
     s.AppendLiteral(" version=");
     s.Append(mVersion);
     s.AppendLiteral(" tags=[");
-    nsCString tags;
-    for (const GMPCapability& cap : mCapabilities) {
-      if (!tags.IsEmpty()) {
-        tags.AppendLiteral(" ");
-      }
-      tags.Append(cap.mAPIName);
-      for (const nsCString& tag : cap.mAPITags) {
-        tags.AppendLiteral(":");
-        tags.Append(tag);
-      }
-    }
-    s.Append(tags);
+    StringJoinAppend(s, " "_ns, mCapabilities,
+                     [](auto& tags, const GMPCapability& cap) {
+                       tags.Append(cap.mAPIName);
+                       for (const nsCString& tag : cap.mAPITags) {
+                         tags.AppendLiteral(":");
+                         tags.Append(tag);
+                       }
+                     });
     s.AppendLiteral("]");
     return s;
   }
@@ -246,23 +244,19 @@ struct GMPCapabilityAndVersion {
 StaticMutex sGMPCapabilitiesMutex;
 StaticAutoPtr<nsTArray<GMPCapabilityAndVersion>> sGMPCapabilities;
 
-static nsCString GMPCapabilitiesToString() {
-  nsCString s;
-  for (const GMPCapabilityAndVersion& gmp : *sGMPCapabilities) {
-    if (!s.IsEmpty()) {
-      s.AppendLiteral(", ");
-    }
-    s.Append(gmp.ToString());
-  }
-  return s;
+static auto GMPCapabilitiesToString() {
+  return StringJoin(", "_ns, *sGMPCapabilities,
+                    [](nsACString& dest, const GMPCapabilityAndVersion& gmp) {
+                      dest.Append(gmp.ToString());
+                    });
 }
 
 /* static */
 void GeckoMediaPluginServiceChild::UpdateGMPCapabilities(
     nsTArray<GMPCapabilityData>&& aCapabilities) {
   {
-    // The mutex should unlock before sending the "gmp-changed" observer service
-    // notification.
+    // The mutex should unlock before sending the "gmp-changed" observer
+    // service notification.
     StaticMutexAutoLock lock(sGMPCapabilitiesMutex);
     if (!sGMPCapabilities) {
       sGMPCapabilities = new nsTArray<GMPCapabilityAndVersion>();
@@ -418,23 +412,16 @@ GMPServiceChild::~GMPServiceChild() = default;
 
 already_AddRefed<GMPContentParent> GMPServiceChild::GetBridgedGMPContentParent(
     ProcessId aOtherPid, ipc::Endpoint<PGMPContentParent>&& endpoint) {
-  RefPtr<GMPContentParent> parent;
-  mContentParents.Get(aOtherPid, getter_AddRefs(parent));
+  return do_AddRef(mContentParents.LookupOrInsertWith(aOtherPid, [&] {
+    MOZ_ASSERT(aOtherPid == endpoint.OtherPid());
 
-  if (parent) {
-    return parent.forget();
-  }
+    auto parent = MakeRefPtr<GMPContentParent>();
 
-  MOZ_ASSERT(aOtherPid == endpoint.OtherPid());
+    DebugOnly<bool> ok = endpoint.Bind(parent);
+    MOZ_ASSERT(ok);
 
-  parent = new GMPContentParent();
-
-  DebugOnly<bool> ok = endpoint.Bind(parent);
-  MOZ_ASSERT(ok);
-
-  mContentParents.Put(aOtherPid, RefPtr{parent});
-
-  return parent.forget();
+    return parent;
+  }));
 }
 
 void GMPServiceChild::RemoveGMPContentParent(

@@ -699,7 +699,7 @@ interface mixin WebGL2RenderingContextBase
 WebGL2RenderingContext includes WebGLRenderingContextBase;
 WebGL2RenderingContext includes WebGL2RenderingContextBase;
 
-[NoInterfaceObject,
+[LegacyNoInterfaceObject,
  Exposed=Window]
 interface EXT_color_buffer_float {
 };

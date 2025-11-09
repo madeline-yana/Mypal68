@@ -280,7 +280,7 @@ nsresult ContentEventHandler::InitRootContent(Selection* aNormalSelection) {
   // selection range still keeps storing the nodes.  If the active element of
   // the deactive window is <input> or <textarea>, we can compute the
   // selection root from them.
-  nsINode* startNode = range->GetStartContainer();
+  nsCOMPtr<nsINode> startNode = range->GetStartContainer();
   nsINode* endNode = range->GetEndContainer();
   if (NS_WARN_IF(!startNode) || NS_WARN_IF(!endNode)) {
     return NS_ERROR_FAILURE;
@@ -294,7 +294,8 @@ nsresult ContentEventHandler::InitRootContent(Selection* aNormalSelection) {
   NS_ASSERTION(startNode->GetComposedDoc() == endNode->GetComposedDoc(),
                "firstNormalSelectionRange crosses the document boundary");
 
-  mRootContent = startNode->GetSelectionRootContent(mDocument->GetPresShell());
+  RefPtr<PresShell> presShell = mDocument->GetPresShell();
+  mRootContent = startNode->GetSelectionRootContent(presShell);
   if (NS_WARN_IF(!mRootContent)) {
     return NS_ERROR_FAILURE;
   }
@@ -518,9 +519,8 @@ static void AppendString(nsString& aString, Text* aText) {
 
 static void AppendSubString(nsString& aString, Text* aText, uint32_t aXPOffset,
                             uint32_t aXPLength) {
-  uint32_t oldXPLength = aString.Length();
-  aText->TextFragment().AppendTo(aString, static_cast<int32_t>(aXPOffset),
-                                 static_cast<int32_t>(aXPLength));
+  const uint32_t oldXPLength = aString.Length();
+  aText->TextFragment().AppendTo(aString, aXPOffset, aXPLength);
   if (aText->HasFlag(NS_MAYBE_MASKED)) {
     EditorUtils::MaskString(aString, aText, oldXPLength, aXPOffset);
   }
@@ -964,9 +964,7 @@ nsresult ContentEventHandler::ExpandToClusterBoundary(nsIContent* aContent,
   nsIFrame* frame = nsFrameSelection::GetFrameForNodeOffset(
       aContent, int32_t(*aXPOffset), hint, &offsetInFrame);
   if (frame) {
-    int32_t startOffset, endOffset;
-    nsresult rv = frame->GetOffsets(startOffset, endOffset);
-    NS_ENSURE_SUCCESS(rv, rv);
+    auto [startOffset, endOffset] = frame->GetOffsets();
     if (*aXPOffset == static_cast<uint32_t>(startOffset) ||
         *aXPOffset == static_cast<uint32_t>(endOffset)) {
       return NS_OK;
@@ -1608,10 +1606,7 @@ ContentEventHandler::GetLastFrameInRangeForTextRect(const RawRange& aRawRange) {
         *nodePosition.Offset(NodePosition::OffsetFilter::kValidOffsets));
   }
 
-  int32_t start, end;
-  if (NS_WARN_IF(NS_FAILED(lastFrame->GetOffsets(start, end)))) {
-    return FrameAndNodeOffset();
-  }
+  int32_t start = lastFrame->GetOffsets().first;
 
   // If the start offset in the node is same as the computed offset in the
   // node and it's not 0, the frame shouldn't be added to the text rect.  So,

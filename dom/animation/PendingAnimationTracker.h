@@ -8,7 +8,7 @@
 #include "mozilla/dom/Animation.h"
 #include "mozilla/TypedEnumBits.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 
 class nsIFrame;
 
@@ -77,7 +77,7 @@ class PendingAnimationTracker final {
 
   void EnsurePaintIsScheduled();
 
-  typedef nsTHashtable<nsRefPtrHashKey<dom::Animation>> AnimationSet;
+  typedef nsTHashSet<nsRefPtrHashKey<dom::Animation>> AnimationSet;
 
   void AddPending(dom::Animation& aAnimation, AnimationSet& aSet);
   void RemovePending(dom::Animation& aAnimation, AnimationSet& aSet);

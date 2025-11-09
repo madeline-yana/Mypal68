@@ -7,14 +7,14 @@
 
 #include "nsISupportsImpl.h"
 #include "nsIPrincipal.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 #include "nsString.h"
 
 #include "mozilla/dom/TabGroup.h"
-#include "mozilla/RefPtr.h"
 #include "mozilla/dom/HTMLSlotElement.h"
 #include "mozilla/PerformanceCounter.h"
 #include "mozilla/PerformanceTypes.h"
+#include "mozilla/RefPtr.h"
 
 namespace mozilla {
 class AbstractThread;
@@ -48,8 +48,8 @@ class DocGroup final {
   // Returns NS_ERROR_FAILURE and sets |aString| to an empty string if the TLD
   // service isn't available. Returns NS_OK on success, but may still set
   // |aString| may still be set to an empty string.
-  static MOZ_MUST_USE nsresult GetKey(nsIPrincipal* aPrincipal,
-                                      nsACString& aString);
+  [[nodiscard]] static nsresult GetKey(nsIPrincipal* aPrincipal,
+                                       nsACString& aString);
 
   bool MatchesKey(const nsACString& aKey) { return aKey == mKey; }
 
@@ -125,7 +125,7 @@ class DocGroup final {
   RefPtr<mozilla::PerformanceCounter> mPerformanceCounter;
 
   RefPtr<mozilla::ThrottledEventQueue> mIframePostMessageQueue;
-  nsTHashtable<nsUint64HashKey> mIframesUsedPostMessageQueue;
+  nsTHashSet<uint64_t> mIframesUsedPostMessageQueue;
 
   // non-null if the JS execution for this docgroup is regulated with regards
   // to worker threads. This should only be used when we are forcing serialized

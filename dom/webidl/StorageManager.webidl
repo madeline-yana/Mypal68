@@ -25,3 +25,9 @@ dictionary StorageEstimate {
   unsigned long long usage;
   unsigned long long quota;
 };
+
+[SecureContext]
+partial interface StorageManager {
+  [Pref="dom.fs.enabled"]
+  Promise<FileSystemDirectoryHandle> getDirectory();
+};

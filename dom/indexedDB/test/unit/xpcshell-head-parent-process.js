@@ -252,11 +252,12 @@ function setTimeout(fun, timeout) {
   return timer;
 }
 
-function initStorageAndChromeOrigin(persistence) {
-  let principal = Cc["@mozilla.org/systemprincipal;1"].createInstance(
-    Ci.nsIPrincipal
-  );
-  return Services.qms.initStorageAndOrigin(principal, persistence, "idb");
+function initStorage() {
+  return Services.qms.init();
+}
+
+function initPersistentOrigin(principal) {
+  return Services.qms.initializePersistentOrigin(principal);
 }
 
 function resetOrClearAllDatabases(callback, clear) {
@@ -537,21 +538,36 @@ function resetPreprocessing() {
   SpecialPowers.clearUserPref("dom.indexedDB.preprocessing");
 }
 
+function getSystemPrincipal() {
+  return Cc["@mozilla.org/systemprincipal;1"].createInstance(Ci.nsIPrincipal);
+}
+
 function getPrincipal(url) {
   let uri = Services.io.newURI(url);
   return Services.scriptSecurityManager.createCodebasePrincipal(uri, {});
 }
 
-function requestFinished(request) {
-  return new Promise(function(resolve, reject) {
-    request.callback = function(req) {
-      if (req.resultCode == Cr.NS_OK) {
-        resolve(req.result);
-      } else {
-        reject(req.resultCode);
-      }
+class RequestError extends Error {
+  constructor(resultCode, resultName) {
+    super(`Request failed (code: ${resultCode}, name: ${resultName})`);
+    this.name = "RequestError";
+    this.resultCode = resultCode;
+    this.resultName = resultName;
+  }
+}
+
+async function requestFinished(request) {
+  await new Promise(function(resolve) {
+    request.callback = function() {
+      resolve();
     };
   });
+
+  if (request.resultCode !== Cr.NS_OK) {
+    throw new RequestError(request.resultCode, request.resultName);
+  }
+
+  return request.result;
 }
 
 // TODO: Rename to openDBRequestSucceeded ?

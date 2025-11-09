@@ -25,9 +25,14 @@ include PPrintingTypes;
 include PTabContext;
 include PBackgroundSharedTypes;
 
+include "mozilla/dom/CSPMessageUtils.h";
+include "mozilla/dom/DocShellMessageUtils.h";
+include "mozilla/dom/ReferrerInfoUtils.h";
+include "mozilla/dom/TabMessageUtils.h";
 include "mozilla/GfxMessageUtils.h";
 include "mozilla/layers/LayersMessageUtils.h";
 include "mozilla/ipc/TransportSecurityInfoUtils.h";
+include "mozilla/ipc/URIUtils.h";
 
 using moveonly mozilla::gfx::PaintFragment from "mozilla/gfx/CrossProcessPaint.h";
 using mozilla::gfx::Matrix4x4 from "mozilla/gfx/Matrix.h";
@@ -64,7 +69,7 @@ using struct nsRect from "nsRect.h";
 using class mozilla::WidgetSelectionEvent from "ipc/nsGUIEventIPC.h";
 using class mozilla::WidgetTouchEvent from "ipc/nsGUIEventIPC.h";
 using class mozilla::WidgetPluginEvent from "ipc/nsGUIEventIPC.h";
-using struct mozilla::dom::RemoteDOMEvent from "mozilla/dom/TabMessageUtils.h";
+using struct mozilla::dom::RemoteDOMEvent from "mozilla/dom/TabMessageTypes.h";
 using struct mozilla::layers::TextureFactoryIdentifier from "mozilla/layers/CompositorTypes.h";
 using mozilla::layers::CompositorOptions from "mozilla/layers/CompositorOptions.h";
 using mozilla::CSSToScreenScale from "Units.h";
@@ -77,9 +82,9 @@ using class mozilla::dom::ipc::StructuredCloneData from "mozilla/dom/ipc/Structu
 using mozilla::EventMessage from "mozilla/EventForwards.h";
 using nsEventStatus from "mozilla/EventForwards.h";
 using mozilla::Modifiers from "mozilla/EventForwards.h";
-using mozilla::widget::CandidateWindowPosition from "ipc/nsGUIEventIPC.h";
+using struct mozilla::widget::CandidateWindowPosition from "ipc/nsGUIEventIPC.h";
 using class mozilla::NativeEventData from "ipc/nsGUIEventIPC.h";
-using mozilla::FontRange from "ipc/nsGUIEventIPC.h";
+using struct mozilla::FontRange from "ipc/nsGUIEventIPC.h";
 using mozilla::a11y::IAccessibleHolder from "mozilla/a11y/IPCTypes.h";
 using mozilla::OriginAttributes from "mozilla/ipc/BackgroundUtils.h";
 using refcounted class mozilla::dom::BrowsingContext from "mozilla/dom/BrowsingContext.h";
@@ -204,7 +209,7 @@ parent:
     /**
      * Construct a new Remote iframe actor.
      */
-    async PBrowserBridge(nsString aPresentationURL, nsString aRemoteType,
+    async PBrowserBridge(nsString aPresentationURL, nsCString aRemoteType,
                          BrowsingContext aBrowsingContext, uint32_t aChromeFlags);
 
     /**

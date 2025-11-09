@@ -18,10 +18,13 @@
 #include "XULTreeElement.h"
 #include "js/CompilationAndEvaluation.h"
 #include "js/CompileOptions.h"
+#include "js/experimental/JSStencil.h"
 #include "js/OffThreadScriptCompilation.h"
 #include "js/SourceText.h"
+#include "js/Transcoding.h"
 #include "js/Utility.h"
 #include "jsapi.h"
+#include "mozilla/Assertions.h"
 #include "mozilla/ArrayIterator.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/DeclarationBlock.h"
@@ -36,6 +39,8 @@
 #include "mozilla/MouseEvents.h"
 #include "mozilla/OwningNonNull.h"
 #include "mozilla/PresShell.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/ScopeExit.h"
 #include "mozilla/StaticAnalysisFunctions.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/URLExtraData.h"
@@ -455,8 +460,8 @@ int32_t nsXULElement::ScreenY() {
 }
 
 bool nsXULElement::HasMenu() {
-  nsMenuFrame* menu = do_QueryFrame(GetPrimaryFrame());
-  return menu != nullptr;
+  nsMenuFrame* menu = do_QueryFrame(GetPrimaryFrame(FlushType::Frames));
+  return !!menu;
 }
 
 void nsXULElement::OpenMenu(bool aOpenFlag) {
@@ -510,8 +515,7 @@ bool nsXULElement::PerformAccesskey(bool aKeyCausesActivation,
   if (elm) {
     // Define behavior for each type of XUL element.
     if (!content->IsXULElement(nsGkAtoms::toolbarbutton)) {
-      nsFocusManager* fm = nsFocusManager::GetFocusManager();
-      if (fm) {
+      if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
         nsCOMPtr<Element> elementToFocus;
         // for radio buttons, focus the radiogroup instead
         if (content->IsXULElement(nsGkAtoms::radio)) {
@@ -881,7 +885,7 @@ void nsXULElement::DestroyContent() {
   nsStyledElement::DestroyContent();
 }
 
-#ifdef DEBUG
+#ifdef MOZ_DOM_LIST
 void nsXULElement::List(FILE* out, int32_t aIndent) const {
   nsCString prefix("XUL");
   if (HasSlots()) {
@@ -1203,8 +1207,6 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPrototypeNode)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeNode)
   if (tmp->mType == nsXULPrototypeNode::eType_Element) {
     static_cast<nsXULPrototypeElement*>(tmp)->Unlink();
-  } else if (tmp->mType == nsXULPrototypeNode::eType_Script) {
-    static_cast<nsXULPrototypeScript*>(tmp)->UnlinkJSObjects();
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeNode)
@@ -1227,10 +1229,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeNode)
   }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXULPrototypeNode)
-  if (tmp->mType == nsXULPrototypeNode::eType_Script) {
-    nsXULPrototypeScript* script = static_cast<nsXULPrototypeScript*>(tmp);
-    script->Trace(aCallbacks, aClosure);
-  }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsXULPrototypeNode, AddRef)
@@ -1339,7 +1337,7 @@ nsresult nsXULPrototypeElement::Serialize(
             rv = tmp;
           }
 
-          if (script->HasScriptObject()) {
+          if (script->HasStencil()) {
             // This may return NS_OK without muxing script->mSrcURI's
             // data into the cache file, in the case where that
             // muxed document is already there (written by a prior
@@ -1561,17 +1559,6 @@ void nsXULPrototypeElement::Unlink() {
   mChildren.Clear();
 }
 
-void nsXULPrototypeElement::TraceAllScripts(JSTracer* aTrc) {
-  for (uint32_t i = 0; i < mChildren.Length(); ++i) {
-    nsXULPrototypeNode* child = mChildren[i];
-    if (child->mType == nsXULPrototypeNode::eType_Element) {
-      static_cast<nsXULPrototypeElement*>(child)->TraceAllScripts(aTrc);
-    } else if (child->mType == nsXULPrototypeNode::eType_Script) {
-      static_cast<nsXULPrototypeScript*>(child)->TraceScriptObject(aTrc);
-    }
-  }
-}
-
 //----------------------------------------------------------------------
 //
 // nsXULPrototypeScript
@@ -1583,9 +1570,94 @@ nsXULPrototypeScript::nsXULPrototypeScript(uint32_t aLineNo)
       mSrcLoading(false),
       mOutOfLine(true),
       mSrcLoadWaiters(nullptr),
-      mScriptObject(nullptr) {}
+      mStencil(nullptr) {}
 
-nsXULPrototypeScript::~nsXULPrototypeScript() { UnlinkJSObjects(); }
+static nsresult WriteStencil(nsIObjectOutputStream* aStream, JSContext* aCx,
+                             JS::Stencil* aStencil) {
+  JS::TranscodeBuffer buffer;
+  JS::TranscodeResult code;
+  code = JS::EncodeStencil(aCx, aStencil, buffer);
+
+  if (code != JS::TranscodeResult::Ok) {
+    if (code == JS::TranscodeResult::Throw) {
+      JS_ClearPendingException(aCx);
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    MOZ_ASSERT(IsTranscodeFailureResult(code));
+    return NS_ERROR_FAILURE;
+  }
+
+  size_t size = buffer.length();
+  if (size > UINT32_MAX) {
+    return NS_ERROR_FAILURE;
+  }
+  nsresult rv = aStream->Write32(size);
+  if (NS_SUCCEEDED(rv)) {
+    // Ideally we could just pass "buffer" here.  See bug 1566574.
+    rv = aStream->WriteBytes(Span(buffer.begin(), size));
+  }
+
+  return rv;
+}
+
+static nsresult ReadStencil(nsIObjectInputStream* aStream, JSContext* aCx,
+                            const JS::DecodeOptions& aOptions,
+                            JS::Stencil** aStencilOut) {
+  // We don't serialize mutedError-ness of scripts, which is fine as long as
+  // we only serialize system and XUL-y things. We can detect this by checking
+  // where the caller wants us to deserialize.
+  //
+  // CompilationScope() could theoretically GC, so get that out of the way
+  // before comparing to the cx global.
+  JSObject* loaderGlobal = xpc::CompilationScope();
+  MOZ_RELEASE_ASSERT(nsContentUtils::IsSystemCaller(aCx) ||
+                     JS::CurrentGlobalOrNull(aCx) == loaderGlobal);
+
+  uint32_t size;
+  nsresult rv = aStream->Read32(&size);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  char* data;
+  rv = aStream->ReadBytes(size, &data);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  // The decoded stencil shouldn't borrow from the XDR buffer.
+  MOZ_ASSERT(!aOptions.borrowBuffer);
+  auto cleanupData = MakeScopeExit([&]() { free(data); });
+
+  JS::TranscodeRange range(reinterpret_cast<uint8_t*>(data), size);
+
+  {
+    JS::TranscodeResult code;
+    RefPtr<JS::Stencil> stencil;
+    code = JS::DecodeStencil(aCx, aOptions, range, getter_AddRefs(stencil));
+    if (code != JS::TranscodeResult::Ok) {
+      if (code == JS::TranscodeResult::Throw) {
+        JS_ClearPendingException(aCx);
+        return NS_ERROR_OUT_OF_MEMORY;
+      }
+
+      MOZ_ASSERT(IsTranscodeFailureResult(code));
+      return NS_ERROR_FAILURE;
+    }
+
+    stencil.forget(aStencilOut);
+  }
+
+  return rv;
+}
+
+void nsXULPrototypeScript::FillCompileOptions(JS::CompileOptions& options) {
+  // If the script was inline, tell the JS parser to save source for
+  // Function.prototype.toSource(). If it's out of line, we retrieve the
+  // source from the files on demand.
+  options.setSourceIsLazy(mOutOfLine);
+}
 
 nsresult nsXULPrototypeScript::Serialize(
     nsIObjectOutputStream* aStream, nsXULPrototypeDocument* aProtoDoc,
@@ -1597,9 +1669,9 @@ nsresult nsXULPrototypeScript::Serialize(
     return NS_ERROR_UNEXPECTED;
   }
 
-  NS_ASSERTION(!mSrcLoading || mSrcLoadWaiters != nullptr || !mScriptObject,
+  NS_ASSERTION(!mSrcLoading || mSrcLoadWaiters != nullptr || !mStencil,
                "script source still loading when serializing?!");
-  if (!mScriptObject) return NS_ERROR_FAILURE;
+  if (!mStencil) return NS_ERROR_FAILURE;
 
   // Write basic prototype data
   nsresult rv;
@@ -1609,9 +1681,9 @@ nsresult nsXULPrototypeScript::Serialize(
   if (NS_FAILED(rv)) return rv;
 
   JSContext* cx = jsapi.cx();
-  JS::Rooted<JSScript*> script(cx, mScriptObject);
   MOZ_ASSERT(xpc::CompilationScope() == JS::CurrentGlobalOrNull(cx));
-  return nsContentUtils::XPConnect()->WriteScript(aStream, cx, script);
+
+  return WriteStencil(aStream, cx, mStencil);
 }
 
 nsresult nsXULPrototypeScript::SerializeOutOfLine(
@@ -1626,7 +1698,7 @@ nsresult nsXULPrototypeScript::SerializeOutOfLine(
   NS_ASSERTION(cache->IsEnabled(),
                "writing to the cache file, but the XUL cache is off?");
   bool exists;
-  cache->HasData(mSrcURI, &exists);
+  cache->HasScript(mSrcURI, &exists);
 
   /* return will be NS_OK from GetAsciiSpec.
    * that makes no sense.
@@ -1636,14 +1708,14 @@ nsresult nsXULPrototypeScript::SerializeOutOfLine(
   if (exists) return NS_OK;
 
   nsCOMPtr<nsIObjectOutputStream> oos;
-  nsresult rv = cache->GetOutputStream(mSrcURI, getter_AddRefs(oos));
+  nsresult rv = cache->GetScriptOutputStream(mSrcURI, getter_AddRefs(oos));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsresult tmp = Serialize(oos, aProtoDoc, nullptr);
   if (NS_FAILED(tmp)) {
     rv = tmp;
   }
-  tmp = cache->FinishOutputStream(mSrcURI);
+  tmp = cache->FinishScriptOutputStream(mSrcURI);
   if (NS_FAILED(tmp)) {
     rv = tmp;
   }
@@ -1652,19 +1724,12 @@ nsresult nsXULPrototypeScript::SerializeOutOfLine(
   return rv;
 }
 
-void nsXULPrototypeScript::FillCompileOptions(JS::CompileOptions& options) {
-  // If the script was inline, tell the JS parser to save source for
-  // Function.prototype.toSource(). If it's out of line, we retrieve the
-  // source from the files on demand.
-  options.setSourceIsLazy(mOutOfLine);
-}
-
 nsresult nsXULPrototypeScript::Deserialize(
     nsIObjectInputStream* aStream, nsXULPrototypeDocument* aProtoDoc,
     nsIURI* aDocumentURI,
     const nsTArray<RefPtr<mozilla::dom::NodeInfo>>* aNodeInfos) {
   nsresult rv;
-  NS_ASSERTION(!mSrcLoading || mSrcLoadWaiters != nullptr || !mScriptObject,
+  NS_ASSERTION(!mSrcLoading || mSrcLoadWaiters != nullptr || !mStencil,
                "prototype script not well-initialized when deserializing?!");
 
   // Read basic prototype data
@@ -1680,14 +1745,11 @@ nsresult nsXULPrototypeScript::Deserialize(
   }
   JSContext* cx = jsapi.cx();
 
-  JS::CompileOptions options(cx);
-  FillCompileOptions(options);
-
-  JS::Rooted<JSScript*> newScriptObject(cx);
-  rv = nsContentUtils::XPConnect()->ReadScript(aStream, cx, options,
-                                               newScriptObject.address());
+  JS::DecodeOptions options;
+  RefPtr<JS::Stencil> newStencil;
+  rv = ReadStencil(aStream, cx, options, getter_AddRefs(newStencil));
   NS_ENSURE_SUCCESS(rv, rv);
-  Set(newScriptObject);
+  Set(newStencil);
   return NS_OK;
 }
 
@@ -1714,20 +1776,22 @@ nsresult nsXULPrototypeScript::DeserializeOutOfLine(
       useXULCache = cache->IsEnabled();
 
       if (useXULCache) {
-        JSScript* newScriptObject = cache->GetScript(mSrcURI);
-        if (newScriptObject) Set(newScriptObject);
+        RefPtr<JS::Stencil> newStencil = cache->GetStencil(mSrcURI);
+        if (newStencil) {
+          Set(newStencil);
+        }
       }
     }
 
-    if (!mScriptObject) {
+    if (!mStencil) {
       if (mSrcURI) {
-        rv = cache->GetInputStream(mSrcURI, getter_AddRefs(objectInput));
+        rv = cache->GetScriptInputStream(mSrcURI, getter_AddRefs(objectInput));
       }
       // If !mSrcURI, we have an inline script. We shouldn't have
       // to do anything else in that case, I think.
 
       // We do reflect errors into rv, but our caller may want to
-      // ignore our return value, because mScriptObject will be null
+      // ignore our return value, because mStencil will be null
       // after any error, and that suffices to cause the script to
       // be reloaded (from the src= URI, if any) and recompiled.
       // We're better off slow-loading than bailing out due to a
@@ -1737,10 +1801,9 @@ nsresult nsXULPrototypeScript::DeserializeOutOfLine(
 
       if (NS_SUCCEEDED(rv)) {
         if (useXULCache && mSrcURI && mSrcURI->SchemeIs("chrome")) {
-          JS::Rooted<JSScript*> script(RootingCx(), GetScriptObject());
-          cache->PutScript(mSrcURI, script);
+          cache->PutStencil(mSrcURI, GetStencil());
         }
-        cache->FinishInputStream(mSrcURI);
+        cache->FinishScriptInputStream(mSrcURI);
       } else {
         // If mSrcURI is not in the cache,
         // rv will be NS_ERROR_NOT_AVAILABLE and we'll try to
@@ -1799,7 +1862,7 @@ NS_IMETHODIMP
 NotifyOffThreadScriptCompletedRunnable::Run() {
   MOZ_ASSERT(NS_IsMainThread());
 
-  JS::Rooted<JSScript*> script(RootingCx());
+  RefPtr<JS::Stencil> stencil;
   {
     AutoJSAPI jsapi;
     if (!jsapi.Init(xpc::CompilationScope())) {
@@ -1808,7 +1871,7 @@ NotifyOffThreadScriptCompletedRunnable::Run() {
       return NS_ERROR_UNEXPECTED;
     }
     JSContext* cx = jsapi.cx();
-    script = JS::FinishOffThreadScript(cx, mToken);
+    stencil = JS::FinishCompileToStencilOffThread(cx, mToken);
   }
 
   if (!sReceivers) {
@@ -1822,8 +1885,8 @@ NotifyOffThreadScriptCompletedRunnable::Run() {
       std::move((*sReceivers)[index]);
   sReceivers->RemoveElementAt(index);
 
-  return receiver->OnScriptCompileComplete(script,
-                                           script ? NS_OK : NS_ERROR_FAILURE);
+  return receiver->OnScriptCompileComplete(stencil,
+                                           stencil ? NS_OK : NS_ERROR_FAILURE);
 }
 
 static void OffThreadScriptReceiverCallback(JS::OffThreadToken* aToken,
@@ -1874,38 +1937,41 @@ nsresult nsXULPrototypeScript::Compile(
   JS::Rooted<JSObject*> scope(cx, JS::CurrentGlobalOrNull(cx));
 
   if (aOffThreadReceiver && JS::CanCompileOffThread(cx, options, aTextLength)) {
-    if (!JS::CompileOffThread(cx, options, srcBuf,
-                              OffThreadScriptReceiverCallback,
-                              static_cast<void*>(aOffThreadReceiver))) {
+    if (!JS::CompileToStencilOffThread(
+            cx, options, srcBuf, OffThreadScriptReceiverCallback,
+            static_cast<void*>(aOffThreadReceiver))) {
+      JS_ClearPendingException(cx);
       return NS_ERROR_OUT_OF_MEMORY;
     }
     NotifyOffThreadScriptCompletedRunnable::NoteReceiver(aOffThreadReceiver);
   } else {
-    JS::Rooted<JSScript*> script(cx, JS::Compile(cx, options, srcBuf));
-    if (!script) {
+    RefPtr<JS::Stencil> stencil =
+        JS::CompileGlobalScriptToStencil(cx, options, srcBuf);
+    if (!stencil) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
-    Set(script);
+    Set(stencil);
   }
   return NS_OK;
 }
 
-void nsXULPrototypeScript::UnlinkJSObjects() {
-  if (mScriptObject) {
-    mozilla::DropJSObjects(this);
+nsresult nsXULPrototypeScript::InstantiateScript(
+    JSContext* aCx, JS::MutableHandleScript aScript) {
+  MOZ_ASSERT(mStencil);
+
+  JS::CompileOptions options(aCx);
+  FillCompileOptions(options);
+  JS::InstantiateOptions instantiateOptions(options);
+  aScript.set(JS::InstantiateGlobalStencil(aCx, instantiateOptions, mStencil));
+  if (!aScript) {
+    JS_ClearPendingException(aCx);
+    return NS_ERROR_OUT_OF_MEMORY;
   }
+
+  return NS_OK;
 }
 
-void nsXULPrototypeScript::Set(JSScript* aObject) {
-  MOZ_ASSERT(!mScriptObject, "Leaking script object.");
-  if (!aObject) {
-    mScriptObject = nullptr;
-    return;
-  }
-
-  mScriptObject = aObject;
-  mozilla::HoldJSObjects(this);
-}
+void nsXULPrototypeScript::Set(JS::Stencil* aStencil) { mStencil = aStencil; }
 
 //----------------------------------------------------------------------
 //

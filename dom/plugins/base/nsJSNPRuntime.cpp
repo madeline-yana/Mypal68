@@ -213,7 +213,7 @@ class NPObjWrapperProxyHandler : public js::BaseProxyHandler {
   bool finalizeInBackground(const JS::Value& priv) const override {
     return false;
   }
-  void finalize(JSFreeOp* fop, JSObject* proxy) const override;
+  void finalize(JS::GCContext* fop, JSObject* proxy) const override;
 
   size_t objectMoved(JSObject* obj, JSObject* old) const override;
 };
@@ -244,7 +244,7 @@ typedef struct NPObjectMemberPrivate {
   NPP npp = nullptr;
 } NPObjectMemberPrivate;
 
-static void NPObjectMember_Finalize(JSFreeOp* fop, JSObject* obj);
+static void NPObjectMember_Finalize(JS::GCContext* fop, JSObject* obj);
 
 static bool NPObjectMember_Call(JSContext* cx, unsigned argc, JS::Value* vp);
 
@@ -261,7 +261,6 @@ static const JSClassOps sNPObjectMemberClassOps = {nullptr,
                                                    nullptr,
                                                    NPObjectMember_Finalize,
                                                    NPObjectMember_Call,
-                                                   nullptr,
                                                    nullptr,
                                                    NPObjectMember_Trace};
 
@@ -391,9 +390,7 @@ static void OnWrapperDestroyed() {
   }
 }
 
-namespace mozilla {
-namespace plugins {
-namespace parent {
+namespace mozilla::plugins::parent {
 
 static nsIGlobalObject* GetGlobalObject(NPP npp) {
   NS_ENSURE_TRUE(npp, nullptr);
@@ -411,9 +408,7 @@ static nsIGlobalObject* GetGlobalObject(NPP npp) {
   return doc->GetScopeObject();
 }
 
-}  // namespace parent
-}  // namespace plugins
-}  // namespace mozilla
+}  // namespace mozilla::plugins::parent
 
 static NPP LookupNPP(NPObject* npobj);
 
@@ -1638,7 +1633,7 @@ static bool NPObjWrapper_Resolve(JSContext* cx, JS::Handle<JSObject*> obj,
   return true;
 }
 
-void NPObjWrapperProxyHandler::finalize(JSFreeOp* fop, JSObject* proxy) const {
+void NPObjWrapperProxyHandler::finalize(JS::GCContext* fop, JSObject* proxy) const {
   JS::AutoAssertGCCallback inCallback;
 
   NPObject* npobj = (NPObject*)js::GetProxyPrivate(proxy).toPrivate();
@@ -2044,8 +2039,8 @@ static bool CreateNPObjectMember(NPP npp, JSContext* cx,
   // Finally, define the Symbol.toPrimitive property on |memobj|.
 
   JS::Rooted<jsid> toPrimitiveId(cx);
-  toPrimitiveId =
-      SYMBOL_TO_JSID(JS::GetWellKnownSymbol(cx, JS::SymbolCode::toPrimitive));
+  toPrimitiveId = JS::PropertyKey::Symbol(
+      JS::GetWellKnownSymbol(cx, JS::SymbolCode::toPrimitive));
 
   JSFunction* fun = JS_NewFunction(cx, NPObjectMember_toPrimitive, 1, 0,
                                    "Symbol.toPrimitive");
@@ -2058,7 +2053,7 @@ static bool CreateNPObjectMember(NPP npp, JSContext* cx,
   return true;
 }
 
-static void NPObjectMember_Finalize(JSFreeOp* fop, JSObject* obj) {
+static void NPObjectMember_Finalize(JS::GCContext* fop, JSObject* obj) {
   NPObjectMemberPrivate* memberPrivate;
 
   memberPrivate =

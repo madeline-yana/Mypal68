@@ -9,7 +9,7 @@
 #include <string.h>
 #include <utility>
 #include "ErrorList.h"
-#include "js/RootingAPI.h"
+#include "js/experimental/JSStencil.h"
 #include "js/TypeDecls.h"
 #include "js/Value.h"
 #include "mozilla/AlreadyAddRefed.h"
@@ -23,7 +23,7 @@
 #include "nsCOMPtr.h"
 #include "nsClassHashtable.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 #include "nsHashKeys.h"
 #include "nsIMessageManager.h"
 #include "nsIObserver.h"
@@ -140,7 +140,7 @@ class nsFrameMessageManager : public nsIMessageSender {
   }
   already_AddRefed<mozilla::dom::ProcessMessageManager>
   GetProcessMessageManager(mozilla::ErrorResult& aError);
-  void GetRemoteType(nsAString& aRemoteType,
+  void GetRemoteType(nsACString& aRemoteType,
                      mozilla::ErrorResult& aError) const;
 
   // SyncMessageSender
@@ -202,7 +202,7 @@ class nsFrameMessageManager : public nsIMessageSender {
                                   const JS::Value& aTransfer,
                                   StructuredCloneData& aData);
 
-  void SetInitialProcessData(JS::HandleValue aInitialData);
+  void SetInitialProcessData(JS::Handle<JS::Value> aInitialData);
 
   void LoadPendingScripts();
 
@@ -306,14 +306,14 @@ class nsSameProcessAsyncMessageBase {
 class nsScriptCacheCleaner;
 
 struct nsMessageManagerScriptHolder {
-  nsMessageManagerScriptHolder(JSContext* aCx, JSScript* aScript)
-      : mScript(aCx, aScript) {
+  explicit nsMessageManagerScriptHolder(JS::Stencil* aStencil)
+      : mStencil(aStencil) {
     MOZ_COUNT_CTOR(nsMessageManagerScriptHolder);
   }
 
   MOZ_COUNTED_DTOR(nsMessageManagerScriptHolder)
 
-  JS::PersistentRooted<JSScript*> mScript;
+  RefPtr<JS::Stencil> mStencil;
 };
 
 class nsMessageManagerScriptExecutor {
@@ -333,10 +333,9 @@ class nsMessageManagerScriptExecutor {
   void DidCreateScriptLoader();
   void LoadScriptInternal(JS::Handle<JSObject*> aMessageManager,
                           const nsAString& aURL, bool aRunInUniqueScope);
-  void TryCacheLoadAndCompileScript(const nsAString& aURL,
-                                    bool aRunInUniqueScope,
-                                    JS::Handle<JSObject*> aMessageManager,
-                                    JS::MutableHandle<JSScript*> aScriptp);
+  already_AddRefed<JS::Stencil> TryCacheLoadAndCompileScript(
+      const nsAString& aURL, bool aRunInUniqueScope,
+      JS::Handle<JSObject*> aMessageManager);
   bool Init();
   void Trace(const TraceCallbacks& aCallbacks, void* aClosure);
   void Unlink();
@@ -347,7 +346,7 @@ class nsMessageManagerScriptExecutor {
   // optimize their script loading to avoid unnecessary duplication.
   virtual bool IsProcessScoped() const { return false; }
 
-  static nsDataHashtable<nsStringHashKey, nsMessageManagerScriptHolder*>*
+  static nsTHashMap<nsStringHashKey, nsMessageManagerScriptHolder*>*
       sCachedScripts;
   static mozilla::StaticRefPtr<nsScriptCacheCleaner> sScriptCacheCleaner;
 };

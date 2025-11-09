@@ -34,6 +34,7 @@
 #include "mozilla/dom/PerformanceStorage.h"
 #include "mozilla/dom/UserActivation.h"
 #include "mozilla/dom/WorkerCommon.h"
+#include "mozilla/PreloaderBase.h"
 #include "mozilla/net/NeckoChannelParams.h"
 #include "mozilla/ipc/PBackgroundSharedTypes.h"
 #include "mozilla/StaticPrefs_browser.h"
@@ -46,8 +47,7 @@
 #include "InternalRequest.h"
 #include "InternalResponse.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 namespace {
 
@@ -414,7 +414,7 @@ already_AddRefed<PreloaderBase> FetchDriver::FindPreload(nsIURI* aURI) {
   // mRequest->ReferrerPolicy_() here.
   auto preloadKey =
       PreloadHashKey::CreateAsFetch(aURI, cors, mRequest->ReferrerPolicy_());
-  return mDocument->Preloads().LookupPreload(&preloadKey);
+  return mDocument->Preloads().LookupPreload(preloadKey);
 }
 
 void FetchDriver::UpdateReferrerInfoFromNewChannel(nsIChannel* aChannel) {
@@ -462,7 +462,7 @@ nsresult FetchDriver::Fetch(AbortSignalImpl* aSignalImpl,
   // the operation.
   if (aSignalImpl) {
     if (aSignalImpl->Aborted()) {
-      Abort();
+      RunAbortAlgorithm();
       return NS_OK;
     }
 
@@ -816,8 +816,8 @@ nsresult FetchDriver::HttpFetch(
   if (!aPreferredAlternativeDataType.IsEmpty()) {
     nsCOMPtr<nsICacheInfoChannel> cic = do_QueryInterface(chan);
     if (cic) {
-      cic->PreferAlternativeDataType(aPreferredAlternativeDataType,
-                                     EmptyCString(), true);
+      cic->PreferAlternativeDataType(aPreferredAlternativeDataType, ""_ns,
+                                     true);
       MOZ_ASSERT(!mAltDataListener);
       mAltDataListener = new AlternativeDataStreamListener(
           this, chan, aPreferredAlternativeDataType);
@@ -912,6 +912,7 @@ void FetchDriver::FailWithNetworkError(nsresult rv) {
   }
 
   mChannel = nullptr;
+  Unfollow();
 }
 
 NS_IMETHODIMP
@@ -1437,6 +1438,7 @@ void FetchDriver::FinishOnStopRequest(
   }
 
   mChannel = nullptr;
+  Unfollow();
 }
 
 NS_IMETHODIMP
@@ -1593,7 +1595,7 @@ void FetchDriver::SetRequestHeaders(nsIHttpChannel* aChannel,
   }
 }
 
-void FetchDriver::Abort() {
+void FetchDriver::RunAbortAlgorithm() {
   MOZ_DIAGNOSTIC_ASSERT(NS_IsMainThread());
 
   if (mObserver) {
@@ -1612,5 +1614,4 @@ void FetchDriver::Abort() {
   mAborted = true;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

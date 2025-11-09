@@ -38,11 +38,11 @@ interface WindowGlobalParent {
    * customize actor creation.
    */
   [Throws]
-  JSWindowActorParent getActor(DOMString name);
+  JSWindowActorParent getActor(UTF8String name);
 
   [Throws]
   Promise<RemoteTab> changeFrameRemoteness(
-    BrowsingContext? bc, DOMString remoteType,
+    BrowsingContext? bc, UTF8String remoteType,
     unsigned long long pendingSwitchId);
 
   /**
@@ -80,5 +80,5 @@ interface WindowGlobalChild {
    * customize actor creation.
    */
   [Throws]
-  JSWindowActorChild getActor(DOMString name);
+  JSWindowActorChild getActor(UTF8String name);
 };

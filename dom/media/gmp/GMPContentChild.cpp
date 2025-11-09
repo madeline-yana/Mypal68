@@ -81,14 +81,14 @@ void GMPContentChild::CloseActive() {
   // Invalidate and remove any remaining API objects.
   const ManagedContainer<PGMPVideoDecoderChild>& videoDecoders =
       ManagedPGMPVideoDecoderChild();
-  for (auto iter = videoDecoders.ConstIter(); !iter.Done(); iter.Next()) {
-    iter.Get()->GetKey()->SendShutdown();
+  for (const auto& key : videoDecoders) {
+    key->SendShutdown();
   }
 
   const ManagedContainer<PGMPVideoEncoderChild>& videoEncoders =
       ManagedPGMPVideoEncoderChild();
-  for (auto iter = videoEncoders.ConstIter(); !iter.Done(); iter.Next()) {
-    iter.Get()->GetKey()->SendShutdown();
+  for (const auto& key : videoEncoders) {
+    key->SendShutdown();
   }
 }
 

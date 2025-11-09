@@ -486,7 +486,7 @@ nsresult nsClipboardCommand::IsCommandEnabled(const char* aCommandName,
   RefPtr<dom::Document> doc = window->GetExtantDoc();
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
-  if (doc->IsHTMLOrXHTML() && !nsContentUtils::IsChromeDoc(doc)) {
+  if (doc->AreClipboardCommandsUnconditionallyEnabled()) {
     // In HTML and XHTML documents, we always want the cut, copy and paste
     // commands to be enabled, but if the document is chrome, let it control it.
     *outCmdEnabled = true;
@@ -972,15 +972,7 @@ nsLookUpDictionaryCommand::DoCommandParams(const char* aCommandName,
     return NS_ERROR_FAILURE;
   }
 
-  // XXX nsIWordBreaker doesn't use contextual breaker.
-  // If OS provides it, widget should use it if contextual breaker is needed.
-  RefPtr<mozilla::intl::WordBreaker> wordBreaker =
-      nsContentUtils::WordBreaker();
-  if (NS_WARN_IF(!wordBreaker)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  mozilla::intl::WordRange range = wordBreaker->FindWord(
+  intl::WordRange range = intl::WordBreaker::FindWord(
       textContent.mReply.mString.get(), textContent.mReply.mString.Length(),
       charAt.mReply.mOffset - offset);
   if (range.mEnd == range.mBegin) {

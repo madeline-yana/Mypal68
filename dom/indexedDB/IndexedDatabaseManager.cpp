@@ -15,6 +15,7 @@
 #include "mozilla/ContentEvents.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/ResultExtensions.h"
 #include "mozilla/dom/DOMException.h"
 #include "mozilla/dom/ErrorEvent.h"
 #include "mozilla/dom/ErrorEventBinding.h"
@@ -27,11 +28,13 @@
 #include "nsGlobalWindow.h"
 #include "mozilla/Logging.h"
 
+#include "ActorsChild.h"
 #include "FileManager.h"
 #include "IDBEvents.h"
 #include "IDBFactory.h"
 #include "IDBKeyRange.h"
 #include "IDBRequest.h"
+#include "IndexedDBCommon.h"
 #include "ProfilerHelpers.h"
 #include "ScriptErrorHelper.h"
 #include "nsCharSeparatedTokenizer.h"
@@ -52,8 +55,7 @@
 
 #define IDB_STR "indexedDB"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 namespace indexedDB {
 
 using namespace mozilla::dom::quota;
@@ -253,8 +255,7 @@ IndexedDatabaseManager* IndexedDatabaseManager::GetOrCreate() {
 
     RefPtr<IndexedDatabaseManager> instance(new IndexedDatabaseManager());
 
-    nsresult rv = instance->Init();
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    IDB_TRY(instance->Init(), nullptr);
 
     if (gInitialized.exchange(true)) {
       NS_ERROR("Initialized more than once?!");
@@ -322,10 +323,10 @@ nsresult IndexedDatabaseManager::Init() {
   Preferences::GetLocalizedCString("intl.accept_languages", acceptLang);
 
   // Split values on commas.
-  nsCCharSeparatedTokenizer langTokenizer(acceptLang, ',');
-  while (langTokenizer.hasMoreTokens()) {
-    nsAutoCString lang(langTokenizer.nextToken());
-    icu::Locale locale = icu::Locale::createCanonical(lang.get());
+  for (const auto& lang :
+       nsCCharSeparatedTokenizer(acceptLang, ',').ToRange()) {
+    icu::Locale locale =
+        icu::Locale::createCanonical(PromiseFlatCString(lang).get());
     if (!locale.isBogus()) {
       // icu::Locale::getBaseName is always ASCII as per BCP 47
       mLocale.AssignASCII(locale.getBaseName());
@@ -459,7 +460,7 @@ nsresult IndexedDatabaseManager::CommonPostHandleEvent(
 
     errorEvent->SetTrusted(true);
 
-    auto* target = static_cast<EventTarget*>(globalScope.get());
+    RefPtr<EventTarget> target = static_cast<EventTarget*>(globalScope.get());
 
     if (NS_WARN_IF(NS_FAILED(EventDispatcher::DispatchDOMEvent(
             target,
@@ -525,12 +526,8 @@ bool IndexedDatabaseManager::DefineIndexedDB(JSContext* aCx,
     return false;
   }
 
-  auto res = IDBFactory::CreateForMainThreadJS(global);
-  if (res.isErr()) {
-    return false;
-  }
-
-  auto factory = res.unwrap();
+  IDB_TRY_UNWRAP(auto factory, IDBFactory::CreateForMainThreadJS(global),
+                 false);
 
   MOZ_ASSERT(factory, "This should never fail for chrome!");
 
@@ -699,13 +696,9 @@ void IndexedDatabaseManager::AddFileManager(
   AssertIsOnIOThread();
   NS_ASSERTION(aFileManager, "Null file manager!");
 
-  FileManagerInfo* info;
-  if (!mFileManagerInfos.Get(aFileManager->Origin(), &info)) {
-    info = new FileManagerInfo();
-    mFileManagerInfos.Put(aFileManager->Origin(), info);
-  }
-
-  info->AddFileManager(std::move(aFileManager));
+  const auto& origin = aFileManager->Origin();
+  mFileManagerInfos.GetOrInsertNew(origin)->AddFileManager(
+      std::move(aFileManager));
 }
 
 void IndexedDatabaseManager::InvalidateAllFileManagers() {
@@ -940,5 +933,4 @@ nsTArray<SafeRefPtr<FileManager> >& FileManagerInfo::GetArray(
   }
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

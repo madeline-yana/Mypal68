@@ -8,9 +8,10 @@
 #include "mozilla/dom/Directory.h"
 #include "mozilla/dom/FileSystemTaskBase.h"
 #include "mozilla/dom/GetFilesHelper.h"
-#include "mozilla/ErrorResult.h"
 
 namespace mozilla {
+class ErrorResult;
+
 namespace dom {
 
 class BlobImpl;

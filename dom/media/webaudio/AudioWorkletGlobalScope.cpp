@@ -18,10 +18,9 @@
 #include "mozilla/dom/WorkletPrincipals.h"
 #include "mozilla/dom/AudioParamDescriptorBinding.h"
 #include "nsPrintfCString.h"
-#include "nsTHashtable.h"
+#include "nsTHashSet.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(AudioWorkletGlobalScope, WorkletGlobalScope,
                                    mNameToProcessorMap);
@@ -163,7 +162,8 @@ void AudioWorkletGlobalScope::RegisterProcessor(
    * 10. Add the key-value pair (name - definition) to the node name to
    *     processor definition map of the associated AudioWorkletGlobalScope.
    */
-  if (!mNameToProcessorMap.Put(aName, RefPtr{&aProcessorCtor}, fallible)) {
+  if (!mNameToProcessorMap.InsertOrUpdate(aName, RefPtr{&aProcessorCtor},
+                                          fallible)) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
@@ -218,7 +218,7 @@ AudioParamDescriptorMap AudioWorkletGlobalScope::DescriptorsFromJS(
 
   AudioParamDescriptorMap res;
   // To check for duplicates
-  nsTHashtable<nsStringHashKey> namesSet;
+  nsTHashSet<nsString> namesSet;
 
   JS::Rooted<JSObject*> aDescriptorsArray(aCx, &aDescriptors.toObject());
   uint32_t length = 0;
@@ -243,28 +243,27 @@ AudioParamDescriptorMap AudioWorkletGlobalScope::DescriptorsFromJS(
     }
 
     if (namesSet.Contains(descriptor.mName)) {
-      aRv.ThrowNotSupportedError(
-          NS_LITERAL_CSTRING("Duplicated name \"") +
-          NS_ConvertUTF16toUTF8(descriptor.mName) +
-          NS_LITERAL_CSTRING("\" in parameterDescriptors."));
+      aRv.ThrowNotSupportedError("Duplicated name \""_ns +
+                                 NS_ConvertUTF16toUTF8(descriptor.mName) +
+                                 "\" in parameterDescriptors."_ns);
       return AudioParamDescriptorMap();
     }
 
     if (descriptor.mMinValue > descriptor.mMaxValue) {
       aRv.ThrowNotSupportedError(
-          NS_LITERAL_CSTRING("In parameterDescriptors, ") +
+          "In parameterDescriptors, "_ns +
           NS_ConvertUTF16toUTF8(descriptor.mName) +
-          NS_LITERAL_CSTRING(" minValue should be smaller than maxValue."));
+          " minValue should be smaller than maxValue."_ns);
       return AudioParamDescriptorMap();
     }
 
     if (descriptor.mDefaultValue < descriptor.mMinValue ||
         descriptor.mDefaultValue > descriptor.mMaxValue) {
       aRv.ThrowNotSupportedError(
-          NS_LITERAL_CSTRING("In parameterDescriptors, ") +
+          "In parameterDescriptors, "_ns +
           NS_ConvertUTF16toUTF8(descriptor.mName) +
-          NS_LITERAL_CSTRING(" defaultValue is out of the range defined by "
-                             "minValue and maxValue."));
+          nsLiteralCString(" defaultValue is out of the range defined by "
+                           "minValue and maxValue."));
       return AudioParamDescriptorMap();
     }
 
@@ -273,7 +272,7 @@ AudioParamDescriptorMap AudioWorkletGlobalScope::DescriptorsFromJS(
       return AudioParamDescriptorMap();
     }
 
-    if (!namesSet.PutEntry(descriptor.mName, fallible)) {
+    if (!namesSet.Insert(descriptor.mName, fallible)) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return AudioParamDescriptorMap();
     }
@@ -355,5 +354,4 @@ RefPtr<MessagePort> AudioWorkletGlobalScope::TakePortForProcessorCtor() {
   return std::move(mPortForProcessor);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

@@ -100,16 +100,6 @@ class nsFocusManager final : public nsIFocusManager,
    */
   nsresult ContentRemoved(Document* aDocument, nsIContent* aContent);
 
-  /**
-   * Called when mouse button event handling is started and finished.
-   */
-  already_AddRefed<Document> SetMouseButtonHandlingDocument(
-      Document* aDocument) {
-    RefPtr<Document> handlingDocument = mMouseButtonEventHandlingDocument;
-    mMouseButtonEventHandlingDocument = aDocument;
-    return handlingDocument.forget();
-  }
-
   void NeedsFlushBeforeEventHandling(mozilla::dom::Element* aElement) {
     if (mFocusedElement == aElement) {
       mEventHandlingNeedsFlush = true;
@@ -191,7 +181,7 @@ class nsFocusManager final : public nsIFocusManager,
   /**
    * Called when a window has been lowered.
    */
-  void WindowLowered(mozIDOMWindowProxy* aWindow);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY void WindowLowered(mozIDOMWindowProxy* aWindow);
 
   /**
    * Called when a new document in a window is shown.
@@ -223,7 +213,8 @@ class nsFocusManager final : public nsIFocusManager,
    * normal focus except that the widget focus is not changed. Updating the
    * widget focus state is the responsibility of the caller.
    */
-  nsresult FocusPlugin(mozilla::dom::Element* aPlugin);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY nsresult
+  FocusPlugin(mozilla::dom::Element* aPlugin);
 
   static uint32_t FocusOptionsToFocusManagerFlags(
       const mozilla::dom::FocusOptions& aOptions);
@@ -251,7 +242,6 @@ class nsFocusManager final : public nsIFocusManager,
 
   struct BlurredElementInfo {
     const mozilla::OwningNonNull<mozilla::dom::Element> mElement;
-    const bool mHadRing;
 
     explicit BlurredElementInfo(mozilla::dom::Element&);
     ~BlurredElementInfo();
@@ -283,9 +273,9 @@ class nsFocusManager final : public nsIFocusManager,
    * All actual focus changes must use this method to do so. (as opposed
    * to those that update the focus in an inactive window for instance).
    */
-  MOZ_CAN_RUN_SCRIPT_BOUNDARY
-  void SetFocusInner(mozilla::dom::Element* aNewContent, int32_t aFlags,
-                     bool aFocusChanged, bool aAdjustWidget);
+  MOZ_CAN_RUN_SCRIPT void SetFocusInner(mozilla::dom::Element* aNewContent,
+                                        int32_t aFlags, bool aFocusChanged,
+                                        bool aAdjustWidget);
 
   /**
    * Returns true if aPossibleAncestor is the same as aWindow or an
@@ -715,16 +705,6 @@ class nsFocusManager final : public nsIFocusManager,
   // synchronized actions cannot be interrupted with events, so queue these up
   // and fire them later.
   nsTArray<nsDelayedBlurOrFocusEvent> mDelayedBlurFocusEvents;
-
-  // A document which is handling a mouse button event.
-  // When a mouse down event process is finished, ESM sets focus to the target
-  // content if it's not consumed.  Therefore, while DOM event handlers are
-  // handling mouse down events or preceding mosue down event is consumed but
-  // handling mouse up events, they should be able to steal focus from any
-  // elements even if focus is in chrome content.  So, if this isn't nullptr
-  // and the caller can access the document node, the caller should succeed in
-  // moving focus.
-  RefPtr<Document> mMouseButtonEventHandlingDocument;
 
   // If set to true, layout of the document of the event target should be
   // flushed before handling focus depending events.

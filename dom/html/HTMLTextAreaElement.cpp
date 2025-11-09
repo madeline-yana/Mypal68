@@ -41,8 +41,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(TextArea)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 HTMLTextAreaElement::HTMLTextAreaElement(
     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo,
@@ -117,8 +116,12 @@ nsresult HTMLTextAreaElement::Clone(dom::NodeInfo* aNodeInfo,
     GetValueInternal(value, true);
 
     // SetValueInternal handles setting mValueChanged for us
-    rv = it->SetValueInternal(value, TextControlState::eSetValue_Notify);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_WARN_IF(NS_FAILED(
+            rv = it->SetValueInternal(
+                value, ValueSetterOption::
+                           UpdateOverlayTextVisibilityAndInvalidateFrame)))) {
+      return rv;
+    }
   }
 
   it->mLastValueChangeWasInteractive = mLastValueChangeWasInteractive;
@@ -172,7 +175,7 @@ HTMLTextAreaElement::SelectAll(nsPresContext* aPresContext) {
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(true);
 
   if (formControlFrame) {
-    formControlFrame->SetFormProperty(nsGkAtoms::select, EmptyString());
+    formControlFrame->SetFormProperty(nsGkAtoms::select, u""_ns);
   }
 
   return NS_OK;
@@ -290,19 +293,20 @@ bool HTMLTextAreaElement::GetPreviewVisibility() {
   return mState->GetPreviewVisibility();
 }
 
-nsresult HTMLTextAreaElement::SetValueInternal(const nsAString& aValue,
-                                               uint32_t aFlags) {
+nsresult HTMLTextAreaElement::SetValueInternal(
+    const nsAString& aValue, const ValueSetterOptions& aOptions) {
   MOZ_ASSERT(mState);
 
   // Need to set the value changed flag here if our value has in fact changed
-  // (i.e. if eSetValue_Notify is in aFlags), so that
-  // nsTextControlFrame::UpdateValueDisplay retrieves the correct value if
-  // needed.
-  if (aFlags & TextControlState::eSetValue_Notify) {
+  // (i.e. if ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame
+  // is in aOptions), so that nsTextControlFrame::UpdateValueDisplay retrieves
+  // the correct value if needed.
+  if (aOptions.contains(
+          ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame)) {
     SetValueChanged(true);
   }
 
-  if (!mState->SetValue(aValue, aFlags)) {
+  if (!mState->SetValue(aValue, aOptions)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -322,9 +326,9 @@ void HTMLTextAreaElement::SetValue(const nsAString& aValue,
   GetValueInternal(currentValue, true);
 
   nsresult rv = SetValueInternal(
-      aValue, TextControlState::eSetValue_ByContent |
-                  TextControlState::eSetValue_Notify |
-                  TextControlState::eSetValue_MoveCursorToEndIfValueChanged);
+      aValue, {ValueSetterOption::ByContentAPI,
+               ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame,
+               ValueSetterOption::MoveCursorToEndIfValueChanged});
   if (NS_WARN_IF(NS_FAILED(rv))) {
     aError.Throw(rv);
     return;
@@ -338,9 +342,9 @@ void HTMLTextAreaElement::SetValue(const nsAString& aValue,
 void HTMLTextAreaElement::SetUserInput(const nsAString& aValue,
                                        nsIPrincipal& aSubjectPrincipal) {
   SetValueInternal(
-      aValue, TextControlState::eSetValue_BySetUserInput |
-                  TextControlState::eSetValue_Notify |
-                  TextControlState::eSetValue_MoveCursorToEndIfValueChanged);
+      aValue, {ValueSetterOption::BySetUserInputAPI,
+               ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame,
+               ValueSetterOption::MoveCursorToEndIfValueChanged});
 }
 
 nsresult HTMLTextAreaElement::SetValueChanged(bool aValueChanged) {
@@ -670,8 +674,10 @@ void HTMLTextAreaElement::GetValueFromSetRangeText(nsAString& aValue) {
 
 nsresult HTMLTextAreaElement::SetValueFromSetRangeText(
     const nsAString& aValue) {
-  return SetValueInternal(aValue, TextControlState::eSetValue_ByContent |
-                                      TextControlState::eSetValue_Notify);
+  return SetValueInternal(
+      aValue,
+      {ValueSetterOption::ByContentAPI,
+       ValueSetterOption::UpdateOverlayTextVisibilityAndInvalidateFrame});
 }
 
 nsresult HTMLTextAreaElement::Reset() {
@@ -679,8 +685,7 @@ nsresult HTMLTextAreaElement::Reset() {
   GetDefaultValue(resetVal, IgnoreErrors());
   SetValueChanged(false);
 
-  nsresult rv =
-      SetValueInternal(resetVal, TextControlState::eSetValue_Internal);
+  nsresult rv = SetValueInternal(resetVal, ValueSetterOption::ByInternalAPI);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -1154,5 +1159,4 @@ void HTMLTextAreaElement::GetAutocomplete(DOMString& aValue) {
       attributeVal, aValue, mAutocompleteAttrState);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

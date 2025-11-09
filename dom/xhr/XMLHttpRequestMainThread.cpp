@@ -30,9 +30,11 @@
 #include "mozilla/Encoding.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
+#include "mozilla/HoldDropJSObjects.h"
 #include "mozilla/LoadInfo.h"
 #include "mozilla/LoadContext.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/PreloaderBase.h"
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/StaticPrefs_network.h"
 #include "mozilla/StaticPrefs_privacy.h"
@@ -523,14 +525,12 @@ nsresult XMLHttpRequestMainThread::AppendToResponseText(
     uint32_t result;
     size_t read;
     size_t written;
-    bool hadErrors;
-    Tie(result, read, written, hadErrors) =
+    std::tie(result, read, written, std::ignore) =
         mDecoder->DecodeToUTF16(aBuffer, handle.AsSpan().From(len), aLast);
     MOZ_ASSERT(result == kInputEmpty);
     MOZ_ASSERT(read == aBuffer.Length());
     len += written;
     MOZ_ASSERT(len <= destBufferLen.value());
-    Unused << hadErrors;
     handle.Finish(len, false);
   }  // release mutex
 
@@ -1076,10 +1076,9 @@ bool XMLHttpRequestMainThread::IsSafeHeader(
   // list of method names.
   Unused << aHttpChannel->GetResponseHeader("Access-Control-Expose-Headers"_ns,
                                             headerVal);
-  nsCCharSeparatedTokenizer exposeTokens(headerVal, ',');
   bool isSafe = false;
-  while (exposeTokens.hasMoreTokens()) {
-    const nsDependentCSubstring& token = exposeTokens.nextToken();
+  for (const nsACString& token :
+       nsCCharSeparatedTokenizer(headerVal, ',').ToRange()) {
     if (token.IsEmpty()) {
       continue;
     }
@@ -1691,7 +1690,8 @@ class FileCreationHandler final : public PromiseNativeHandler {
     aPromise->AppendNativeHandler(handler);
   }
 
-  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void ResolvedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     if (NS_WARN_IF(!aValue.isObject())) {
       mXHR->LocalFileToBlobCompleted(nullptr);
       return;
@@ -1706,7 +1706,8 @@ class FileCreationHandler final : public PromiseNativeHandler {
     mXHR->LocalFileToBlobCompleted(blob->Impl());
   }
 
-  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue) override {
+  void RejectedCallback(JSContext* aCx, JS::Handle<JS::Value> aValue,
+                        ErrorResult& aRv) override {
     mXHR->LocalFileToBlobCompleted(nullptr);
   }
 
@@ -2747,7 +2748,7 @@ already_AddRefed<PreloaderBase> XMLHttpRequestMainThread::FindPreload() {
       ReferrerInfo::CreateForFetch(mPrincipal, doc);
   auto key = PreloadHashKey::CreateAsFetch(mRequestURL, cors,
                                            referrerInfo->ReferrerPolicy());
-  RefPtr<PreloaderBase> preload = doc->Preloads().LookupPreload(&key);
+  RefPtr<PreloaderBase> preload = doc->Preloads().LookupPreload(key);
   if (!preload) {
     return nullptr;
   }

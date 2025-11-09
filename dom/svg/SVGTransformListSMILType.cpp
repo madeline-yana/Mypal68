@@ -14,7 +14,7 @@ using namespace mozilla::dom::SVGTransform_Binding;
 
 namespace mozilla {
 
-typedef FallibleTArray<SVGTransformSMILData> TransformArray;
+using TransformArray = FallibleTArray<SVGTransformSMILData>;
 
 //----------------------------------------------------------------------
 // nsISMILType implementation

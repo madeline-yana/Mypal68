@@ -324,10 +324,6 @@ WINDOW_ONLY_EVENT(deviceorientation, eDeviceOrientation, EventNameType_None,
                   eBasicEventClass)
 WINDOW_ONLY_EVENT(absolutedeviceorientation, eAbsoluteDeviceOrientation,
                   EventNameType_None, eBasicEventClass)
-WINDOW_ONLY_EVENT(deviceproximity, eDeviceProximity, EventNameType_None,
-                  eBasicEventClass)
-WINDOW_ONLY_EVENT(userproximity, eUserProximity, EventNameType_None,
-                  eBasicEventClass)
 WINDOW_ONLY_EVENT(devicelight, eDeviceLight, EventNameType_None,
                   eBasicEventClass)
 #ifdef MOZ_VR
@@ -456,6 +452,7 @@ NON_IDL_EVENT(MozAfterPaint, eAfterPaint, EventNameType_None, eBasicEventClass)
 NON_IDL_EVENT(MozScrolledAreaChanged, eScrolledAreaChanged, EventNameType_None,
               eScrollAreaEventClass)
 
+#ifdef MOZ_GAMEPAD
 NON_IDL_EVENT(gamepadbuttondown, eGamepadButtonDown, EventNameType_None,
               eBasicEventClass)
 NON_IDL_EVENT(gamepadbuttonup, eGamepadButtonUp, EventNameType_None,
@@ -466,6 +463,7 @@ NON_IDL_EVENT(gamepadconnected, eGamepadConnected, EventNameType_None,
               eBasicEventClass)
 NON_IDL_EVENT(gamepaddisconnected, eGamepadDisconnected, EventNameType_None,
               eBasicEventClass)
+#endif
 
 // Simple gesture events
 NON_IDL_EVENT(MozSwipeGestureMayStart, eSwipeGestureMayStart,
@@ -525,13 +523,17 @@ EVENT(webkitAnimationStart, eWebkitAnimationStart, EventNameType_All,
 EVENT(webkitTransitionEnd, eWebkitTransitionEnd, EventNameType_All,
       eTransitionEventClass)
 #ifndef MESSAGE_TO_EVENT
-EVENT(webkitanimationend, eWebkitAnimationEnd, EventNameType_All,
+// These are only here so that IsEventAttributeName() will return the right
+// thing for these events.  We could probably remove them if we used
+// Element::GetEventNameForAttr on the input to IsEventAttributeName before
+// looking it up in the hashtable...
+EVENT(webkitanimationend, eUnidentifiedEvent, EventNameType_All,
       eAnimationEventClass)
-EVENT(webkitanimationiteration, eWebkitAnimationIteration, EventNameType_All,
+EVENT(webkitanimationiteration, eUnidentifiedEvent, EventNameType_All,
       eAnimationEventClass)
-EVENT(webkitanimationstart, eWebkitAnimationStart, EventNameType_All,
+EVENT(webkitanimationstart, eUnidentifiedEvent, EventNameType_All,
       eAnimationEventClass)
-EVENT(webkittransitionend, eWebkitTransitionEnd, EventNameType_All,
+EVENT(webkittransitionend, eUnidentifiedEvent, EventNameType_All,
       eTransitionEventClass)
 #endif
 

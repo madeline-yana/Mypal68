@@ -293,10 +293,17 @@ class MOZ_IS_REFPTR MOZ_TRIVIAL_ABI SafeRefPtr {
 };
 
 template <typename T>
-SafeRefPtr(RefPtr<T> &&)->SafeRefPtr<T>;
+SafeRefPtr(RefPtr<T>&&) -> SafeRefPtr<T>;
 
 template <typename T>
-SafeRefPtr(already_AddRefed<T> &&)->SafeRefPtr<T>;
+SafeRefPtr(already_AddRefed<T>&&) -> SafeRefPtr<T>;
+
+template <typename T>
+class CheckedUnsafePtr;
+
+template <typename T>
+SafeRefPtr(const CheckedUnsafePtr<T>&, const AcquireStrongRefFromRawPtr&)
+    -> SafeRefPtr<T>;
 
 template <typename T>
 SafeRefPtr<T>::SafeRefPtr(T* aRawPtr, detail::InitialConstructionTag)

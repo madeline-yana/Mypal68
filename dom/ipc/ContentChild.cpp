@@ -66,12 +66,14 @@
 #include "mozilla/intl/L10nRegistry.h"
 #include "mozilla/intl/LocaleService.h"
 #include "mozilla/ipc/BackgroundChild.h"
+#include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/FileDescriptorSetChild.h"
 #include "mozilla/ipc/FileDescriptorUtils.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "mozilla/ipc/PChildToParentStreamChild.h"
 #include "mozilla/ipc/PParentToChildStreamChild.h"
 #include "mozilla/ipc/ProcessChild.h"
+#include "mozilla/ipc/ProtocolMessageUtils.h" //MY
 #include "mozilla/ipc/TestShellChild.h"
 #include "mozilla/layers/APZChild.h"
 #include "mozilla/layers/CompositorManagerChild.h"
@@ -214,8 +216,6 @@
 
 #include "mozilla/dom/File.h"
 #include "mozilla/dom/MediaControlKeysEvent.h"
-#include "mozilla/dom/PPresentationChild.h"
-#include "mozilla/dom/PresentationIPCService.h"
 #include "mozilla/ipc/IPCStreamAlloc.h"
 #include "mozilla/ipc/IPCStreamDestination.h"
 #include "mozilla/ipc/IPCStreamSource.h"
@@ -1564,7 +1564,7 @@ mozilla::ipc::IPCResult ContentChild::RecvSetProcessSandbox(
       static_cast<int>(SandboxInfo::Get().AsInteger()));
 #  endif /* XP_LINUX && !OS_ANDROID */
   CrashReporter::AnnotateCrashReport(CrashReporter::Annotation::RemoteType,
-                                     NS_ConvertUTF16toUTF8(GetRemoteType()));
+                                     GetRemoteType());
 #endif /* MOZ_SANDBOX */
 
   return IPC_OK();
@@ -1663,6 +1663,8 @@ void ContentChild::GetAvailableDictionaries(
 
 PFileDescriptorSetChild* ContentChild::SendPFileDescriptorSetConstructor(
     const FileDescriptor& aFD) {
+  MOZ_ASSERT(NS_IsMainThread());
+
   if (IsShuttingDown()) {
     return nullptr;
   }
@@ -1701,45 +1703,6 @@ bool ContentChild::DeallocPRemoteSpellcheckEngineChild(
     PRemoteSpellcheckEngineChild* child) {
   delete child;
   return true;
-}
-
-PPresentationChild* ContentChild::AllocPPresentationChild() {
-  MOZ_CRASH("We should never be manually allocating PPresentationChild actors");
-  return nullptr;
-}
-
-bool ContentChild::DeallocPPresentationChild(PPresentationChild* aActor) {
-  delete aActor;
-  return true;
-}
-
-mozilla::ipc::IPCResult ContentChild::RecvNotifyPresentationReceiverLaunched(
-    PBrowserChild* aIframe, const nsString& aSessionId) {
-  nsCOMPtr<nsIDocShell> docShell =
-      do_GetInterface(static_cast<BrowserChild*>(aIframe)->WebNavigation());
-  NS_WARNING_ASSERTION(docShell, "WebNavigation failed");
-
-  nsCOMPtr<nsIPresentationService> service =
-      do_GetService(PRESENTATION_SERVICE_CONTRACTID);
-  NS_WARNING_ASSERTION(service, "presentation service is missing");
-
-  Unused << NS_WARN_IF(
-      NS_FAILED(static_cast<PresentationIPCService*>(service.get())
-                    ->MonitorResponderLoading(aSessionId, docShell)));
-
-  return IPC_OK();
-}
-
-mozilla::ipc::IPCResult ContentChild::RecvNotifyPresentationReceiverCleanUp(
-    const nsString& aSessionId) {
-  nsCOMPtr<nsIPresentationService> service =
-      do_GetService(PRESENTATION_SERVICE_CONTRACTID);
-  NS_WARNING_ASSERTION(service, "presentation service is missing");
-
-  Unused << NS_WARN_IF(NS_FAILED(service->UntrackSessionInfo(
-      aSessionId, nsIPresentationService::ROLE_RECEIVER)));
-
-  return IPC_OK();
 }
 
 mozilla::ipc::IPCResult ContentChild::RecvNotifyEmptyHTTPCache() {
@@ -1843,6 +1806,8 @@ bool ContentChild::DeallocPPrintingChild(PPrintingChild* printing) {
 
 PChildToParentStreamChild* ContentChild::SendPChildToParentStreamConstructor(
     PChildToParentStreamChild* aActor) {
+  MOZ_ASSERT(NS_IsMainThread());
+
   if (IsShuttingDown()) {
     return nullptr;
   }
@@ -2400,27 +2365,27 @@ mozilla::ipc::IPCResult ContentChild::RecvAppInfo(
 }
 
 mozilla::ipc::IPCResult ContentChild::RecvRemoteType(
-    const nsString& aRemoteType) {
+    const nsCString& aRemoteType) {
   MOZ_ASSERT(DOMStringIsNull(mRemoteType));
 
   mRemoteType.Assign(aRemoteType);
 
   // For non-default ("web") types, update the process name so about:memory's
   // process names are more obvious.
-  if (aRemoteType.EqualsLiteral(FILE_REMOTE_TYPE)) {
-    SetProcessName(NS_LITERAL_STRING("file:// Content"));
-  } else if (aRemoteType.EqualsLiteral(EXTENSION_REMOTE_TYPE)) {
-    SetProcessName(NS_LITERAL_STRING("WebExtensions"));
-  } else if (aRemoteType.EqualsLiteral(PRIVILEGED_REMOTE_TYPE)) {
-    SetProcessName(NS_LITERAL_STRING("Privileged Content"));
-  } else if (aRemoteType.EqualsLiteral(LARGE_ALLOCATION_REMOTE_TYPE)) {
-    SetProcessName(NS_LITERAL_STRING("Large Allocation Web Content"));
+  if (aRemoteType == FILE_REMOTE_TYPE) {
+    SetProcessName(u"file:// Content"_ns);
+  } else if (aRemoteType == EXTENSION_REMOTE_TYPE) {
+    SetProcessName(u"WebExtensions"_ns);
+  } else if (aRemoteType ==PRIVILEGED_REMOTE_TYPE) {
+    SetProcessName(u"Privileged Content"_ns);
+  } else if (aRemoteType == LARGE_ALLOCATION_REMOTE_TYPE) {
+    SetProcessName(u"Large Allocation Web Content"_ns);
   }
 
   return IPC_OK();
 }
 
-const nsAString& ContentChild::GetRemoteType() const { return mRemoteType; }
+const nsACString& ContentChild::GetRemoteType() const { return mRemoteType; }
 
 mozilla::ipc::IPCResult ContentChild::RecvInitServiceWorkers(
     const ServiceWorkerConfiguration& aConfig) {
@@ -2461,7 +2426,7 @@ mozilla::ipc::IPCResult ContentChild::RecvInitJSWindowActorInfos(
 }
 
 mozilla::ipc::IPCResult ContentChild::RecvUnregisterJSWindowActor(
-    const nsString& aName) {
+    const nsCString& aName) {
   RefPtr<JSWindowActorService> actSvc = JSWindowActorService::GetSingleton();
   actSvc->UnregisterWindowActor(aName);
   return IPC_OK();
@@ -2501,7 +2466,7 @@ void ContentChild::AddIdleObserver(nsIObserver* aObserver,
   // Make sure aObserver isn't released while we wait for the parent
   aObserver->AddRef();
   SendAddIdleObserver(reinterpret_cast<uint64_t>(aObserver), aIdleTimeInS);
-  mIdleObservers.PutEntry(aObserver);
+  mIdleObservers.Insert(aObserver);
 }
 
 void ContentChild::RemoveIdleObserver(nsIObserver* aObserver,
@@ -2509,7 +2474,7 @@ void ContentChild::RemoveIdleObserver(nsIObserver* aObserver,
   MOZ_ASSERT(aObserver, "null idle observer");
   SendRemoveIdleObserver(reinterpret_cast<uint64_t>(aObserver), aIdleTimeInS);
   aObserver->Release();
-  mIdleObservers.RemoveEntry(aObserver);
+  mIdleObservers.Remove(aObserver);
 }
 
 mozilla::ipc::IPCResult ContentChild::RecvNotifyIdleObserver(
@@ -3006,17 +2971,17 @@ void ContentChild::CreateGetFilesRequest(const nsAString& aDirectoryPath,
                                          bool aRecursiveFlag, nsID& aUUID,
                                          GetFilesHelperChild* aChild) {
   MOZ_ASSERT(aChild);
-  MOZ_ASSERT(!mGetFilesPendingRequests.GetWeak(aUUID));
+  MOZ_ASSERT(!mGetFilesPendingRequests.Contains(aUUID));
 
   Unused << SendGetFilesRequest(aUUID, nsString(aDirectoryPath),
                                 aRecursiveFlag);
-  mGetFilesPendingRequests.Put(aUUID, RefPtr{aChild});
+  mGetFilesPendingRequests.InsertOrUpdate(aUUID, RefPtr{aChild});
 }
 
 void ContentChild::DeleteGetFilesRequest(nsID& aUUID,
                                          GetFilesHelperChild* aChild) {
   MOZ_ASSERT(aChild);
-  MOZ_ASSERT(mGetFilesPendingRequests.GetWeak(aUUID));
+  MOZ_ASSERT(mGetFilesPendingRequests.Contains(aUUID));
 
   Unused << SendDeleteGetFilesRequest(aUUID);
   mGetFilesPendingRequests.Remove(aUUID);
@@ -3148,7 +3113,7 @@ nsresult ContentChild::AsyncOpenAnonymousTemporaryFile(
 
   // Remember the association with the callback.
   MOZ_ASSERT(!mPendingAnonymousTemporaryFiles.Get(newID));
-  mPendingAnonymousTemporaryFiles.LookupOrAdd(newID, aCallback);
+  mPendingAnonymousTemporaryFiles.GetOrInsertNew(newID, aCallback);
   return NS_OK;
 }
 

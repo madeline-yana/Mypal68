@@ -18,6 +18,7 @@
 #include "mozJSComponentLoader.h"
 #include "nsContentUtils.h"
 #include "nsDocShell.h"
+#include "nsDocShellLoadState.h"
 #include "nsError.h"
 #include "nsFrameLoader.h"
 #include "nsFrameLoaderOwner.h"
@@ -68,9 +69,10 @@ void WindowGlobalParent::Init(const WindowGlobalInit& aInit) {
     gWindowGlobalParentsById = new WGPByIdMap();
     ClearOnShutdown(&gWindowGlobalParentsById);
   }
-  auto entry = gWindowGlobalParentsById->LookupForAdd(mInnerWindowId);
-  MOZ_RELEASE_ASSERT(!entry, "Duplicate WindowGlobalParent entry for ID!");
-  entry.OrInsert([&] { return this; });
+  gWindowGlobalParentsById->WithEntryHandle(mInnerWindowId, [&](auto&& entry) {
+    MOZ_RELEASE_ASSERT(!entry, "Duplicate WindowGlobalParent entry for ID!");
+    entry.Insert(this);
+  });
 
   // Determine which content process the window global is coming from.
   ContentParentId processId(0);
@@ -198,16 +200,16 @@ void WindowGlobalParent::ReceiveRawMessage(
   }
 }
 
-const nsAString& WindowGlobalParent::GetRemoteType() {
+const nsACString& WindowGlobalParent::GetRemoteType() {
   if (RefPtr<BrowserParent> browserParent = GetRemoteTab()) {
     return browserParent->Manager()->GetRemoteType();
   }
 
-  return VoidString();
+  return VoidCString();
 }
 
 already_AddRefed<JSWindowActorParent> WindowGlobalParent::GetActor(
-    const nsAString& aName, ErrorResult& aRv) {
+    const nsACString& aName, ErrorResult& aRv) {
   if (mIPCClosed) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return nullptr;
@@ -234,7 +236,7 @@ already_AddRefed<JSWindowActorParent> WindowGlobalParent::GetActor(
   MOZ_RELEASE_ASSERT(!actor->GetManager(),
                      "mManager was already initialized once!");
   actor->Init(aName, this);
-  mWindowActors.Put(aName, RefPtr{actor});
+  mWindowActors.InsertOrUpdate(aName, RefPtr{actor});
   return actor.forget();
 }
 
@@ -250,7 +252,7 @@ IPCResult WindowGlobalParent::RecvDidEmbedBrowsingContext(
 }
 
 already_AddRefed<Promise> WindowGlobalParent::ChangeFrameRemoteness(
-    dom::BrowsingContext* aBc, const nsAString& aRemoteType,
+    dom::BrowsingContext* aBc, const nsACString& aRemoteType,
     uint64_t aPendingSwitchId, ErrorResult& aRv) {
   RefPtr<BrowserParent> browserParent = GetRemoteTab();
   if (NS_WARN_IF(!browserParent)) {
@@ -289,7 +291,7 @@ already_AddRefed<Promise> WindowGlobalParent::ChangeFrameRemoteness(
     promise->MaybeReject(NS_ERROR_FAILURE);
   };
 
-  SendChangeFrameRemoteness(aBc, PromiseFlatString(aRemoteType),
+  SendChangeFrameRemoteness(aBc, PromiseFlatCString(aRemoteType),
                             aPendingSwitchId, resolve, reject);
   return promise.forget();
 }
@@ -339,7 +341,7 @@ void WindowGlobalParent::ActorDestroy(ActorDestroyReason aWhy) {
   mBrowsingContext->UnregisterWindowGlobal(this);
 
   // Destroy our JSWindowActors, and reject any pending queries.
-  nsRefPtrHashtable<nsStringHashKey, JSWindowActorParent> windowActors;
+  nsRefPtrHashtable<nsCStringHashKey, JSWindowActorParent> windowActors;
   mWindowActors.SwapElements(windowActors);
   for (auto iter = windowActors.Iter(); !iter.Done(); iter.Next()) {
     iter.Data()->RejectPendingQueries();

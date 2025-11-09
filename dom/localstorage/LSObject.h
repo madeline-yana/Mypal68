@@ -5,11 +5,24 @@
 #ifndef mozilla_dom_localstorage_LSObject_h
 #define mozilla_dom_localstorage_LSObject_h
 
-#include "mozilla/dom/Storage.h"
+#include <cstdint>
+#include "ErrorList.h"
+#include "mozilla/AlreadyAddRefed.h"
+#include "mozilla/Assertions.h"
+#include "mozilla/Maybe.h"
+#include "mozilla/RefPtr.h"
 #include "mozilla/UniquePtr.h"
+#include "mozilla/dom/Storage.h"
+#include "nsCycleCollectionParticipant.h"
+#include "nsID.h"
+#include "nsISupports.h"
+#include "nsStringFwd.h"
+#include "nsTArrayForwardDeclare.h"
 
 class nsGlobalWindowInner;
+class nsIEventTarget;
 class nsIPrincipal;
+class nsISerialEventTarget;
 class nsPIDOMWindowInner;
 
 namespace mozilla {
@@ -97,13 +110,6 @@ class LSObject final : public Storage {
                                      bool aPrivate, LSObject** aObject);
 
   /**
-   * Used for requests from the parent process to the parent process; in that
-   * case we want ActorsParent to know our event-target and this is better than
-   * trying to tunnel the pointer through IPC.
-   */
-  static already_AddRefed<nsISerialEventTarget> GetSyncLoopEventTarget();
-
-  /**
    * Helper invoked by ContentChild::OnChannelReceivedMessage when a sync IPC
    * message is received.  This will be invoked on the IPC I/O thread and it
    * will set the gPendingSyncMessage flag to true.  It will also force the sync
@@ -171,6 +177,11 @@ class LSObject final : public Storage {
 
   void EndExplicitSnapshot(nsIPrincipal& aSubjectPrincipal,
                            ErrorResult& aError) override;
+
+#ifdef ENABLE_TESTS
+  bool GetHasActiveSnapshot(nsIPrincipal& aSubjectPrincipal,
+                            ErrorResult& aError) override;
+#endif
 
   //////////////////////////////////////////////////////////////////////////////
 

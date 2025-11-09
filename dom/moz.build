@@ -9,115 +9,118 @@ with Files("**"):
 with Files("plugins/**"):
     BUG_COMPONENT = ("Core", "Plug-ins")
 
-JAR_MANIFESTS += ['jar.mn']
+JAR_MANIFESTS += ["jar.mn"]
 
 interfaces = [
-    'base',
-    'html',
-    'events',
-    'sidebar',
-    'xul',
-    'security',
-    'storage',
-    'geolocation',
-    'notification',
-    'push',
+    "base",
+    "html",
+    "events",
+    "sidebar",
+    "xul",
+    "security",
+    "storage",
+    "geolocation",
+    "notification",
+    "push",
 ]
 
-DIRS += ['interfaces/' + i for i in interfaces]
+DIRS += ["interfaces/" + i for i in interfaces]
 
 DIRS += [
-    'abort',
-    'animation',
-    'base',
-    'bindings',
-    'battery',
-    'browser-element',
-    'cache',
-    'canvas',
-    'chrome-webidl',
-    'clients',
-    'commandhandler',
-    'credentialmanagement',
-    'crypto',
-    'debugger',
-    'encoding',
-    'events',
-    'fetch',
-    'file',
-    'filehandle',
-    'filesystem',
-    'flex',
-    'gamepad',
-    'geolocation',
-    'grid',
-    'html',
-    'jsurl',
-    'mathml',
-    'media',
-    'midi',
-    'notification',
-    'offline',
-    'power',
-    'push',
-    'quota',
-    'security',
-    'storage',
-    'svg',
-    'locales',
-    'network',
-    'permission',
-    'plugins/base',
-    'plugins/ipc',
-    'prototype',
-    'indexedDB',
-    'system',
-    'ipc',
-    'workers',
-    'audiochannel',
-    'broadcastchannel',
-    'messagechannel',
-    'promise',
-    'smil',
-    'url',
-    'webauthn',
-    'webidl',
-    'xml',
-    'xslt',
-    'xul',
-    'manifest',
-    'u2f',
-    'console',
-    'performance',
-    'webbrowserpersist',
-    'xhr',
-    'worklet',
-    'script',
-    'websocket',
-    'serviceworkers',
-    'simpledb',
-    #tipa THE_PEOPORTIMG'reporting',
-    'localstorage',
-    'l10n',
+    "abort",
+    "animation",
+    "base",
+    "bindings",
+    "battery",
+    "browser-element",
+    "cache",
+    "canvas",
+    "chrome-webidl",
+    "clients",
+    "commandhandler",
+    "credentialmanagement",
+    "crypto",
+    "debugger",
+    "encoding",
+    "events",
+    "fetch",
+    "file",
+    "filehandle",
+    "filesystem",
+    "flex",
+    "fs",
+    "geolocation",
+    "grid",
+    "html",
+    "jsurl",
+    "mathml",
+    "media",
+    "midi",
+    "notification",
+    "offline",
+    "power",
+    "push",
+    "quota",
+    "security",
+    "storage",
+    "svg",
+    "locales",
+    "network",
+    "permission",
+    "plugins/base",
+    "plugins/ipc",
+    "prototype",
+    "indexedDB",
+    "system",
+    "ipc",
+    "workers",
+    "audiochannel",
+    "broadcastchannel",
+    "messagechannel",
+    "promise",
+    "smil",
+    "streams",
+    "url",
+    "webauthn",
+    "webidl",
+    "xml",
+    "xslt",
+    "xul",
+    "manifest",
+    "u2f",
+    "console",
+    "performance",
+    "webbrowserpersist",
+    "xhr",
+    "worklet",
+    "script",
+    "websocket",
+    "serviceworkers",
+    "simpledb",
+    "localstorage",
+    "l10n",
 ]
 
-if CONFIG['OS_ARCH'] == 'WINNT':
-    DIRS += ['plugins/ipc/hangui']
+if CONFIG["MOZ_GAMEPAD"]:
+    DIRS += ["gamepad"]
 
-if CONFIG['MOZ_WEBGPU']:
-    DIRS += ['webgpu']
+if CONFIG["OS_ARCH"] == "WINNT":
+    DIRS += ["plugins/ipc/hangui"]
 
-if CONFIG['MOZ_VR']:
-    DIRS += ['vr']
+if CONFIG["THE_REPORTIMG"]:
+    DIRS += ["reporting"]
+if CONFIG["MOZ_WEBGPU"]:
+    DIRS += ["webgpu"]
 
-DIRS += ['presentation']
+if CONFIG["MOZ_VR"]:
+    DIRS += ["vr"]
 
 TEST_DIRS += [
-    'tests',
-    'imptests',
+    "tests",
+    "imptests",
 ]
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('gtk', 'cocoa', 'windows'):
-    TEST_DIRS += ['plugins/test']
+if CONFIG["MOZ_WIDGET_TOOLKIT"] in ("gtk", "cocoa", "windows"):
+    TEST_DIRS += ["plugins/test"]
 
-SPHINX_TREES['/dom'] = 'docs'
+SPHINX_TREES["/dom"] = "docs"

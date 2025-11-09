@@ -320,8 +320,7 @@ gboolean LinuxGamepadService::OnUdevMonitor(GIOChannel* source,
 
 }  // namespace
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 void StartGamepadMonitoring() {
   if (gService) {
@@ -340,5 +339,4 @@ void StopGamepadMonitoring() {
   gService = nullptr;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

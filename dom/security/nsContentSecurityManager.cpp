@@ -157,12 +157,9 @@ bool nsContentSecurityManager::AllowInsecureRedirectToDataURI(
 /* static */
 nsresult nsContentSecurityManager::CheckFTPSubresourceLoad(
     nsIChannel* aChannel) {
-  // We dissallow using FTP resources as a subresource almost everywhere.
+  // We dissallow using FTP resources as a subresource everywhere.
   // The only valid way to use FTP resources is loading it as
   // a top level document.
-  if (!StaticPrefs::security_block_ftp_subresources()) {
-    return NS_OK;
-  }
 
   nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
   ExtContentPolicyType type = loadInfo->GetExternalContentPolicyType();
@@ -190,13 +187,6 @@ nsresult nsContentSecurityManager::CheckFTPSubresourceLoad(
 
   bool isFtpURI = uri->SchemeIs("ftp");
   if (!isFtpURI) {
-    return NS_OK;
-  }
-
-  // Allow loading FTP subresources in FTP documents, like XML.
-  nsCOMPtr<nsIURI> triggeringURI;
-  triggeringPrincipal->GetURI(getter_AddRefs(triggeringURI));
-  if (triggeringURI && nsContentUtils::SchemeIs(triggeringURI, "ftp")) {
     return NS_OK;
   }
 
@@ -602,19 +592,18 @@ static void LogPrincipal(nsIPrincipal* aPrincipal,
     }
     if (aPrincipal->GetIsExpandedPrincipal()) {
       nsCOMPtr<nsIExpandedPrincipal> expanded(do_QueryInterface(aPrincipal));
-      const nsTArray<nsCOMPtr<nsIPrincipal>>& allowList = expanded->AllowList();
       nsAutoCString origin;
       origin.AssignLiteral("[Expanded Principal [");
-      for (size_t i = 0; i < allowList.Length(); ++i) {
-        if (i != 0) {
-          origin.AppendLiteral(", ");
-        }
 
-        nsAutoCString subOrigin;
-        DebugOnly<nsresult> rv = allowList.ElementAt(i)->GetOrigin(subOrigin);
-        MOZ_ASSERT(NS_SUCCEEDED(rv));
-        origin.Append(subOrigin);
-      }
+      StringJoinAppend(origin, ", "_ns, expanded->AllowList(),
+                       [](nsACString& dest, nsIPrincipal* principal) {
+                         nsAutoCString subOrigin;
+                         DebugOnly<nsresult> rv =
+                             principal->GetOrigin(subOrigin);
+                         MOZ_ASSERT(NS_SUCCEEDED(rv));
+                         dest.Append(subOrigin);
+                       });
+
       origin.AppendLiteral("]]");
 
       MOZ_LOG(sCSMLog, LogLevel::Debug,

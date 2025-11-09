@@ -20,7 +20,7 @@ function BrowserElementPrompt(win, browserElementChild) {
 }
 
 BrowserElementPrompt.prototype = {
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIPrompt]),
+  QueryInterface: ChromeUtils.generateQI(["nsIPrompt"]),
 
   alert(title, text) {
     this._browserElementChild.showModalPrompt(this._win, {
@@ -126,15 +126,15 @@ BrowserElementPrompt.prototype = {
     checkMsg,
     checkState
   ) {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+    throw Components.Exception("", Cr.NS_ERROR_NOT_IMPLEMENTED);
   },
 
   promptPassword(title, text, password, checkMsg, checkState) {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+    throw Components.Exception("", Cr.NS_ERROR_NOT_IMPLEMENTED);
   },
 
   select(title, text, aSelectList, aOutSelection) {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+    throw Components.Exception("", Cr.NS_ERROR_NOT_IMPLEMENTED);
   },
 
   _buildConfirmExButtonProperties(
@@ -233,10 +233,10 @@ BrowserElementPrompt.prototype = {
 function BrowserElementAuthPrompt() {}
 
 BrowserElementAuthPrompt.prototype = {
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIAuthPrompt2]),
+  QueryInterface: ChromeUtils.generateQI(["nsIAuthPrompt2"]),
 
   promptAuth: function promptAuth(channel, level, authInfo) {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+    throw Components.Exception("", Cr.NS_ERROR_NOT_IMPLEMENTED);
   },
 
   asyncPromptAuth: function asyncPromptAuth(
@@ -253,13 +253,13 @@ BrowserElementAuthPrompt.prototype = {
       authInfo.flags & Ci.nsIAuthInformation.AUTH_PROXY &&
       authInfo.flags & Ci.nsIAuthInformation.ONLY_PASSWORD
     ) {
-      throw Cr.NS_ERROR_FAILURE;
+      throw Components.Exception("", Cr.NS_ERROR_FAILURE);
     }
 
     let frame = this._getFrameFromChannel(channel);
     if (!frame) {
       debug("Cannot get frame, asyncPromptAuth fail");
-      throw Cr.NS_ERROR_FAILURE;
+      throw Components.Exception("", Cr.NS_ERROR_FAILURE);
     }
 
     let browserElementParent = BrowserElementPromptService.getBrowserElementParentForFrame(
@@ -268,11 +268,11 @@ BrowserElementAuthPrompt.prototype = {
 
     if (!browserElementParent) {
       debug("Failed to load browser element parent.");
-      throw Cr.NS_ERROR_FAILURE;
+      throw Components.Exception("", Cr.NS_ERROR_FAILURE);
     }
 
     let consumer = {
-      QueryInterface: ChromeUtils.generateQI([Ci.nsICancelable]),
+      QueryInterface: ChromeUtils.generateQI(["nsICancelable"]),
       callback,
       context,
       cancel() {
@@ -485,7 +485,7 @@ function AuthPromptWrapper(oldImpl, browserElementImpl) {
 }
 
 AuthPromptWrapper.prototype = {
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIAuthPrompt2]),
+  QueryInterface: ChromeUtils.generateQI(["nsIAuthPrompt2"]),
   promptAuth(channel, level, authInfo) {
     if (this._canGetParentElement(channel)) {
       return this._browserElementImpl.promptAuth(channel, level, authInfo);
@@ -540,7 +540,7 @@ function BrowserElementPromptFactory(toWrap) {
 
 BrowserElementPromptFactory.prototype = {
   classID: Components.ID("{24f3d0cf-e417-4b85-9017-c9ecf8bb1299}"),
-  QueryInterface: ChromeUtils.generateQI([Ci.nsIPromptFactory]),
+  QueryInterface: ChromeUtils.generateQI(["nsIPromptFactory"]),
 
   _mayUseNativePrompt() {
     try {
@@ -634,8 +634,8 @@ BrowserElementPromptFactory.prototype = {
 
 var BrowserElementPromptService = {
   QueryInterface: ChromeUtils.generateQI([
-    Ci.nsIObserver,
-    Ci.nsISupportsWeakReference,
+    "nsIObserver",
+    "nsISupportsWeakReference",
   ]),
 
   _initialized: false,
@@ -671,7 +671,7 @@ var BrowserElementPromptService = {
     var newFactory = {
       createInstance(outer, iid) {
         if (outer != null) {
-          throw Cr.NS_ERROR_NO_AGGREGATION;
+          throw Components.Exception("", Cr.NS_ERROR_NO_AGGREGATION);
         }
         return newInstance.QueryInterface(iid);
       },

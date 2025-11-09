@@ -151,9 +151,15 @@ class ChromeUtils {
   static already_AddRefed<Promise> RequestProcInfo(GlobalObject& aGlobal,
                                                    ErrorResult& aRv);
 
-  static void Import(const GlobalObject& aGlobal, const nsAString& aResourceURI,
+  static void Import(const GlobalObject& aGlobal,
+                     const nsACString& aResourceURI,
                      const Optional<JS::Handle<JSObject*>>& aTargetObj,
                      JS::MutableHandle<JSObject*> aRetval, ErrorResult& aRv);
+
+  static void ImportModule(const GlobalObject& aGlobal,
+                           const nsAString& aResourceURI,
+                           JS::MutableHandle<JSObject*> aRetval,
+                           ErrorResult& aRv);
 
   static void DefineModuleGetter(const GlobalObject& global,
                                  JS::Handle<JSObject*> target,
@@ -188,12 +194,12 @@ class ChromeUtils {
   static void ResetLastExternalProtocolIframeAllowed(GlobalObject& aGlobal);
 
   static void RegisterWindowActor(const GlobalObject& aGlobal,
-                                  const nsAString& aName,
+                                  const nsACString& aName,
                                   const WindowActorOptions& aOptions,
                                   ErrorResult& aRv);
 
   static void UnregisterWindowActor(const GlobalObject& aGlobal,
-                                    const nsAString& aName);
+                                    const nsACString& aName);
 
   static bool IsClassifierBlockingErrorCode(GlobalObject& aGlobal,
                                             uint32_t aError);

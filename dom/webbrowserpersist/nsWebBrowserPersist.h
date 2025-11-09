@@ -16,6 +16,7 @@
 #include "nsIChannel.h"
 #include "nsIProgressEventSink.h"
 #include "nsIFile.h"
+#include "nsIThreadRetargetableStreamListener.h"
 #include "nsIWebProgressListener2.h"
 #include "nsIWebBrowserPersist.h"
 #include "nsIWebBrowserPersistDocument.h"
@@ -28,9 +29,12 @@
 class nsIStorageStream;
 class nsIWebBrowserPersistDocument;
 
+using ClosePromise = mozilla::MozPromise<nsresult, nsresult, true>;
+
 class nsWebBrowserPersist final : public nsIInterfaceRequestor,
                                   public nsIWebBrowserPersist,
                                   public nsIStreamListener,
+                                  public nsIThreadRetargetableStreamListener,
                                   public nsIProgressEventSink,
                                   public nsSupportsWeakReference {
   friend class nsEncoderNodeFixup;
@@ -39,12 +43,13 @@ class nsWebBrowserPersist final : public nsIInterfaceRequestor,
  public:
   nsWebBrowserPersist();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSICANCELABLE
   NS_DECL_NSIWEBBROWSERPERSIST
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSISTREAMLISTENER
+  NS_DECL_NSITHREADRETARGETABLESTREAMLISTENER
   NS_DECL_NSIPROGRESSEVENTSINK
 
   // Private members
@@ -119,8 +124,9 @@ class nsWebBrowserPersist final : public nsIInterfaceRequestor,
 
   nsresult FixRedirectedChannelEntry(nsIChannel* aNewChannel);
 
-  void EndDownload(nsresult aResult);
   void FinishDownload();
+  void EndDownload(nsresult aResult);
+  void EndDownloadInternal(nsresult aResult);
   void SerializeNextFile();
   void CalcTotalProgress();
 
@@ -144,8 +150,11 @@ class nsWebBrowserPersist final : public nsIInterfaceRequestor,
    */
   nsCOMPtr<nsIWebProgressListener2> mProgressListener2;
   nsCOMPtr<nsIProgressEventSink> mEventSink;
+  mozilla::Mutex mOutputMapMutex;
   nsClassHashtable<nsISupportsHashKey, OutputData> mOutputMap;
   nsClassHashtable<nsISupportsHashKey, UploadData> mUploadList;
+  nsCOMPtr<nsISerialEventTarget> mBackgroundQueue;
+  nsTArray<RefPtr<ClosePromise>> mFileClosePromises;
   nsClassHashtable<nsCStringHashKey, URIData> mURIMap;
   nsCOMPtr<nsIWebBrowserPersistURIMap> mFlatURIMap;
   nsTArray<mozilla::UniquePtr<WalkData>> mWalkStack;
@@ -154,13 +163,18 @@ class nsWebBrowserPersist final : public nsIInterfaceRequestor,
   nsTArray<nsCString> mFilenameList;
   bool mFirstAndOnlyUse;
   bool mSavingDocument;
-  bool mCancel;
+  // mCancel is used from both the main thread, and (inside OnDataAvailable)
+  // from a background thread.
+  mozilla::Atomic<bool> mCancel;
+  bool mEndCalled;
   bool mCompleted;
   bool mStartSaving;
   bool mReplaceExisting;
   bool mSerializingOutput;
   bool mIsPrivate;
-  uint32_t mPersistFlags;
+  // mPersistFlags can be modified on the main thread, and can be read from
+  // a background thread when OnDataAvailable calls MakeOutputStreamFromFile.
+  mozilla::Atomic<uint32_t> mPersistFlags;
   nsresult mPersistResult;
   int64_t mTotalCurrentProgress;
   int64_t mTotalMaxProgress;

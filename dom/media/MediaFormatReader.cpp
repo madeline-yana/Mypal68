@@ -20,6 +20,7 @@
 #include "mozilla/Unused.h"
 #include "nsContentUtils.h"
 #include "nsPrintfCString.h"
+#include "nsTHashSet.h"
 
 #include <algorithm>
 #include <map>
@@ -68,7 +69,7 @@ class MediaFormatReader::ShutdownPromisePool {
  private:
   bool mShutdown = false;
   const RefPtr<ShutdownPromise::Private> mOnShutdownComplete;
-  nsTHashtable<nsRefPtrHashKey<ShutdownPromise>> mPromises;
+  nsTHashSet<RefPtr<ShutdownPromise>> mPromises;
 };
 
 RefPtr<ShutdownPromise> MediaFormatReader::ShutdownPromisePool::Shutdown() {
@@ -84,10 +85,10 @@ void MediaFormatReader::ShutdownPromisePool::Track(
     RefPtr<ShutdownPromise> aPromise) {
   MOZ_DIAGNOSTIC_ASSERT(!mShutdown);
   MOZ_DIAGNOSTIC_ASSERT(!mPromises.Contains(aPromise));
-  mPromises.PutEntry(aPromise);
+  mPromises.Insert(aPromise);
   aPromise->Then(AbstractThread::GetCurrent(), __func__, [aPromise, this]() {
     MOZ_DIAGNOSTIC_ASSERT(mPromises.Contains(aPromise));
-    mPromises.RemoveEntry(aPromise);
+    mPromises.Remove(aPromise);
     if (mShutdown && mPromises.Count() == 0) {
       mOnShutdownComplete->Resolve(true, __func__);
     }
@@ -120,7 +121,7 @@ void MediaFormatReader::DecoderData::ShutdownDecoder() {
   // mShutdownPromisePool will handle the order of decoder shutdown so
   // we can forget mDecoder and be ready to create a new one.
   mDecoder = nullptr;
-  mDescription = NS_LITERAL_CSTRING("shutdown");
+  mDescription = "shutdown"_ns;
   mOwner->ScheduleUpdate(mType == MediaData::Type::AUDIO_DATA
                              ? TrackType::kAudioTrack
                              : TrackType::kVideoTrack);
@@ -970,7 +971,7 @@ void MediaFormatReader::OnDemuxerInitDone(const MediaResult& aResult) {
       mInfo.mVideo = *videoInfo->GetAsVideoInfo();
       mVideo.mWorkingInfo = MakeUnique<VideoInfo>(mInfo.mVideo);
       for (const MetadataTag& tag : videoInfo->mTags) {
-        tags->Put(tag.mKey, tag.mValue);
+        tags->InsertOrUpdate(tag.mKey, tag.mValue);
       }
       mVideo.mOriginalInfo = std::move(videoInfo);
       mTrackDemuxersMayBlock |= mVideo.mTrackDemuxer->GetSamplesMayBlock();
@@ -999,7 +1000,7 @@ void MediaFormatReader::OnDemuxerInitDone(const MediaResult& aResult) {
       mInfo.mAudio = *audioInfo->GetAsAudioInfo();
       mAudio.mWorkingInfo = MakeUnique<AudioInfo>(mInfo.mAudio);
       for (const MetadataTag& tag : audioInfo->mTags) {
-        tags->Put(tag.mKey, tag.mValue);
+        tags->InsertOrUpdate(tag.mKey, tag.mValue);
       }
       mAudio.mOriginalInfo = std::move(audioInfo);
       mTrackDemuxersMayBlock |= mAudio.mTrackDemuxer->GetSamplesMayBlock();

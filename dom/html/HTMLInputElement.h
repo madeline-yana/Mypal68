@@ -115,6 +115,8 @@ class HTMLInputElement final : public TextControlElement,
   using nsGenericHTMLFormElementWithState::GetForm;
   using nsGenericHTMLFormElementWithState::GetFormAction;
   using nsIConstraintValidation::GetValidationMessage;
+  using ValueSetterOption = TextControlState::ValueSetterOption;
+  using ValueSetterOptions = TextControlState::ValueSetterOptions;
 
   enum class FromClone { no, yes };
 
@@ -891,15 +893,14 @@ class HTMLInputElement final : public TextControlElement,
    * @param aValue      String to set.
    * @param aOldValue   Previous value before setting aValue.
                         If previous value is unknown, aOldValue can be nullptr.
-   * @param aFlags      See TextControlState::SetValueFlags.
+   * @param aOptions    See TextControlState::ValueSetterOption.
    */
-  MOZ_CAN_RUN_SCRIPT
-  nsresult SetValueInternal(const nsAString& aValue, const nsAString* aOldValue,
-                            uint32_t aFlags);
-
-  MOZ_CAN_RUN_SCRIPT
-  nsresult SetValueInternal(const nsAString& aValue, uint32_t aFlags) {
-    return SetValueInternal(aValue, nullptr, aFlags);
+  MOZ_CAN_RUN_SCRIPT nsresult
+  SetValueInternal(const nsAString& aValue, const nsAString* aOldValue,
+                   const ValueSetterOptions& aOptions);
+  MOZ_CAN_RUN_SCRIPT nsresult SetValueInternal(
+      const nsAString& aValue, const ValueSetterOptions& aOptions) {
+    return SetValueInternal(aValue, nullptr, aOptions);
   }
 
   // Generic getter for the value that doesn't do experimental control type
@@ -964,7 +965,7 @@ class HTMLInputElement final : public TextControlElement,
    * Visit the group of radio buttons this radio belongs to
    * @param aVisitor the visitor to visit with
    */
-  nsresult VisitGroup(nsIRadioVisitor* aVisitor, bool aFlushContent);
+  nsresult VisitGroup(nsIRadioVisitor* aVisitor);
 
   /**
    * Do all the work that |SetChecked| does (radio button handling, etc.), but

@@ -37,8 +37,7 @@
 #include "nsStringFwd.h"
 #include "nscore.h"
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 using namespace mozilla::ipc;
 
@@ -434,5 +433,4 @@ SDBConnection::SetCloseCallback(nsISDBCloseCallback* aCloseCallback) {
   return NS_OK;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

@@ -63,12 +63,13 @@ RemoteLazyInputStreamParent::Create<mozilla::ipc::PBackgroundParent>(
     mozilla::ipc::PBackgroundParent*);
 
 template already_AddRefed<RemoteLazyInputStreamParent>
-RemoteLazyInputStreamParent::Create<ContentParent>(nsIInputStream*, uint64_t,
-                                                   uint64_t, nsresult*,
-                                                   ContentParent*);
+RemoteLazyInputStreamParent::Create<dom::ContentParent>(nsIInputStream*,
+                                                        uint64_t, uint64_t,
+                                                        nsresult*,
+                                                        dom::ContentParent*);
 
 RemoteLazyInputStreamParent::RemoteLazyInputStreamParent(
-    const nsID& aID, uint64_t aSize, ContentParent* aManager)
+    const nsID& aID, uint64_t aSize, dom::ContentParent* aManager)
     : mID(aID),
       mSize(aSize),
       mContentManager(aManager),

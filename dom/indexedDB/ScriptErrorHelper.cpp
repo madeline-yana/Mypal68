@@ -7,9 +7,11 @@
 #include "MainThreadUtils.h"
 #include "mozilla/SystemGroup.h"
 #include "nsCOMPtr.h"
+#include "nsComponentManagerUtils.h"
 #include "nsContentUtils.h"
 #include "nsIConsoleService.h"
 #include "nsIScriptError.h"
+#include "nsServiceManagerUtils.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
 
@@ -106,13 +108,13 @@ class ScriptErrorRunnable final : public mozilla::Runnable {
     if (aInnerWindowID) {
       MOZ_ALWAYS_SUCCEEDS(scriptError->InitWithWindowID(
           aMessage, aFilename,
-          /* aSourceLine */ EmptyString(), aLineNumber, aColumnNumber,
-          aSeverityFlag, category, aInnerWindowID));
+          /* aSourceLine */ u""_ns, aLineNumber, aColumnNumber, aSeverityFlag,
+          category, aInnerWindowID));
     } else {
       MOZ_ALWAYS_SUCCEEDS(scriptError->Init(
           aMessage, aFilename,
-          /* aSourceLine */ EmptyString(), aLineNumber, aColumnNumber,
-          aSeverityFlag, category.get(),
+          /* aSourceLine */ u""_ns, aLineNumber, aColumnNumber, aSeverityFlag,
+          category.get(),
           /* IDB doesn't run on Private browsing mode */ false,
           /* from chrome context */ aIsChrome));
     }
@@ -143,9 +145,7 @@ class ScriptErrorRunnable final : public mozilla::Runnable {
 
 }  // namespace
 
-namespace mozilla {
-namespace dom {
-namespace indexedDB {
+namespace mozilla::dom::indexedDB {
 
 /*static*/
 void ScriptErrorHelper::Dump(const nsAString& aMessage,
@@ -182,6 +182,4 @@ void ScriptErrorHelper::DumpLocalizedMessage(
   }
 }
 
-}  // namespace indexedDB
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom::indexedDB

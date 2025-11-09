@@ -4,28 +4,53 @@
 
 #include "QuotaManagerService.h"
 
+// Local includes
 #include "ActorsChild.h"
-#include "mozilla/BasePrincipal.h"
-#include "mozilla/ClearOnShutdown.h"
-#include "mozilla/Hal.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/StaticPrefs_dom.h"
-#include "mozilla/Unused.h"
-#include "mozilla/ipc/BackgroundChild.h"
-#include "mozilla/ipc/BackgroundParent.h"
-#include "mozilla/ipc/BackgroundUtils.h"
-#include "mozilla/ipc/PBackgroundChild.h"
-#include "nsIIdleService.h"
-#include "nsIObserverService.h"
-#include "nsXULAppAPI.h"
+#include "Client.h"
 #include "QuotaManager.h"
 #include "QuotaRequests.h"
 
+// Global includes
+#include <cstdint>
+#include <cstring>
+#include <utility>
+#include "MainThreadUtils.h"
+#include "mozilla/Assertions.h"
+#include "mozilla/Atomics.h"
+#include "mozilla/ClearOnShutdown.h"
+#include "mozilla/Hal.h"
+#include "mozilla/MacroForEach.h"
+#include "mozilla/Maybe.h"
+#include "mozilla/OriginAttributes.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/Services.h"
+#include "mozilla/StaticPrefs_dom.h"
+#include "mozilla/StaticPtr.h"
+#include "mozilla/Unused.h"
+#include "mozilla/Variant.h"
+#include "mozilla/dom/quota/PQuota.h"
+#include "mozilla/dom/quota/PersistenceType.h"
+#include "mozilla/fallible.h"
+#include "mozilla/hal_sandbox/PHal.h"
+#include "mozilla/ipc/BackgroundChild.h"
+#include "mozilla/ipc/BackgroundUtils.h"
+#include "mozilla/ipc/PBackgroundChild.h"
+#include "mozilla/ipc/PBackgroundSharedTypes.h"
+#include "nsCOMPtr.h"
+#include "nsContentUtils.h"
+#include "nsDebug.h"
+#include "nsError.h"
+#include "nsIObserverService.h"
+#include "nsIPrincipal.h"
+#include "nsIIdleService.h"
+#include "nsServiceManagerUtils.h"
+#include "nsStringFwd.h"
+#include "nsXULAppAPI.h"
+#include "nscore.h"
+
 #define PROFILE_BEFORE_CHANGE_QM_OBSERVER_ID "profile-before-change-qm"
 
-namespace mozilla {
-namespace dom {
-namespace quota {
+namespace mozilla::dom::quota {
 
 using namespace mozilla::ipc;
 
@@ -381,6 +406,84 @@ NS_IMPL_QUERY_INTERFACE(QuotaManagerService, nsIQuotaManagerService,
                         nsIObserver)
 
 NS_IMETHODIMP
+QuotaManagerService::StorageName(nsIQuotaRequest** _retval) {
+#ifdef ENABLE_TESTS
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(nsContentUtils::IsCallerChrome());
+
+  if (NS_WARN_IF(!StaticPrefs::dom_quotaManager_testing())) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  RefPtr<Request> request = new Request();
+
+  StorageNameParams params;
+
+  RequestInfo info(request, params);
+
+  nsresult rv = InitiateRequest(info);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  request.forget(_retval);
+#endif
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+QuotaManagerService::StorageInitialized(nsIQuotaRequest** _retval) {
+#ifdef ENABLE_TESTS
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(nsContentUtils::IsCallerChrome());
+
+  if (NS_WARN_IF(!StaticPrefs::dom_quotaManager_testing())) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  RefPtr<Request> request = new Request();
+
+  StorageInitializedParams params;
+
+  RequestInfo info(request, params);
+
+  nsresult rv = InitiateRequest(info);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  request.forget(_retval);
+#endif
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+QuotaManagerService::TemporaryStorageInitialized(nsIQuotaRequest** _retval) {
+#ifdef ENABLE_TESTS
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(nsContentUtils::IsCallerChrome());
+
+  if (NS_WARN_IF(!StaticPrefs::dom_quotaManager_testing())) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  RefPtr<Request> request = new Request();
+
+  TemporaryStorageInitializedParams params;
+
+  RequestInfo info(request, params);
+
+  nsresult rv = InitiateRequest(info);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  request.forget(_retval);
+#endif
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 QuotaManagerService::Init(nsIQuotaRequest** _retval) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(nsContentUtils::IsCallerChrome());
@@ -429,10 +532,8 @@ QuotaManagerService::InitTemporaryStorage(nsIQuotaRequest** _retval) {
 }
 
 NS_IMETHODIMP
-QuotaManagerService::InitStorageAndOrigin(nsIPrincipal* aPrincipal,
-                                          const nsACString& aPersistenceType,
-                                          const nsAString& aClientType,
-                                          nsIQuotaRequest** _retval) {
+QuotaManagerService::InitializePersistentOrigin(nsIPrincipal* aPrincipal,
+                                                nsIQuotaRequest** _retval) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(nsContentUtils::IsCallerChrome());
 
@@ -442,7 +543,7 @@ QuotaManagerService::InitStorageAndOrigin(nsIPrincipal* aPrincipal,
 
   RefPtr<Request> request = new Request();
 
-  InitStorageAndOriginParams params;
+  InitializePersistentOriginParams params;
 
   nsresult rv =
       CheckedPrincipalToPrincipalInfo(aPrincipal, params.principalInfo());
@@ -450,25 +551,48 @@ QuotaManagerService::InitStorageAndOrigin(nsIPrincipal* aPrincipal,
     return rv;
   }
 
+  RequestInfo info(request, params);
+
+  rv = InitiateRequest(info);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  request.forget(_retval);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+QuotaManagerService::InitializeTemporaryOrigin(
+    const nsACString& aPersistenceType, nsIPrincipal* aPrincipal,
+    nsIQuotaRequest** _retval) {
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(nsContentUtils::IsCallerChrome());
+
+  if (NS_WARN_IF(!StaticPrefs::dom_quotaManager_testing())) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  RefPtr<Request> request = new Request();
+
+  InitializeTemporaryOriginParams params;
+
   const auto maybePersistenceType =
       PersistenceTypeFromString(aPersistenceType, fallible);
   if (NS_WARN_IF(maybePersistenceType.isNothing())) {
     return NS_ERROR_INVALID_ARG;
   }
 
+  if (NS_WARN_IF(!IsBestEffortPersistenceType(maybePersistenceType.value()))) {
+    return NS_ERROR_FAILURE;
+  }
+
   params.persistenceType() = maybePersistenceType.value();
 
-  if (aClientType.IsVoid()) {
-    params.clientTypeIsExplicit() = false;
-  } else {
-    Client::Type clientType;
-    bool ok = Client::TypeFromText(aClientType, clientType, fallible);
-    if (NS_WARN_IF(!ok)) {
-      return NS_ERROR_INVALID_ARG;
-    }
-
-    params.clientType() = clientType;
-    params.clientTypeIsExplicit() = true;
+  nsresult rv =
+      CheckedPrincipalToPrincipalInfo(aPrincipal, params.principalInfo());
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
   }
 
   RequestInfo info(request, params);
@@ -887,6 +1011,4 @@ nsresult QuotaManagerService::IdleMaintenanceInfo::InitiateRequest(
   return NS_OK;
 }
 
-}  // namespace quota
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom::quota

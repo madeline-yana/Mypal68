@@ -100,8 +100,7 @@ class WMFMediaDataDecoder
   bool IsHardwareAccelerated(nsACString& aFailureReason) const override;
 
   nsCString GetDescriptionName() const override {
-    return mMFTManager ? mMFTManager->GetDescriptionName()
-                       : NS_LITERAL_CSTRING("");
+    return mMFTManager ? mMFTManager->GetDescriptionName() : ""_ns;
   }
 
   ConversionRequired NeedsConversion() const override {

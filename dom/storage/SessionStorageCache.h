@@ -5,7 +5,7 @@
 #ifndef mozilla_dom_SessionStorageCache_h
 #define mozilla_dom_SessionStorageCache_h
 
-#include "nsDataHashtable.h"
+#include "nsTHashMap.h"
 
 namespace mozilla {
 namespace dom {
@@ -51,7 +51,7 @@ class SessionStorageCache final {
     bool ProcessUsageDelta(int64_t aDelta);
 
     int64_t mOriginQuotaUsage;
-    nsDataHashtable<nsStringHashKey, nsString> mKeys;
+    nsTHashMap<nsStringHashKey, nsString> mKeys;
   };
 
   DataSet* Set(DataSetType aDataSetType);

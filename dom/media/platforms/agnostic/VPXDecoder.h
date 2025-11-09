@@ -28,7 +28,7 @@ class VPXDecoder : public MediaDataDecoder,
   RefPtr<FlushPromise> Flush() override;
   RefPtr<ShutdownPromise> Shutdown() override;
   nsCString GetDescriptionName() const override {
-    return NS_LITERAL_CSTRING("libvpx video decoder");
+    return "libvpx video decoder"_ns;
   }
 
   enum Codec : uint8_t {

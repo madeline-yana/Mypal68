@@ -22,8 +22,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Shared)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 extern nsAttrValue::EnumTable kListTypeTable[];
 
@@ -190,7 +189,7 @@ static void SetBaseTargetUsingFirstBaseWithTarget(Document* aDocument,
     }
   }
 
-  aDocument->SetBaseTarget(EmptyString());
+  aDocument->SetBaseTarget(u""_ns);
 }
 
 nsresult HTMLSharedElement::AfterSetAttr(int32_t aNamespaceID, nsAtom* aName,
@@ -290,5 +289,4 @@ JSObject* HTMLSharedElement::WrapNode(JSContext* aCx,
   return HTMLHtmlElement_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

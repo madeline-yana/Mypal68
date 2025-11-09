@@ -8,8 +8,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Meter)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 const double HTMLMeterElement::kDefaultValue = 0.0;
 const double HTMLMeterElement::kDefaultMin = 0.0;
@@ -238,5 +237,4 @@ JSObject* HTMLMeterElement::WrapNode(JSContext* aCx,
   return HTMLMeterElement_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

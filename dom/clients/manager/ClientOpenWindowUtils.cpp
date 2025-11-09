@@ -9,6 +9,7 @@
 #include "mozilla/dom/ScriptSettings.h" //MY
 #include "mozilla/SystemGroup.h"
 #include "nsContentUtils.h"
+#include "nsDocShellLoadState.h"
 #include "nsFocusManager.h"
 #include "nsIBrowserDOMWindow.h"
 #include "nsIDocShell.h"
@@ -458,13 +459,13 @@ RefPtr<ClientOpPromise> ClientOpenWindowInCurrentProcess(
 
   if (NS_WARN_IF(rv.Failed())) {
     promise->Reject(rv, __func__);
-    return promise.forget();
+    return promise;
   }
 
   MOZ_DIAGNOSTIC_ASSERT(outerWindow);
   WaitForLoad(aArgs, outerWindow, promise);
 
-  return promise.forget();
+  return promise;
 }
 
 }  // namespace dom

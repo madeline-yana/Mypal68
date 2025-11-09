@@ -130,7 +130,7 @@ dictionary WindowActorOptions {
    * allowed to instantiate this actor. If not passed, all content
    * processes are allowed to instantiate the actor.
    */
-  sequence<DOMString> remoteTypes;
+  sequence<UTF8String> remoteTypes;
 
   /** This fields are used for configuring individual sides of the actor. */
   WindowActorSidedOptions parent = {};
@@ -164,6 +164,6 @@ dictionary WindowActorChildOptions : WindowActorSidedOptions {
   * subject, and the events will only be dispatched to the corresponding window
   * actor. If additional observer notification's subjects are needed, please
   * file a bug for that.
-  **/
+  */
   sequence<ByteString> observers;
 };

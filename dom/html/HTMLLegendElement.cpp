@@ -10,8 +10,7 @@
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Legend)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 HTMLLegendElement::~HTMLLegendElement() = default;
 
@@ -72,8 +71,7 @@ void HTMLLegendElement::Focus(const FocusOptions& aOptions,
     return;
   }
 
-  int32_t tabIndex;
-  if (frame->IsFocusable(&tabIndex, false)) {
+  if (frame->IsFocusable()) {
     nsGenericHTMLElement::Focus(aOptions, aError);
     return;
   }
@@ -134,5 +132,4 @@ JSObject* HTMLLegendElement::WrapNode(JSContext* aCx,
   return HTMLLegendElement_Binding::Wrap(aCx, this, aGivenProto);
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

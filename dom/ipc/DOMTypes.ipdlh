@@ -3,7 +3,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include "mozilla/GfxMessageUtils.h";
+include "mozilla/dom/CSPMessageUtils.h";
+include "mozilla/dom/ReferrerInfoUtils.h";
 include "mozilla/dom/TabMessageUtils.h";
+include "mozilla/ipc/URIUtils.h";
 include "mozilla/layers/LayersMessageUtils.h";
 
 include IPCBlob;
@@ -13,7 +16,7 @@ include ProtocolTypes;
 using struct mozilla::void_t from "mozilla/ipc/IPCCore.h";
 
 using moveonly struct mozilla::SerializedStructuredCloneBuffer
-  from "ipc/IPCMessageUtils.h";
+  from "mozilla/ipc/SerializedStructuredCloneBuffer.h";
 
 using LayoutDeviceIntRect from "Units.h";
 using DesktopIntRect from "Units.h";
@@ -28,9 +31,9 @@ using hal::ScreenOrientation from "mozilla/HalScreenConfiguration.h";
 using mozilla::gfx::SurfaceFormat from "mozilla/gfx/Types.h";
 using refcounted class nsIPrincipal from "mozilla/dom/PermissionMessageUtils.h";
 using refcounted class mozilla::dom::BrowsingContext from "mozilla/dom/BrowsingContext.h";
-using refcounted class nsIURI from "mozilla/ipc/URIUtils.h";
-using refcounted class nsIContentSecurityPolicy from "mozilla/dom/CSPMessageUtils.h";
-using refcounted class nsIReferrerInfo from "mozilla/dom/ReferrerInfoUtils.h";
+using refcounted class nsIURI from "nsIURI.h";
+using refcounted class nsIContentSecurityPolicy from "nsIContentSecurityPolicy.h";
+using refcounted class nsIReferrerInfo from "nsIReferrerInfo.h";
 
 namespace mozilla {
 namespace dom {

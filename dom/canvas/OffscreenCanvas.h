@@ -18,6 +18,10 @@ namespace mozilla {
 
 class ErrorResult;
 
+namespace gfx {
+class SourceSurface;
+}
+
 namespace layers {
 class AsyncCanvasRenderer;
 class CanvasClient;

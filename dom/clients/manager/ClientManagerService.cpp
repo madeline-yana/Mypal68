@@ -50,8 +50,8 @@ class ClientShutdownBlocker final : public nsIAsyncShutdownBlocker {
 
   NS_IMETHOD
   GetName(nsAString& aNameOut) override {
-    aNameOut = NS_LITERAL_STRING(
-        "ClientManagerService: start destroying IPC actors early");
+    aNameOut = nsLiteralString(
+        u"ClientManagerService: start destroying IPC actors early");
     return NS_OK;
   }
 
@@ -92,9 +92,9 @@ RefPtr<GenericPromise> OnShutdown() {
 
         nsCOMPtr<nsIAsyncShutdownBlocker> blocker =
             new ClientShutdownBlocker(ref);
-        nsresult rv = phase->AddBlocker(
-            blocker, NS_LITERAL_STRING(__FILE__), __LINE__,
-            NS_LITERAL_STRING("ClientManagerService shutdown"));
+        nsresult rv =
+            phase->AddBlocker(blocker, NS_LITERAL_STRING_FROM_CSTRING(__FILE__),
+                              __LINE__, u"ClientManagerService shutdown"_ns);
 
         if (NS_FAILED(rv)) {
           ref->Resolve(true, __func__);
@@ -104,7 +104,7 @@ RefPtr<GenericPromise> OnShutdown() {
 
   MOZ_ALWAYS_SUCCEEDS(SystemGroup::Dispatch(TaskCategory::Other, r.forget()));
 
-  return ref.forget();
+  return ref;
 }
 
 }  // anonymous namespace
@@ -192,14 +192,22 @@ already_AddRefed<ClientManagerService> ClientManagerService::GetInstance() {
 bool ClientManagerService::AddSource(ClientSourceParent* aSource) {
   AssertIsOnBackgroundThread();
   MOZ_ASSERT(aSource);
-  auto entry = mSourceTable.LookupForAdd(aSource->Info().Id());
-  // Do not permit overwriting an existing ClientSource with the same
-  // UUID.  This would allow a spoofed ClientParentSource actor to
-  // intercept postMessage() intended for the real actor.
-  if (NS_WARN_IF(!!entry)) {
+  if (!mSourceTable.WithEntryHandle(aSource->Info().Id(),
+                                    [aSource](auto&& entry) {
+                                      // Do not permit overwriting an existing
+                                      // ClientSource with the same UUID.  This
+                                      // would allow a spoofed
+                                      // ClientParentSource actor to intercept
+                                      // postMessage() intended for the real
+                                      // actor.
+                                      if (NS_WARN_IF(entry.HasEntry())) {
+                                        return false;
+                                      }
+                                      entry.Insert(aSource);
+                                      return true;
+                                    })) {
     return false;
   }
-  entry.OrInsert([&] { return aSource; });
   return true;
 }
 
@@ -287,7 +295,7 @@ RefPtr<ClientOpPromise> ClientManagerService::Navigate(
     promise->Reject(rv, __func__);
   }
 
-  return promise.forget();
+  return promise;
 }
 
 namespace {
@@ -368,8 +376,8 @@ RefPtr<ClientOpPromise> ClientManagerService::MatchAll(
 
   RefPtr<PromiseListHolder> promiseList = new PromiseListHolder();
 
-  for (auto iter = mSourceTable.Iter(); !iter.Done(); iter.Next()) {
-    ClientSourceParent* source = iter.UserData();
+  for (const auto& entry : mSourceTable) {
+    ClientSourceParent* source = entry.GetWeak();
     MOZ_DIAGNOSTIC_ASSERT(source);
 
     if (source->IsFrozen() || !source->ExecutionReady()) {
@@ -449,7 +457,7 @@ RefPtr<ClientOpPromise> ClaimOnMainThread(
 
   MOZ_ALWAYS_SUCCEEDS(SystemGroup::Dispatch(TaskCategory::Other, r.forget()));
 
-  return promise.forget();
+  return promise;
 }
 
 }  // anonymous namespace
@@ -463,8 +471,8 @@ RefPtr<ClientOpPromise> ClientManagerService::Claim(
 
   RefPtr<PromiseListHolder> promiseList = new PromiseListHolder();
 
-  for (auto iter = mSourceTable.Iter(); !iter.Done(); iter.Next()) {
-    ClientSourceParent* source = iter.UserData();
+  for (const auto& entry : mSourceTable) {
+    ClientSourceParent* source = entry.GetWeak();
     MOZ_DIAGNOSTIC_ASSERT(source);
 
     if (source->IsFrozen()) {
@@ -587,7 +595,7 @@ class OpenWindowRunnable final : public Runnable {
     // present.
     if (!targetProcess) {
       targetProcess = ContentParent::GetNewOrUsedBrowserProcess(
-          nullptr, NS_LITERAL_STRING(DEFAULT_REMOTE_TYPE),
+          nullptr, DEFAULT_REMOTE_TYPE,
           ContentParent::GetInitialProcessPriority(nullptr), nullptr);
     }
 
@@ -637,7 +645,7 @@ RefPtr<ClientOpPromise> ClientManagerService::OpenWindow(
       new OpenWindowRunnable(promise, aArgs, std::move(aSourceProcess));
   MOZ_ALWAYS_SUCCEEDS(SystemGroup::Dispatch(TaskCategory::Other, r.forget()));
 
-  return promise.forget();
+  return promise;
 }
 
 bool ClientManagerService::HasWindow(

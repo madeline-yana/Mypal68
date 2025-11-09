@@ -76,8 +76,7 @@
 // construction, destruction
 NS_IMPL_NS_NEW_HTML_ELEMENT(Form)
 
-namespace mozilla {
-namespace dom {
+namespace mozilla::dom {
 
 static const uint8_t NS_FORM_AUTOCOMPLETE_ON = 1;
 static const uint8_t NS_FORM_AUTOCOMPLETE_OFF = 0;
@@ -94,9 +93,6 @@ HTMLFormElement::HTMLFormElement(
     already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo)
     : nsGenericHTMLElement(std::move(aNodeInfo)),
       mControls(new HTMLFormControlsCollection(this)),
-      mSelectedRadioButtons(2),
-      mRequiredRadioButtonCounts(2),
-      mValueMissingRadioGroups(2),
       mPendingSubmission(nullptr),
       mSubmittingRequest(nullptr),
       mDefaultSubmitElement(nullptr),
@@ -137,11 +133,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLFormElement,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mControls)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mImageNameLookupTable)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPastNameLookupTable)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSelectedRadioButtons)
+  RadioGroupManager::Traverse(tmp, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLFormElement,
                                                 nsGenericHTMLElement)
+  RadioGroupManager::Unlink(tmp);
   tmp->Clear();
   tmp->mExpandoAndGeneration.OwnerUnlinked();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -1001,8 +998,9 @@ nsresult HTMLFormElement::ConstructEntryList(FormData* aFormData) {
         FormDataEvent::Constructor(this, u"formdata"_ns, init);
     event->SetTrusted(true);
 
-    EventDispatcher::DispatchDOMEvent(ToSupports(this), nullptr, event, nullptr,
-                                      nullptr);
+    // TODO: Bug 1506441
+    EventDispatcher::DispatchDOMEvent(MOZ_KnownLive(ToSupports(this)), nullptr,
+                                      event, nullptr, nullptr);
   }
 
   return NS_OK;
@@ -1434,7 +1432,7 @@ nsresult HTMLFormElement::RemoveElementFromTableInternal(
 
   // If it's not a content node then it must be a RadioNodeList.
   MOZ_ASSERT(nsCOMPtr<RadioNodeList>(do_QueryInterface(entry.Data())));
-  auto* list = static_cast<RadioNodeList*>(entry.Data().get());
+  auto* list = static_cast<RadioNodeList*>(entry->get());
 
   list->RemoveElement(aChild);
 
@@ -1466,7 +1464,7 @@ already_AddRefed<nsISupports> HTMLFormElement::NamedGetter(
     const nsAString& aName, bool& aFound) {
   aFound = true;
 
-  nsCOMPtr<nsISupports> result = DoResolveName(aName, true);
+  nsCOMPtr<nsISupports> result = DoResolveName(aName);
   if (result) {
     AddToPastNamesMap(aName, result);
     return result.forget();
@@ -1506,9 +1504,8 @@ already_AddRefed<nsISupports> HTMLFormElement::FindNamedItem(
 }
 
 already_AddRefed<nsISupports> HTMLFormElement::DoResolveName(
-    const nsAString& aName, bool aFlushContent) {
-  nsCOMPtr<nsISupports> result =
-      mControls->NamedItemInternal(aName, aFlushContent);
+    const nsAString& aName) {
+  nsCOMPtr<nsISupports> result = mControls->NamedItemInternal(aName);
   return result.forget();
 }
 
@@ -1689,10 +1686,10 @@ nsresult HTMLFormElement::GetActionURL(nsIURI** aActionURL,
 
     CSP_LogLocalizedStr(
         "upgradeInsecureRequest", params,
-        EmptyString(),  // aSourceFile
-        EmptyString(),  // aScriptSample
-        0,              // aLineNumber
-        0,              // aColumnNumber
+        u""_ns,  // aSourceFile
+        u""_ns,  // aScriptSample
+        0,       // aLineNumber
+        0,       // aColumnNumber
         nsIScriptError::warningFlag, "upgradeInsecureRequest"_ns,
         document->InnerWindowID(),
         !!document->NodePrincipal()->OriginAttributesRef().mPrivateBrowsingId);
@@ -2063,12 +2060,12 @@ HTMLFormElement::IndexOfControl(nsIFormControl* aControl) {
 
 void HTMLFormElement::SetCurrentRadioButton(const nsAString& aName,
                                             HTMLInputElement* aRadio) {
-  mSelectedRadioButtons.Put(aName, RefPtr{aRadio});
+  RadioGroupManager::SetCurrentRadioButton(aName, aRadio);
 }
 
 HTMLInputElement* HTMLFormElement::GetCurrentRadioButton(
     const nsAString& aName) {
-  return mSelectedRadioButtons.GetWeak(aName);
+  return RadioGroupManager::GetCurrentRadioButton(aName);
 }
 
 NS_IMETHODIMP
@@ -2076,170 +2073,42 @@ HTMLFormElement::GetNextRadioButton(const nsAString& aName,
                                     const bool aPrevious,
                                     HTMLInputElement* aFocusedRadio,
                                     HTMLInputElement** aRadioOut) {
-  // Return the radio button relative to the focused radio button.
-  // If no radio is focused, get the radio relative to the selected one.
-  *aRadioOut = nullptr;
-
-  RefPtr<HTMLInputElement> currentRadio;
-  if (aFocusedRadio) {
-    currentRadio = aFocusedRadio;
-  } else {
-    mSelectedRadioButtons.Get(aName, getter_AddRefs(currentRadio));
-  }
-
-  nsCOMPtr<nsISupports> itemWithName = DoResolveName(aName, true);
-  nsCOMPtr<nsINodeList> radioGroup(do_QueryInterface(itemWithName));
-
-  if (!radioGroup) {
-    return NS_ERROR_FAILURE;
-  }
-
-  int32_t index = radioGroup->IndexOf(currentRadio);
-  if (index < 0) {
-    return NS_ERROR_FAILURE;
-  }
-
-  uint32_t numRadios = radioGroup->Length();
-  RefPtr<HTMLInputElement> radio;
-
-  bool isRadio = false;
-  do {
-    if (aPrevious) {
-      if (--index < 0) {
-        index = numRadios - 1;
-      }
-    } else if (++index >= (int32_t)numRadios) {
-      index = 0;
-    }
-    radio = HTMLInputElement::FromNodeOrNull(radioGroup->Item(index));
-    isRadio = radio && radio->ControlType() == NS_FORM_INPUT_RADIO;
-    if (!isRadio) {
-      continue;
-    }
-
-    nsAutoString name;
-    radio->GetName(name);
-    isRadio = aName.Equals(name);
-  } while (!isRadio || (radio->Disabled() && radio != currentRadio));
-
-  NS_IF_ADDREF(*aRadioOut = radio);
-  return NS_OK;
+  return RadioGroupManager::GetNextRadioButton(aName, aPrevious, aFocusedRadio,
+                                               aRadioOut);
 }
 
 NS_IMETHODIMP
 HTMLFormElement::WalkRadioGroup(const nsAString& aName,
-                                nsIRadioVisitor* aVisitor, bool aFlushContent) {
-  if (aName.IsEmpty()) {
-    //
-    // XXX If the name is empty, it's not stored in the control list.  There
-    // *must* be a more efficient way to do this.
-    //
-    nsCOMPtr<nsIFormControl> control;
-    uint32_t len = GetElementCount();
-    for (uint32_t i = 0; i < len; i++) {
-      control = GetElementAt(i);
-      if (control->ControlType() == NS_FORM_INPUT_RADIO) {
-        nsCOMPtr<Element> controlElement = do_QueryInterface(control);
-        if (controlElement &&
-            controlElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
-                                        EmptyString(), eCaseMatters) &&
-            !aVisitor->Visit(control)) {
-          break;
-        }
-      }
-    }
-    return NS_OK;
-  }
-
-  // Get the control / list of controls from the form using form["name"]
-  nsCOMPtr<nsISupports> item = DoResolveName(aName, aFlushContent);
-  if (!item) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // If it's just a lone radio button, then select it.
-  nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(item);
-  if (formControl) {
-    if (formControl->ControlType() == NS_FORM_INPUT_RADIO) {
-      aVisitor->Visit(formControl);
-    }
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsINodeList> nodeList = do_QueryInterface(item);
-  if (!nodeList) {
-    return NS_OK;
-  }
-  uint32_t length = nodeList->Length();
-  for (uint32_t i = 0; i < length; i++) {
-    nsIContent* node = nodeList->Item(i);
-    nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(node);
-    if (formControl && formControl->ControlType() == NS_FORM_INPUT_RADIO &&
-        !aVisitor->Visit(formControl)) {
-      break;
-    }
-  }
-  return NS_OK;
+                                nsIRadioVisitor* aVisitor) {
+  return RadioGroupManager::WalkRadioGroup(aName, aVisitor);
 }
 
 void HTMLFormElement::AddToRadioGroup(const nsAString& aName,
                                       HTMLInputElement* aRadio) {
-  if (aRadio->IsRequired()) {
-    auto entry = mRequiredRadioButtonCounts.LookupForAdd(aName);
-    if (!entry) {
-      entry.OrInsert([]() { return 1; });
-    } else {
-      ++entry.Data();
-    }
-  }
+  RadioGroupManager::AddToRadioGroup(aName, aRadio);
 }
 
 void HTMLFormElement::RemoveFromRadioGroup(const nsAString& aName,
                                            HTMLInputElement* aRadio) {
-  if (aRadio->IsRequired()) {
-    auto entry = mRequiredRadioButtonCounts.Lookup(aName);
-    if (!entry) {
-      MOZ_ASSERT_UNREACHABLE("At least one radio button has to be required!");
-    } else {
-      MOZ_ASSERT(entry.Data() >= 1,
-                 "At least one radio button has to be required!");
-      if (entry.Data() <= 1) {
-        entry.Remove();
-      } else {
-        --entry.Data();
-      }
-    }
-  }
+  RadioGroupManager::RemoveFromRadioGroup(aName, aRadio);
 }
 
 uint32_t HTMLFormElement::GetRequiredRadioCount(const nsAString& aName) const {
-  return mRequiredRadioButtonCounts.Get(aName);
+  return RadioGroupManager::GetRequiredRadioCount(aName);
 }
 
 void HTMLFormElement::RadioRequiredWillChange(const nsAString& aName,
                                               bool aRequiredAdded) {
-  if (aRequiredAdded) {
-    mRequiredRadioButtonCounts.Put(aName,
-                                   mRequiredRadioButtonCounts.Get(aName) + 1);
-  } else {
-    uint32_t requiredNb = mRequiredRadioButtonCounts.Get(aName);
-    NS_ASSERTION(requiredNb >= 1,
-                 "At least one radio button has to be required!");
-    if (requiredNb == 1) {
-      mRequiredRadioButtonCounts.Remove(aName);
-    } else {
-      mRequiredRadioButtonCounts.Put(aName, requiredNb - 1);
-    }
-  }
+  RadioGroupManager::RadioRequiredWillChange(aName, aRequiredAdded);
 }
 
 bool HTMLFormElement::GetValueMissingState(const nsAString& aName) const {
-  return mValueMissingRadioGroups.Get(aName);
+  return RadioGroupManager::GetValueMissingState(aName);
 }
 
 void HTMLFormElement::SetValueMissingState(const nsAString& aName,
                                            bool aValue) {
-  mValueMissingRadioGroups.Put(aName, aValue);
+  RadioGroupManager::SetValueMissingState(aName, aValue);
 }
 
 EventStates HTMLFormElement::IntrinsicState() const {
@@ -2292,81 +2161,83 @@ struct RadioNodeListAdaptor {
 nsresult HTMLFormElement::AddElementToTableInternal(
     nsInterfaceHashtable<nsStringHashKey, nsISupports>& aTable,
     nsIContent* aChild, const nsAString& aName) {
-  auto entry = aTable.LookupForAdd(aName);
-  if (!entry) {
-    // No entry found, add the element
-    entry.OrInsert([&aChild]() { return aChild; });
-    ++mExpandoAndGeneration.generation;
-  } else {
-    // Found something in the hash, check its type
-    nsCOMPtr<nsIContent> content = do_QueryInterface(entry.Data());
-
-    if (content) {
-      // Check if the new content is the same as the one we found in the
-      // hash, if it is then we leave it in the hash as it is, this will
-      // happen if a form control has both a name and an id with the same
-      // value
-      if (content == aChild) {
-        return NS_OK;
-      }
-
-      // Found an element, create a list, add the element to the list and put
-      // the list in the hash
-      RadioNodeList* list = new RadioNodeList(this);
-
-      // If an element has a @form, we can assume it *might* be able to not have
-      // a parent and still be in the form.
-      NS_ASSERTION(
-          (content->IsElement() &&
-           content->AsElement()->HasAttr(kNameSpaceID_None, nsGkAtoms::form)) ||
-              content->GetParent(),
-          "Item in list without parent");
-
-      // Determine the ordering between the new and old element.
-      bool newFirst = nsContentUtils::PositionIsBefore(aChild, content);
-
-      list->AppendElement(newFirst ? aChild : content.get());
-      list->AppendElement(newFirst ? content.get() : aChild);
-
-      nsCOMPtr<nsISupports> listSupports = do_QueryObject(list);
-
-      // Replace the element with the list.
-      entry.Data() = listSupports;
+  return aTable.WithEntryHandle(aName, [&](auto&& entry) {
+    if (!entry) {
+      // No entry found, add the element
+      entry.Insert(aChild);
+      ++mExpandoAndGeneration.generation;
     } else {
-      // There's already a list in the hash, add the child to the list.
-      MOZ_ASSERT(nsCOMPtr<RadioNodeList>(do_QueryInterface(entry.Data())));
-      auto* list = static_cast<RadioNodeList*>(entry.Data().get());
+      // Found something in the hash, check its type
+      nsCOMPtr<nsIContent> content = do_QueryInterface(entry.Data());
 
-      NS_ASSERTION(list->Length() > 1,
-                   "List should have been converted back to a single element");
+      if (content) {
+        // Check if the new content is the same as the one we found in the
+        // hash, if it is then we leave it in the hash as it is, this will
+        // happen if a form control has both a name and an id with the same
+        // value
+        if (content == aChild) {
+          return NS_OK;
+        }
 
-      // Fast-path appends; this check is ok even if the child is
-      // already in the list, since if it tests true the child would
-      // have come at the end of the list, and the PositionIsBefore
-      // will test false.
-      if (nsContentUtils::PositionIsBefore(list->Item(list->Length() - 1),
-                                           aChild)) {
-        list->AppendElement(aChild);
-        return NS_OK;
+        // Found an element, create a list, add the element to the list and put
+        // the list in the hash
+        RadioNodeList* list = new RadioNodeList(this);
+
+        // If an element has a @form, we can assume it *might* be able to not
+        // have a parent and still be in the form.
+        NS_ASSERTION(
+            (content->IsElement() && content->AsElement()->HasAttr(
+                                         kNameSpaceID_None, nsGkAtoms::form)) ||
+                content->GetParent(),
+            "Item in list without parent");
+
+        // Determine the ordering between the new and old element.
+        bool newFirst = nsContentUtils::PositionIsBefore(aChild, content);
+
+        list->AppendElement(newFirst ? aChild : content.get());
+        list->AppendElement(newFirst ? content.get() : aChild);
+
+        nsCOMPtr<nsISupports> listSupports = do_QueryObject(list);
+
+        // Replace the element with the list.
+        entry.Data() = listSupports;
+      } else {
+        // There's already a list in the hash, add the child to the list.
+        MOZ_ASSERT(nsCOMPtr<RadioNodeList>(do_QueryInterface(entry.Data())));
+        auto* list = static_cast<RadioNodeList*>(entry->get());
+
+        NS_ASSERTION(
+            list->Length() > 1,
+            "List should have been converted back to a single element");
+
+        // Fast-path appends; this check is ok even if the child is
+        // already in the list, since if it tests true the child would
+        // have come at the end of the list, and the PositionIsBefore
+        // will test false.
+        if (nsContentUtils::PositionIsBefore(list->Item(list->Length() - 1),
+                                             aChild)) {
+          list->AppendElement(aChild);
+          return NS_OK;
+        }
+
+        // If a control has a name equal to its id, it could be in the
+        // list already.
+        if (list->IndexOf(aChild) != -1) {
+          return NS_OK;
+        }
+
+        size_t idx;
+        DebugOnly<bool> found =
+            BinarySearchIf(RadioNodeListAdaptor(list), 0, list->Length(),
+                           PositionComparator(aChild), &idx);
+        MOZ_ASSERT(!found, "should not have found an element");
+
+        list->InsertElementAt(aChild, idx);
       }
-
-      // If a control has a name equal to its id, it could be in the
-      // list already.
-      if (list->IndexOf(aChild) != -1) {
-        return NS_OK;
-      }
-
-      size_t idx;
-      DebugOnly<bool> found =
-          BinarySearchIf(RadioNodeListAdaptor(list), 0, list->Length(),
-                         PositionComparator(aChild), &idx);
-      MOZ_ASSERT(!found, "should not have found an element");
-
-      list->InsertElementAt(aChild, idx);
     }
-  }
 
-  return NS_OK;
+    return NS_OK;
+  });
 }
 
 nsresult HTMLFormElement::AddImageElement(HTMLImageElement* aChild) {
@@ -2401,7 +2272,7 @@ void HTMLFormElement::AddToPastNamesMap(const nsAString& aName,
   // previous entry with the same name, if any.
   nsCOMPtr<nsIContent> node = do_QueryInterface(aChild);
   if (node) {
-    mPastNameLookupTable.Put(aName, node);
+    mPastNameLookupTable.InsertOrUpdate(aName, ToSupports(node));
     node->SetFlags(MAY_BE_IN_PAST_NAMES_MAP);
   }
 }
@@ -2450,5 +2321,4 @@ void HTMLFormElement::NodeInfoChanged(Document* aOldDoc) {
   mFormNumber = -1;
 }
 
-}  // namespace dom
-}  // namespace mozilla
+}  // namespace mozilla::dom

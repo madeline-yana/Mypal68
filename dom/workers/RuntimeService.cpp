@@ -133,9 +133,8 @@ static_assert(MAX_WORKERS_PER_DOMAIN >= 1,
 
 // Prefixes for observing preference changes.
 #define PREF_JS_OPTIONS_PREFIX "javascript.options."
-#define PREF_WORKERS_OPTIONS_PREFIX PREF_WORKERS_PREFIX "options."
 #define PREF_MEM_OPTIONS_PREFIX "mem."
-#define PREF_GCZEAL "gcZeal"
+#define PREF_GCZEAL "gczeal"
 
 static NS_DEFINE_CID(kStreamTransportServiceCID, NS_STREAMTRANSPORTSERVICE_CID);
 
@@ -165,9 +164,7 @@ struct PrefTraits;
 
 template <>
 struct PrefTraits<bool> {
-  typedef bool PrefValueType;
-
-  static const PrefValueType kDefaultValue = false;
+  using PrefValueType = bool;
 
   static inline PrefValueType Get(const char* aPref) {
     AssertIsOnMainThread();
@@ -182,7 +179,7 @@ struct PrefTraits<bool> {
 
 template <>
 struct PrefTraits<int32_t> {
-  typedef int32_t PrefValueType;
+  using PrefValueType = int32_t;
 
   static inline PrefValueType Get(const char* aPref) {
     AssertIsOnMainThread();
@@ -196,32 +193,19 @@ struct PrefTraits<int32_t> {
 };
 
 template <typename T>
-T GetWorkerPref(const nsACString& aPref,
-                const T aDefault = PrefTraits<T>::kDefaultValue,
-                bool* aPresent = nullptr) {
+T GetPref(const char* aFullPref, const T aDefault, bool* aPresent = nullptr) {
   AssertIsOnMainThread();
 
-  typedef PrefTraits<T> PrefHelper;
+  using PrefHelper = PrefTraits<T>;
 
   T result;
   bool present = true;
 
-  nsAutoCString prefName;
-  prefName.AssignLiteral(PREF_WORKERS_OPTIONS_PREFIX);
-  prefName.Append(aPref);
-
-  if (PrefHelper::Exists(prefName.get())) {
-    result = PrefHelper::Get(prefName.get());
+  if (PrefHelper::Exists(aFullPref)) {
+    result = PrefHelper::Get(aFullPref);
   } else {
-    prefName.AssignLiteral(PREF_JS_OPTIONS_PREFIX);
-    prefName.Append(aPref);
-
-    if (PrefHelper::Exists(prefName.get())) {
-      result = PrefHelper::Get(prefName.get());
-    } else {
-      result = aDefault;
-      present = false;
-    }
+    result = aDefault;
+    present = false;
   }
 
   if (aPresent) {
@@ -245,69 +229,18 @@ void LoadContextOptions(const char* aPrefName, void* /* aClosure */) {
   // another callback that will handle this change.
   if (StringBeginsWith(
           prefName,
-          nsLiteralCString(PREF_JS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX)) ||
-      StringBeginsWith(
-          prefName, nsLiteralCString(
-                        PREF_WORKERS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX))) {
+          nsLiteralCString(PREF_JS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX))) {
     return;
   }
 
 #ifdef JS_GC_ZEAL
-  if (prefName.EqualsLiteral(PREF_JS_OPTIONS_PREFIX PREF_GCZEAL) ||
-      prefName.EqualsLiteral(PREF_WORKERS_OPTIONS_PREFIX PREF_GCZEAL)) {
+  if (prefName.EqualsLiteral(PREF_JS_OPTIONS_PREFIX PREF_GCZEAL)) {
     return;
   }
 #endif
 
-  // Context options.
   JS::ContextOptions contextOptions;
-  contextOptions
-      .setAsmJS(GetWorkerPref<bool>("asmjs"_ns))
-#ifdef FUZZING
-      .setFuzzing(GetWorkerPref<bool>("fuzzing.enabled"_ns))
-#endif
-      .setWasm(GetWorkerPref<bool>("wasm"_ns))
-      .setWasmForTrustedPrinciples(
-          GetWorkerPref<bool>("wasm_trustedprincipals"_ns))
-      .setWasmBaseline(GetWorkerPref<bool>("wasm_baselinejit"_ns))
-#ifdef ENABLE_WASM_CRANELIFT
-      .setWasmCranelift(GetWorkerPref<bool>("wasm_optimizingjit"_ns))
-#else
-      .setWasmIon(GetWorkerPref<bool>("wasm_optimizingjit"_ns))
-#endif
-      .setWasmBaseline(GetWorkerPref<bool>("wasm_baselinejit"_ns))
-      .setWasmVerbose(GetWorkerPref<bool>("wasm_verbose"_ns))
-#define WASM_FEATURE(NAME, LOWER_NAME, COMPILE_PRED, COMPILER_PRED, FLAG_PRED, \
-                     SHELL, PREF)                                              \
-  .setWasm##NAME(GetWorkerPref<bool>("wasm_" PREF ""_ns))
-#ifdef ENABLE_WASM_SIMD
-          JS_FOR_WASM_FEATURES(WASM_FEATURE, WASM_FEATURE)
-#else
-          JS_FOR_WASM_FEATURES(WASM_FEATURE)
-#endif
-#undef WASM_FEATURE
-#undef WASM_FEATURE
-#ifdef ENABLE_WASM_SIMD_WORMHOLE
-#  ifdef EARLY_BETA_OR_EARLIER
-      .setWasmSimdWormhole(GetWorkerPref<bool>("wasm_simd_wormhole"_ns))
-#  else
-      .setWasmSimdWormhole(false)
-#  endif
-#endif
-      .setThrowOnAsmJSValidationFailure(
-          GetWorkerPref<bool>("throw_on_asmjs_validation_failure"_ns))
-      .setSourcePragmas(GetWorkerPref<bool>("source_pragmas"_ns))
-      .setAsyncStack(GetWorkerPref<bool>("asyncstack"_ns))
-      .setAsyncStackCaptureDebuggeeOnly(
-          GetWorkerPref<bool>("asyncstack_capture_debuggee_only"_ns))
-      .setPrivateClassFields(
-          GetWorkerPref<bool>("experimental.private_fields"_ns))
-      .setClassStaticBlocks(
-          GetWorkerPref<bool>("experimental.class_static_blocks"_ns))
-      .setPrivateClassMethods(
-          GetWorkerPref<bool>("experimental.private_methods"_ns))
-      .setErgnomicBrandChecks(
-          GetWorkerPref<bool>("experimental.ergonomic_brand_checks"_ns));
+  xpc::SetPrefableContextOptions(contextOptions);
 
   nsCOMPtr<nsIXULRuntime> xr = do_GetService("@mozilla.org/xre/runtime;1");
   if (xr) {
@@ -335,12 +268,13 @@ void LoadGCZealOptions(const char* /* aPrefName */, void* /* aClosure */) {
     return;
   }
 
-  int32_t gczeal = GetWorkerPref<int32_t>(nsLiteralCString(PREF_GCZEAL), -1);
+  int32_t gczeal = GetPref<int32_t>(PREF_JS_OPTIONS_PREFIX PREF_GCZEAL, -1);
   if (gczeal < 0) {
     gczeal = 0;
   }
 
-  int32_t frequency = GetWorkerPref<int32_t>("gcZeal.frequency"_ns, -1);
+  int32_t frequency =
+      GetPref<int32_t>(PREF_JS_OPTIONS_PREFIX PREF_GCZEAL ".frequency", -1);
   if (frequency < 0) {
     frequency = JS_DEFAULT_ZEAL_FREQ;
   }
@@ -354,12 +288,11 @@ void LoadGCZealOptions(const char* /* aPrefName */, void* /* aClosure */) {
 #endif
 
 void UpdateCommonJSGCMemoryOption(RuntimeService* aRuntimeService,
-                                  const nsACString& aPrefName,
-                                  JSGCParamKey aKey) {
+                                  const char* aPrefName, JSGCParamKey aKey) {
   AssertIsOnMainThread();
-  NS_ASSERTION(!aPrefName.IsEmpty(), "Empty pref name!");
+  NS_ASSERTION(aPrefName, "Null pref name!");
 
-  int32_t prefValue = GetWorkerPref(aPrefName, -1);
+  int32_t prefValue = GetPref(aPrefName, -1);
   Maybe<uint32_t> value = (prefValue < 0 || prefValue >= 10000)
                               ? Nothing()
                               : Some(uint32_t(prefValue));
@@ -392,30 +325,31 @@ void LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */) {
     return;
   }
 
-  constexpr auto jsPrefix = nsLiteralCString{PREF_JS_OPTIONS_PREFIX};
-  constexpr auto workersPrefix = nsLiteralCString{PREF_WORKERS_OPTIONS_PREFIX};
-
+  constexpr auto memPrefix =
+      nsLiteralCString{PREF_JS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX};
   const nsDependentCString fullPrefName(aPrefName);
 
   // Pull out the string that actually distinguishes the parameter we need to
   // change.
   nsDependentCSubstring memPrefName;
-  if (StringBeginsWith(fullPrefName, jsPrefix)) {
-    memPrefName.Rebind(fullPrefName, jsPrefix.Length());
-  } else if (StringBeginsWith(fullPrefName, workersPrefix)) {
-    memPrefName.Rebind(fullPrefName, workersPrefix.Length());
+  if (StringBeginsWith(fullPrefName, memPrefix)) {
+    memPrefName.Rebind(fullPrefName, memPrefix.Length());
   } else {
     NS_ERROR("Unknown pref name!");
     return;
   }
 
   struct WorkerGCPref {
-    nsLiteralCString name;
+    nsLiteralCString memName;
+    const char* fullName;
     JSGCParamKey key;
   };
 
-#define PREF(suffix_, key_) \
-  { nsLiteralCString(PREF_MEM_OPTIONS_PREFIX suffix_), key_ }
+#define PREF(suffix_, key_)                                          \
+  {                                                                  \
+    nsLiteralCString(suffix_),                                       \
+        PREF_JS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX suffix_, key_ \
+  }
   constexpr WorkerGCPref kWorkerPrefs[] = {
       PREF("max", JSGC_MAX_BYTES),
       PREF("gc_high_frequency_time_limit_ms", JSGC_HIGH_FREQUENCY_TIME_LIMIT),
@@ -443,12 +377,12 @@ void LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */) {
 
   if (gRuntimeServiceDuringInit) {
     // During init, we want to update every pref in kWorkerPrefs.
-    MOZ_ASSERT(memPrefName.EqualsLiteral(PREF_MEM_OPTIONS_PREFIX),
+    MOZ_ASSERT(memPrefName.IsEmpty(),
                "Pref branch prefix only expected during init");
   } else {
     // Otherwise, find the single pref that changed.
     while (pref != end) {
-      if (pref->name == memPrefName) {
+      if (pref->memName == memPrefName) {
         end = pref + 1;
         break;
       }
@@ -467,7 +401,7 @@ void LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */) {
   while (pref != end) {
     switch (pref->key) {
       case JSGC_MAX_BYTES: {
-        int32_t prefValue = GetWorkerPref(pref->name, -1);
+        int32_t prefValue = GetPref(pref->fullName, -1);
         Maybe<uint32_t> value = (prefValue <= 0 || prefValue >= 0x1000)
                                     ? Nothing()
                                     : Some(uint32_t(prefValue) * 1024 * 1024);
@@ -475,7 +409,7 @@ void LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */) {
         break;
       }
       case JSGC_SLICE_TIME_BUDGET_MS: {
-        int32_t prefValue = GetWorkerPref(pref->name, -1);
+        int32_t prefValue = GetPref(pref->fullName, -1);
         Maybe<uint32_t> value = (prefValue <= 0 || prefValue >= 100000)
                                     ? Nothing()
                                     : Some(uint32_t(prefValue));
@@ -484,7 +418,7 @@ void LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */) {
       }
       case JSGC_COMPACTING_ENABLED: {
         bool present;
-        bool prefValue = GetWorkerPref(pref->name, false, &present);
+        bool prefValue = GetPref(pref->fullName, false, &present);
         Maybe<uint32_t> value = present ? Some(prefValue ? 1 : 0) : Nothing();
         UpdateOtherJSGCMemoryOption(rts, pref->key, value);
         break;
@@ -502,7 +436,7 @@ void LoadJSGCMemoryOptions(const char* aPrefName, void* /* aClosure */) {
       case JSGC_URGENT_THRESHOLD_MB:
       case JSGC_MIN_EMPTY_CHUNK_COUNT:
       case JSGC_MAX_EMPTY_CHUNK_COUNT:
-        UpdateCommonJSGCMemoryOption(rts, pref->name, pref->key);
+        UpdateCommonJSGCMemoryOption(rts, pref->fullName, pref->key);
         break;
       default:
         MOZ_ASSERT_UNREACHABLE("Unknown JSGCParamKey value");
@@ -547,7 +481,7 @@ class LogViolationDetailsRunnable final : public WorkerMainThreadRunnable {
   ~LogViolationDetailsRunnable() = default;
 };
 
-bool ContentSecurityPolicyAllows(JSContext* aCx, JS::HandleString aCode) {
+bool ContentSecurityPolicyAllows(JSContext* aCx, JS::Handle<JSString*> aCode) {
   WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
   worker->AssertIsOnWorkerThread();
 
@@ -702,7 +636,7 @@ static bool DispatchToEventLoop(void* aClosure,
   return r->Dispatch();
 }
 
-static bool ConsumeStream(JSContext* aCx, JS::HandleObject aObj,
+static bool ConsumeStream(JSContext* aCx, JS::Handle<JSObject*> aObj,
                           JS::MimeType aMimeType,
                           JS::StreamConsumer* aConsumer) {
   WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
@@ -770,7 +704,7 @@ bool InitJSContextForWorker(WorkerPrivate* aWorkerPrivate,
   return true;
 }
 
-static bool PreserveWrapper(JSContext* cx, JS::HandleObject obj) {
+static bool PreserveWrapper(JSContext* cx, JS::Handle<JSObject*> obj) {
   MOZ_ASSERT(cx);
   MOZ_ASSERT(obj);
   MOZ_ASSERT(mozilla::dom::IsDOMObject(obj));
@@ -778,15 +712,16 @@ static bool PreserveWrapper(JSContext* cx, JS::HandleObject obj) {
   return mozilla::dom::TryPreserveWrapper(obj);
 }
 
-static bool IsWorkerDebuggerGlobalOrSandbox(JSObject* aGlobal) {
+static bool IsWorkerDebuggerGlobalOrSandbox(JS::Handle<JSObject*> aGlobal) {
   return IsWorkerDebuggerGlobal(aGlobal) || IsWorkerDebuggerSandbox(aGlobal);
 }
 
-JSObject* Wrap(JSContext* cx, JS::HandleObject existing, JS::HandleObject obj) {
-  JS::RootedObject targetGlobal(cx, JS::CurrentGlobalOrNull(cx));
+JSObject* Wrap(JSContext* cx, JS::Handle<JSObject*> existing,
+               JS::Handle<JSObject*> obj) {
+  JS::Rooted<JSObject*> targetGlobal(cx, JS::CurrentGlobalOrNull(cx));
 
   // Note: the JS engine unwraps CCWs before calling this callback.
-  JS::RootedObject originGlobal(cx, JS::GetNonCCWObjectGlobal(obj));
+  JS::Rooted<JSObject*> originGlobal(cx, JS::GetNonCCWObjectGlobal(obj));
 
   const js::Wrapper* wrapper = nullptr;
   if (IsWorkerDebuggerGlobalOrSandbox(targetGlobal) &&
@@ -1180,18 +1115,18 @@ bool RuntimeService::RegisterWorker(WorkerPrivate& aWorkerPrivate) {
     MutexAutoLock lock(mMutex);
 
     auto* const domainInfo =
-        mDomainMap.WithEntryHandle(domain, [&](auto&& entry) {
-          return entry
-              .OrInsertWith([&domain, parent] {
-                NS_ASSERTION(!parent, "Shouldn't have a parent here!");
-                Unused << parent;  // silence clang -Wunused-lambda-capture in
-                                   // opt builds
-                WorkerDomainInfo* wdi = new WorkerDomainInfo();
-                wdi->mDomain = domain;
-                return wdi;
-              })
-              .get();
-        });
+        mDomainMap
+            .LookupOrInsertWith(
+                domain,
+                [&domain, parent] {
+                  NS_ASSERTION(!parent, "Shouldn't have a parent here!");
+                  Unused << parent;  // silence clang -Wunused-lambda-capture in
+                                     // opt builds
+                  auto wdi = MakeUnique<WorkerDomainInfo>();
+                  wdi->mDomain = domain;
+                  return wdi;
+                })
+            .get();
 
     queued = gMaxWorkersPerDomain &&
              domainInfo->ActiveWorkerCount() >= gMaxWorkersPerDomain &&
@@ -1252,14 +1187,7 @@ bool RuntimeService::RegisterWorker(WorkerPrivate& aWorkerPrivate) {
     if (!isServiceWorker) {
       // Service workers are excluded since their lifetime is separate from
       // that of dom windows.
-      if (auto* const windowArray = mWindowMap.WithEntryHandle(
-              window,
-              [](auto&& entry) {
-                return entry
-                    .OrInsertWith(
-                        [] { return new nsTArray<WorkerPrivate*>(1); })
-                    .get();
-              });
+      if (auto* const windowArray = mWindowMap.GetOrInsertNew(window, 1);
           !windowArray->Contains(&aWorkerPrivate)) {
         windowArray->AppendElement(&aWorkerPrivate);
       } else {
@@ -1529,12 +1457,9 @@ nsresult RuntimeService::Init() {
 #define WORKER_PREF(name, callback) \
   NS_FAILED(Preferences::RegisterCallbackAndCall(callback, name))
 
-  if (NS_FAILED(Preferences::RegisterPrefixCallback(
+  if (NS_FAILED(Preferences::RegisterPrefixCallbackAndCall(
           LoadJSGCMemoryOptions,
           PREF_JS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX)) ||
-      NS_FAILED(Preferences::RegisterPrefixCallbackAndCall(
-          LoadJSGCMemoryOptions,
-          PREF_WORKERS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX)) ||
 #ifdef JS_GC_ZEAL
       NS_FAILED(Preferences::RegisterCallback(
           LoadGCZealOptions, PREF_JS_OPTIONS_PREFIX PREF_GCZEAL)) ||
@@ -1543,13 +1468,8 @@ nsresult RuntimeService::Init() {
       WORKER_PREF("general.appname.override", AppNameOverrideChanged) ||
       WORKER_PREF("general.appversion.override", AppVersionOverrideChanged) ||
       WORKER_PREF("general.platform.override", PlatformOverrideChanged) ||
-#ifdef JS_GC_ZEAL
-      WORKER_PREF("dom.workers.options.gcZeal", LoadGCZealOptions) ||
-#endif
       NS_FAILED(Preferences::RegisterPrefixCallbackAndCall(
-          LoadContextOptions, PREF_WORKERS_OPTIONS_PREFIX)) ||
-      NS_FAILED(Preferences::RegisterPrefixCallback(LoadContextOptions,
-                                                    PREF_JS_OPTIONS_PREFIX))) {
+          LoadContextOptions, PREF_JS_OPTIONS_PREFIX))) {
     NS_WARNING("Failed to register pref callbacks!");
   }
 
@@ -1808,23 +1728,17 @@ void RuntimeService::Cleanup() {
   if (mObserved) {
     if (NS_FAILED(Preferences::UnregisterPrefixCallback(
             LoadContextOptions, PREF_JS_OPTIONS_PREFIX)) ||
-        NS_FAILED(Preferences::UnregisterPrefixCallback(
-            LoadContextOptions, PREF_WORKERS_OPTIONS_PREFIX)) ||
         WORKER_PREF("intl.accept_languages", PrefLanguagesChanged) ||
         WORKER_PREF("general.appname.override", AppNameOverrideChanged) ||
         WORKER_PREF("general.appversion.override", AppVersionOverrideChanged) ||
         WORKER_PREF("general.platform.override", PlatformOverrideChanged) ||
 #ifdef JS_GC_ZEAL
-        WORKER_PREF("dom.workers.options.gcZeal", LoadGCZealOptions) ||
         NS_FAILED(Preferences::UnregisterCallback(
             LoadGCZealOptions, PREF_JS_OPTIONS_PREFIX PREF_GCZEAL)) ||
 #endif
         NS_FAILED(Preferences::UnregisterPrefixCallback(
             LoadJSGCMemoryOptions,
-            PREF_JS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX)) ||
-        NS_FAILED(Preferences::UnregisterPrefixCallback(
-            LoadJSGCMemoryOptions,
-            PREF_WORKERS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX))) {
+            PREF_JS_OPTIONS_PREFIX PREF_MEM_OPTIONS_PREFIX))) {
       NS_WARNING("Failed to unregister pref callbacks!");
     }
 
@@ -2282,7 +2196,9 @@ WorkerThreadPrimaryRunnable::Run() {
 
     // Perform a full GC. This will collect the main worker global and CC,
     // which should break all cycles that touch JS.
-    JS_GC(cx, JS::GCReason::WORKER_SHUTDOWN);
+    JS::PrepareForFullGC(cx);
+    JS::NonIncrementalGC(cx, JS::GCOptions::Shutdown,
+                           JS::GCReason::WORKER_SHUTDOWN);
 
     // Before shutting down the cycle collector we need to do one more pass
     // through the event loop to clean up any C++ objects that need deferred

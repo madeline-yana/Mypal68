@@ -17,6 +17,7 @@ template <typename FileManager>
 class FileInfoT final {
  public:
   using AutoLock = typename FileManager::AutoLock;
+  using IdType = int64_t;
 
   FileInfoT(const typename FileManager::FileManagerGuard& aGuard,
             SafeRefPtr<FileManager> aFileManager, const int64_t aFileId,
@@ -31,10 +32,11 @@ class FileInfoT final {
 
   FileManager& Manager() const;
 
-  int64_t Id() const;
+  IdType Id() const;
 
   nsCOMPtr<nsIFile> GetFileForFileInfo() const;
 
+  void LockedAddRef();
   bool LockedClearDBRefs(const typename FileManager::FileManagerGuard& aGuard);
 
  private:
@@ -43,7 +45,7 @@ class FileInfoT final {
 
   void Cleanup();
 
-  const int64_t mFileId;
+  const IdType mFileId;
 
   ThreadSafeAutoRefCnt mRefCnt;
   ThreadSafeAutoRefCnt mDBRefCnt;

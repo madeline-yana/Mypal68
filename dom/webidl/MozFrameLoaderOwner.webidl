@@ -4,7 +4,7 @@
  */
 
 dictionary RemotenessOptions {
-  DOMString? remoteType;
+  UTF8String? remoteType;
   FrameLoader? sameProcessAsFrameLoader;
   WindowProxy? opener;
 

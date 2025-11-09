@@ -119,7 +119,7 @@ RefPtr<GenericErrorResultPromise> ClientHandle::Control(
         outerPromise->Reject(aResult.get_CopyableErrorResult(), __func__);
       });
 
-  return outerPromise.forget();
+  return outerPromise;
 }
 
 RefPtr<ClientStatePromise> ClientHandle::Focus() {
@@ -136,7 +136,7 @@ RefPtr<ClientStatePromise> ClientHandle::Focus() {
         outerPromise->Reject(aResult.get_CopyableErrorResult(), __func__);
       });
 
-  return outerPromise.forget();
+  return outerPromise;
 }
 
 RefPtr<GenericErrorResultPromise> ClientHandle::PostMessage(
@@ -169,7 +169,7 @@ RefPtr<GenericErrorResultPromise> ClientHandle::PostMessage(
         outerPromise->Reject(aResult.get_CopyableErrorResult(), __func__);
       });
 
-  return outerPromise.forget();
+  return outerPromise;
 }
 
 RefPtr<GenericPromise> ClientHandle::OnDetach() {

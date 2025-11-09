@@ -1451,8 +1451,7 @@ nsresult nsPluginInstanceOwner::ProcessMouseDown(Event* aMouseEvent) {
   // otherwise, we might not get key events
   if (mPluginFrame && mPluginWindow &&
       mPluginWindow->type == NPWindowTypeDrawable) {
-    nsFocusManager* fm = nsFocusManager::GetFocusManager();
-    if (fm) {
+    if (RefPtr<nsFocusManager> fm = nsFocusManager::GetFocusManager()) {
       nsCOMPtr<Element> elem = do_QueryReferent(mContent);
       fm->SetFocus(elem, 0);
     }
@@ -2875,7 +2874,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void) {
 
     nsAutoCString description;
     GetPluginDescription(description);
-    NS_NAMED_LITERAL_CSTRING(flash10Head, "Shockwave Flash 10.");
+    constexpr auto flash10Head = "Shockwave Flash 10."_ns;
     mFlash10Quirks = StringBeginsWith(description, flash10Head);
 #endif
   } else if (mWidget) {
