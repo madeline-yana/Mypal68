@@ -9,6 +9,7 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/dom/Document.h" //MY
+#include "mozilla/UniquePtr.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Logging.h"
 #include "mozilla/gfx/Types.h"
@@ -2120,7 +2121,7 @@ WebRenderCommandBuilder::GenerateFallbackData(
   // is needs to be adjusted by the display item bounds top left.
   visibleRect -= dtRect.TopLeft();
 
-  nsDisplayItemGeometry* geometry = fallbackData->mGeometry;
+  nsDisplayItemGeometry* geometry = fallbackData->mGeometry.get();
 
   bool needPaint = true;
 
@@ -2153,9 +2154,8 @@ WebRenderCommandBuilder::GenerateFallbackData(
   }
 
   if (needPaint || !fallbackData->GetImageKey()) {
-    nsAutoPtr<nsDisplayItemGeometry> newGeometry;
-    newGeometry = aItem->AllocateGeometry(aDisplayListBuilder);
-    fallbackData->mGeometry = std::move(newGeometry);
+    fallbackData->mGeometry =
+        WrapUnique(aItem->AllocateGeometry(aDisplayListBuilder));
 
     gfx::SurfaceFormat format = aItem->GetType() == DisplayItemType::TYPE_MASK
                                     ? gfx::SurfaceFormat::A8
@@ -2521,7 +2521,7 @@ void WebRenderCommandBuilder::RemoveUnusedAndResetWebRenderUserData() {
       }
 
       if (data->GetType() == WebRenderUserData::UserDataType::eCanvas) {
-        mLastCanvasDatas.RemoveEntry(data->AsCanvasData());
+        mLastCanvasDatas.Remove(data->AsCanvasData());
       }
 
       return true;
