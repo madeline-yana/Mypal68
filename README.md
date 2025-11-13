@@ -7,47 +7,38 @@ A browser for Windows XP based on Firefox 68.
 
 ## KNOWN PROBLEMS
 
-- 1.5gb memory limit on winxp, if the browser reaches the limit it crashes inevitably, singleprocess mode crashes all,
-  multiprocess only this which reaches 1.5gb, so it better here.
-  I think this is OS limitation, nothing to do with this.
+- 1536MB memory limit on XP. Imminent crashes if the browser hits this limit. Likely an OS-level issue.
 
-- x64 does not run on winxp64, wont fix, there is an issue #35 about
+- x64 build does not run properly on XP x64 Edition. See issue [#35](https://github.com/Feodor2/Mypal68/issues/35).
 
-- Graphics error on some videocards, look further the issue #428
+- Graphics issues on some graphics cards. See issue [#428](https://github.com/Feodor2/Mypal68/issues/428).
 
-- This browser does not run well on winxp SP2 and lower. If you do not want to install SP3, be ready for crashes and blue screens.
-  If you are on SP2 and lower, there is no need to post a screenshot from blue_screen_view. And i suggest to apply postready updates of 2019.
-  Some say that it runs fine on sp2 but it is no accurate data what to do, [there about win2000](https://mrqash.blogspot.com/2022/04/mypal-68-firefox-68121-on-windows-2000.html).
+- There are several issues when running on Service Pack 2 or lower. Service Pack 3 is reccomended.
 
-## [UPDATING AND POSSIBLE PROBLEMS](https://github.com/Feodor2/Mypal68/wiki/Updating-to-a-new-version)
+## Important: for BSOD errors
 
-## IF YOU GOT A BLUE SCREEN
+Please do not just post an image of the BSOD, or the STOP code. These aren't useful for troubleshooting.
+Please see [Issue #3](https://github.com/Feodor2/Mypal68/issues/3). BlueScreenView is a useful tool for this.
 
-Don't post a screenshot of the blue screen, as the screen isn't useful for troubleshooting.
-For more data look [#3](https://github.com/Feodor2/Mypal68/issues/3), and please do not make new duplicate reports.
-Suddenly restart may be also this error depends of the settings
+## Important: if the browser closes with no BSOD
 
-## IF YOU GOT A CRASH BUT WITHOUT BLUE SCREEN
+When you create an issue, please leave detailed instructions on how to reproduce the crash. Be sure to include the website aswell.
+Do not post pictures of the crash.
+Please also post computer specifications.
+Please post drwatson.log, in case the crash isnt reproducable. ("C:\Documents and Settings\All Users\Application Data\Microsoft\Dr Watson")
+Minidump may also be useful. Please do not post irrelevant items.
+Any issues that don't have these details will be considered invalid.
 
-Describe detailed how to reproduces the crash, do not forget to put the link.
-Do not post pictures of the crash, this is useless and a waste.
-Also put your pc specs: cpu, ram and graphics card
-If I don't reproduce the crash myself then you may to submit drwatson.log.
-Drwatson log is usually inside All Users\Application Data\Microsoft\Dr Watson.
-Minidump also may be usefull. Do not post any irrelevant logs.
-An issue without details considered as invalid.
+## If you want to report a broken site
 
-## IF YOU WANT REPORT A SITE
+Report [here](https://github.com/Feodor2/Mypal68/issues/228).
+Please include the full URL. I won't check sites that require login, including Google sites.
+Please try to find what the issue is, check on newer versions of Firefox, and report the first version that the site works on.
+Please note that I may not have time to look through.
 
-Report [there](https://github.com/Feodor2/Mypal68/issues/228).
-Put the actual link to the site
-Notice that I never would look to the site which requires the login, including any goolag sites.
-Please try to find what feature is missing by yourself by checking on newer firefoxes and find first version where it works (mozregression day).
-Actually I do not look every site, no time for this.
+## Donations
 
-## YOU MAY DONATE
-
-But only by crypto [Look here](https://github.com/Feodor2/Mypal68/issues/84)
+DASH: XetK1TDBqVAyqnTJUd65g9Pi1HcQEtFF2c
 
 
 ## MY MIRROR PAGES
